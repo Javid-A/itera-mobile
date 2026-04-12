@@ -14,7 +14,10 @@ import {
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
+import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ScreenContainer from '../../components/ScreenContainer';
+import BackgroundLocationPrompt from '../../components/BackgroundLocationPrompt';
 import { Colors, Spacing, Typography } from '../../constants';
 import { addRoutine, loadRoutines, removeRoutine } from '../../src/storage/routines';
 import { LocationService } from '../../src/services/LocationService';
@@ -45,6 +48,7 @@ export default function RoutinesScreen() {
   const [radius, setRadius] = useState(100);
   const [selectedIcon, setSelectedIcon] = useState('briefcase');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const [showBgPrompt, setShowBgPrompt] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -96,6 +100,14 @@ export default function RoutinesScreen() {
     await syncGeofences(updated);
     resetForm();
     setModalVisible(false);
+
+    // Show background permission prompt once if not granted
+    const bg = await Location.getBackgroundPermissionsAsync();
+    const prompted = await AsyncStorage.getItem('itera_bg_prompted');
+    if (bg.status !== 'granted' && !prompted) {
+      setShowBgPrompt(true);
+      await AsyncStorage.setItem('itera_bg_prompted', 'true');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -261,6 +273,12 @@ export default function RoutinesScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
+
+      <BackgroundLocationPrompt
+        visible={showBgPrompt}
+        onEnable={() => setShowBgPrompt(false)}
+        onSkip={() => setShowBgPrompt(false)}
+      />
     </ScreenContainer>
   );
 }

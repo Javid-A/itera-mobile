@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { Colors, Typography } from '../../constants';
+import { Colors, Spacing, Typography } from '../../constants';
 import { loadRoutines } from '../../src/storage/routines';
 import MissionPin from '../../components/MissionPin';
 import type { Routine } from '../../src/types/Routine';
@@ -29,14 +30,23 @@ try {
 
 export default function MapScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
-  const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+  const [bgDenied, setBgDenied] = useState(false);
+  const cameraRef = useRef<any>(null);
 
   useEffect(() => {
     (async () => {
       const { status } = await Location.getForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        setUserCoords([loc.coords.longitude, loc.coords.latitude]);
+      if (status !== 'granted') return;
+
+      // Instant: use cached location
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) {
+        cameraRef.current?.setCamera({
+          centerCoordinate: [last.coords.longitude, last.coords.latitude],
+          zoomLevel: 15.5,
+          pitch: 65,
+          animationDuration: 500,
+        });
       }
     })();
   }, []);
@@ -44,6 +54,9 @@ export default function MapScreen() {
   useFocusEffect(
     useCallback(() => {
       loadRoutines().then(setRoutines);
+      Location.getBackgroundPermissionsAsync().then((bg) => {
+        setBgDenied(bg.status !== 'granted');
+      });
     }, [])
   );
 
@@ -62,8 +75,18 @@ export default function MapScreen() {
   }
 
   return (
-    <MapView
-      style={styles.map}
+    <View style={styles.map}>
+      {bgDenied && (
+        <Pressable style={styles.banner} onPress={() => Linking.openSettings()}>
+          <Ionicons name="warning-outline" size={16} color={Colors.accent} />
+          <Text style={[Typography.caption, { color: Colors.textSecondary, marginLeft: Spacing.xs, flex: 1 }]}>
+            Auto-tracking is off
+          </Text>
+          <Text style={[Typography.caption, { color: Colors.accent }]}>Enable</Text>
+        </Pressable>
+      )}
+      <MapView
+        style={styles.map}
       styleURL="mapbox://styles/mapbox/dark-v11"
       compassEnabled={false}
       logoEnabled={false}
@@ -71,8 +94,9 @@ export default function MapScreen() {
       scaleBarEnabled={false}
     >
       <Camera
+        ref={cameraRef}
         defaultSettings={{
-          centerCoordinate: userCoords ?? [13.405, 52.52],
+          centerCoordinate: [13.405, 52.52],
           zoomLevel: 15.5,
           pitch: 65,
           heading: 0,
@@ -102,6 +126,7 @@ export default function MapScreen() {
         </MarkerView>
       ))}
     </MapView>
+    </View>
   );
 }
 
@@ -114,5 +139,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  banner: {
+    position: 'absolute',
+    top: 50,
+    left: Spacing.md,
+    right: Spacing.md,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
 });
