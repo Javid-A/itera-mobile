@@ -1,5 +1,4 @@
 import * as TaskManager from 'expo-task-manager';
-import * as Notifications from 'expo-notifications';
 import { GeofencingEventType, type LocationRegion } from 'expo-location';
 import { loadRoutines } from '../storage/routines';
 import { addCompletedMission, isOnCooldown, setCooldown } from '../storage/history';
@@ -50,13 +49,18 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   await setCooldown(routineId);
 
   // Local notification
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Mission Complete!',
-      body: `${missionName} — +${XP_PER_MISSION} XP`,
-    },
-    trigger: null,
-  });
+  try {
+    const Notifications = require('expo-notifications');
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Mission Complete!',
+        body: `${missionName} — +${XP_PER_MISSION} XP`,
+      },
+      trigger: null,
+    });
+  } catch {
+    // Native module unavailable (Expo Go)
+  }
 
   console.log(`[GeofenceTask] Completed: ${missionName} +${XP_PER_MISSION} XP`);
 });
