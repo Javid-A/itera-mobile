@@ -1,23 +1,18 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { Colors } from '../../constants/colors';
+import { StyleSheet, Text } from 'react-native';
+import ScreenContainer from '../../components/ScreenContainer';
+import { Colors, Typography } from '../../constants';
 
 export default function HistoryScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>History</Text>
-    </View>
+    <ScreenContainer style={styles.center}>
+      <Text style={[Typography.h2, { color: Colors.textPrimary }]}>History</Text>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
+  center: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  text: {
-    color: Colors.textPrimary,
-    fontSize: 18,
   },
 });
