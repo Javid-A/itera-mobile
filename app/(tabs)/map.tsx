@@ -1,10 +1,16 @@
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Colors, Typography } from '../../constants';
+import { loadRoutines } from '../../src/storage/routines';
+import MissionPin from '../../components/MissionPin';
+import type { Routine } from '../../src/types/Routine';
 
 let MapboxAvailable = false;
 let Mapbox: any;
 let MapView: any;
 let Camera: any;
+let MarkerView: any;
 let FillExtrusionLayer: any;
 
 try {
@@ -12,6 +18,7 @@ try {
   Mapbox = maps.default;
   MapView = maps.MapView;
   Camera = maps.Camera;
+  MarkerView = maps.MarkerView;
   FillExtrusionLayer = maps.FillExtrusionLayer;
   Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
   MapboxAvailable = true;
@@ -20,6 +27,14 @@ try {
 }
 
 export default function MapScreen() {
+  const [routines, setRoutines] = useState<Routine[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadRoutines().then(setRoutines);
+    }, [])
+  );
+
   if (!MapboxAvailable) {
     return (
       <View style={styles.fallback}>
@@ -65,6 +80,15 @@ export default function MapScreen() {
           fillExtrusionOpacity: 0.85,
         }}
       />
+      {routines.map((routine) => (
+        <MarkerView
+          key={routine.id}
+          coordinate={[routine.longitude, routine.latitude]}
+          anchor={{ x: 0.5, y: 1 }}
+        >
+          <MissionPin iconType={routine.iconType} />
+        </MarkerView>
+      ))}
     </MapView>
   );
 }
