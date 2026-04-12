@@ -101,12 +101,15 @@ export default function RoutinesScreen() {
     resetForm();
     setModalVisible(false);
 
-    // Show background permission prompt once if not granted
+    // Gentle escalation: show prompt on 1st, 3rd, and 7th routine if bg not granted
     const bg = await Location.getBackgroundPermissionsAsync();
-    const prompted = await AsyncStorage.getItem('itera_bg_prompted');
-    if (bg.status !== 'granted' && !prompted) {
-      setShowBgPrompt(true);
-      await AsyncStorage.setItem('itera_bg_prompted', 'true');
+    if (bg.status !== 'granted') {
+      const raw = await AsyncStorage.getItem('itera_routine_count');
+      const count = (raw ? parseInt(raw, 10) : 0) + 1;
+      await AsyncStorage.setItem('itera_routine_count', String(count));
+      if (count === 1 || count === 3 || count === 7) {
+        setShowBgPrompt(true);
+      }
     }
   };
 

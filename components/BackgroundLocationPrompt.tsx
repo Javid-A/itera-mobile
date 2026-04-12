@@ -1,6 +1,11 @@
-import { Image, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Colors, Spacing, Typography } from '../constants';
+
+const bgVideoSource = require('../assets/video/bg-location.mp4');
 
 interface Props {
   visible: boolean;
@@ -9,28 +14,54 @@ interface Props {
 }
 
 export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: Props) {
-  const handleEnable = () => {
-    if (Platform.OS === 'android') {
-      Linking.openSettings();
+  const player = useVideoPlayer(bgVideoSource, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.volume = 0;
+    p.audioMixingMode = 'mixWithOthers';
+  });
+
+  useEffect(() => {
+    player.muted = true;
+    player.volume = 0;
+    if (visible) {
+      player.play();
+    } else {
+      player.pause();
     }
+  }, [visible, player]);
+
+  const handleEnable = async () => {
+    const fg = await Location.getForegroundPermissionsAsync();
+    if (fg.status !== 'granted') {
+      const req = await Location.requestForegroundPermissionsAsync();
+      if (req.status !== 'granted') {
+        onEnable();
+        return;
+      }
+    }
+    await Location.requestBackgroundPermissionsAsync();
     onEnable();
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
-        <View style={styles.content}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onSkip}>
+      <Pressable style={styles.overlay} onPress={onSkip}>
+        <Pressable style={styles.content} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={styles.closeButton} onPress={onSkip} hitSlop={12}>
+            <Ionicons name="close" size={24} color={Colors.textSecondary} />
+          </Pressable>
           <Text style={[Typography.h2, { color: Colors.textPrimary, textAlign: 'center' }]}>
             Almost there!
           </Text>
 
-          {/* Placeholder for animation — swap with Lottie/GIF later */}
-          <View style={styles.animationPlaceholder}>
-            <Ionicons name="navigate" size={48} color={Colors.accent} />
-            <View style={styles.pulseRing} />
-            <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: Spacing.sm }]}>
-              Animation placeholder
-            </Text>
+          <View style={styles.videoContainer}>
+            <VideoView
+              player={player}
+              style={styles.video}
+              nativeControls={false}
+              contentFit="cover"
+            />
           </View>
 
           <Text style={[Typography.body, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md }]}>
@@ -54,8 +85,8 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
               I'll do it manually
             </Text>
           </Pressable>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -74,23 +105,24 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     alignItems: 'center',
   },
-  animationPlaceholder: {
-    width: 200,
-    height: 160,
+  closeButton: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.md,
+    zIndex: 1,
+    padding: Spacing.xs,
+  },
+  videoContainer: {
+    width: 220,
+    height: 180,
     borderRadius: 16,
+    overflow: 'hidden',
     backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginTop: Spacing.lg,
   },
-  pulseRing: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: Colors.accent,
-    opacity: 0.3,
+  video: {
+    width: '100%',
+    height: '100%',
   },
   enableButton: {
     flexDirection: 'row',

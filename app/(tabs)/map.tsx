@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -32,6 +32,22 @@ export default function MapScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [bgDenied, setBgDenied] = useState(false);
   const cameraRef = useRef<any>(null);
+
+  const recenter = useCallback(async () => {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      const req = await Location.requestForegroundPermissionsAsync();
+      if (req.status !== 'granted') return;
+    }
+    const last = await Location.getLastKnownPositionAsync();
+    const coords = last?.coords ?? (await Location.getCurrentPositionAsync({})).coords;
+    cameraRef.current?.setCamera({
+      centerCoordinate: [coords.longitude, coords.latitude],
+      zoomLevel: 15.5,
+      pitch: 65,
+      animationDuration: 500,
+    });
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -77,7 +93,11 @@ export default function MapScreen() {
   return (
     <View style={styles.map}>
       {bgDenied && (
-        <Pressable style={styles.banner} onPress={() => Linking.openSettings()}>
+        <Pressable style={styles.banner} onPress={async () => {
+          await Location.requestBackgroundPermissionsAsync();
+          const bg = await Location.getBackgroundPermissionsAsync();
+          setBgDenied(bg.status !== 'granted');
+        }}>
           <Ionicons name="warning-outline" size={16} color={Colors.accent} />
           <Text style={[Typography.caption, { color: Colors.textSecondary, marginLeft: Spacing.xs, flex: 1 }]}>
             Auto-tracking is off
@@ -126,6 +146,9 @@ export default function MapScreen() {
         </MarkerView>
       ))}
     </MapView>
+      <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
+        <Ionicons name="locate" size={22} color={Colors.textPrimary} />
+      </Pressable>
     </View>
   );
 }
@@ -139,6 +162,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  recenterButton: {
+    position: 'absolute',
+    right: Spacing.md,
+    bottom: Spacing.xl,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   banner: {
     position: 'absolute',
