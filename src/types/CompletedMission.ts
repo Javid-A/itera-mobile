@@ -4,4 +4,6 @@ export interface CompletedMission {
   missionName: string;
   completedAt: string;
   xpEarned: number;
+  latitude: number;
+  longitude: number;
 }

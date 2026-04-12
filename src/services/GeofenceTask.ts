@@ -40,6 +40,8 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
     missionName,
     completedAt: new Date().toISOString(),
     xpEarned: XP_PER_MISSION,
+    latitude: routine?.latitude ?? region.latitude,
+    longitude: routine?.longitude ?? region.longitude,
   });
 
   // Award XP
