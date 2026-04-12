@@ -24,10 +24,19 @@ async function requestPermissions(): Promise<boolean> {
     return false;
   }
 
-  const { status: background } = await Location.requestBackgroundPermissionsAsync();
-  if (background !== 'granted') {
-    console.warn('[LocationService] Background permission denied');
-    return false;
+  const bg = await Location.getBackgroundPermissionsAsync();
+  if (bg.status !== 'granted') {
+    // Only request if not yet determined — Android sends to Settings on re-request
+    if (bg.canAskAgain) {
+      const { status } = await Location.requestBackgroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('[LocationService] Background permission not granted — geofencing will be limited');
+        return false;
+      }
+    } else {
+      console.warn('[LocationService] Background permission previously denied — user must enable in Settings');
+      return false;
+    }
   }
 
   return true;

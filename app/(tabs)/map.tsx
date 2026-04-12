@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import * as Location from 'expo-location';
 import { Colors, Typography } from '../../constants';
 import { loadRoutines } from '../../src/storage/routines';
 import MissionPin from '../../components/MissionPin';
@@ -28,6 +29,17 @@ try {
 
 export default function MapScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserCoords([loc.coords.longitude, loc.coords.latitude]);
+      }
+    })();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,7 +72,7 @@ export default function MapScreen() {
     >
       <Camera
         defaultSettings={{
-          centerCoordinate: [13.405, 52.52],
+          centerCoordinate: userCoords ?? [13.405, 52.52],
           zoomLevel: 15.5,
           pitch: 65,
           heading: 0,

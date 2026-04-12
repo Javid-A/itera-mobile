@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,6 +13,7 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import ScreenContainer from '../../components/ScreenContainer';
 import { Colors, Spacing, Typography } from '../../constants';
 import { addRoutine, loadRoutines, removeRoutine } from '../../src/storage/routines';
@@ -42,9 +46,11 @@ export default function RoutinesScreen() {
   const [selectedIcon, setSelectedIcon] = useState('briefcase');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadRoutines().then(setRoutines);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadRoutines().then(setRoutines);
+    }, [])
+  );
 
   const syncGeofences = useCallback(async (list: Routine[]) => {
     const granted = await LocationService.requestPermissions();
@@ -146,8 +152,14 @@ export default function RoutinesScreen() {
       )}
 
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalContent}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.modalHeader}>
               <Text style={[Typography.h2, { color: Colors.textPrimary }]}>
                 CREATE NEW ROUTINE
@@ -246,8 +258,8 @@ export default function RoutinesScreen() {
             <Pressable style={styles.submitButton} onPress={handleSubmit}>
               <Text style={[Typography.h3, { color: Colors.textPrimary }]}>SET ROUTINE</Text>
             </Pressable>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
@@ -288,6 +300,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
