@@ -14,7 +14,12 @@
       "backgroundColor": "#0B0D12"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "fetch"],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Itera needs your location to detect when you arrive at mission zones.",
+        "NSLocationWhenInUseUsageDescription": "Itera needs your location to show missions near you."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +28,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.iteramobile"
+      "package": "com.anonymous.iteramobile",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

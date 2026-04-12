@@ -1,3 +1,4 @@
+import '../src/services/GeofenceTask';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
