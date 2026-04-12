@@ -13,12 +13,9 @@ try {
   MapView = maps.MapView;
   Camera = maps.Camera;
   FillExtrusionLayer = maps.FillExtrusionLayer;
-  const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
-  console.log('[Mapbox] Token loaded:', token ? 'YES' : 'EMPTY');
-  Mapbox.setAccessToken(token);
+  Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
   MapboxAvailable = true;
-} catch (e) {
-  console.log('[Mapbox] Failed to load:', e);
+} catch {
   MapboxAvailable = false;
 }
 
