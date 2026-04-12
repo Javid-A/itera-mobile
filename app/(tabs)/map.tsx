@@ -1,9 +1,42 @@
-import { StyleSheet } from 'react-native';
-import Mapbox, { Camera, FillExtrusionLayer, MapView } from '@rnmapbox/maps';
+import { StyleSheet, Text, View } from 'react-native';
+import { Colors, Typography } from '../../constants';
 
-Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
+let MapboxAvailable = false;
+let Mapbox: any;
+let MapView: any;
+let Camera: any;
+let FillExtrusionLayer: any;
+
+try {
+  const maps = require('@rnmapbox/maps');
+  Mapbox = maps.default;
+  MapView = maps.MapView;
+  Camera = maps.Camera;
+  FillExtrusionLayer = maps.FillExtrusionLayer;
+  const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
+  console.log('[Mapbox] Token loaded:', token ? 'YES' : 'EMPTY');
+  Mapbox.setAccessToken(token);
+  MapboxAvailable = true;
+} catch (e) {
+  console.log('[Mapbox] Failed to load:', e);
+  MapboxAvailable = false;
+}
 
 export default function MapScreen() {
+  if (!MapboxAvailable) {
+    return (
+      <View style={styles.fallback}>
+        <Text style={[Typography.h3, { color: Colors.textPrimary }]}>Map</Text>
+        <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 8 }]}>
+          Mapbox requires a development build.
+        </Text>
+        <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
+          Run: npx expo run:ios or npx expo run:android
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <MapView
       style={styles.map}
@@ -27,11 +60,11 @@ export default function MapScreen() {
         sourceLayerID="building"
         minZoomLevel={14}
         maxZoomLevel={24}
-        filter={['==', ['get', 'extrude'], 'true'] as const}
+        filter={['==', ['get', 'extrude'], 'true']}
         style={{
           fillExtrusionColor: '#1E2128',
-          fillExtrusionHeight: ['get', 'height'] as unknown as number,
-          fillExtrusionBase: ['get', 'min_height'] as unknown as number,
+          fillExtrusionHeight: ['get', 'height'],
+          fillExtrusionBase: ['get', 'min_height'],
           fillExtrusionOpacity: 0.85,
         }}
       />
@@ -42,5 +75,11 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   map: {
     flex: 1,
+  },
+  fallback: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
