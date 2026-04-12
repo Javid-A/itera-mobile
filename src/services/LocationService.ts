@@ -9,7 +9,15 @@ export interface GeofenceRegion {
   radius: number;
 }
 
+async function hasPermissions(): Promise<boolean> {
+  const fg = await Location.getForegroundPermissionsAsync();
+  const bg = await Location.getBackgroundPermissionsAsync();
+  return fg.status === 'granted' && bg.status === 'granted';
+}
+
 async function requestPermissions(): Promise<boolean> {
+  if (await hasPermissions()) return true;
+
   const { status: foreground } = await Location.requestForegroundPermissionsAsync();
   if (foreground !== 'granted') {
     console.warn('[LocationService] Foreground permission denied');

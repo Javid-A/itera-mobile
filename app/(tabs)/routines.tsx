@@ -16,6 +16,14 @@ import { addRoutine, loadRoutines, removeRoutine } from '../../src/storage/routi
 import { LocationService } from '../../src/services/LocationService';
 import type { Routine } from '../../src/types/Routine';
 
+const PRESET_LOCATIONS = [
+  { label: 'Brandenburg Gate', lat: 52.5163, lng: 13.3777 },
+  { label: 'Berlin Hbf', lat: 52.525, lng: 13.3694 },
+  { label: 'Alexanderplatz', lat: 52.5219, lng: 13.4132 },
+  { label: 'Potsdamer Platz', lat: 52.5096, lng: 13.3761 },
+  { label: 'East Side Gallery', lat: 52.5052, lng: 13.4396 },
+];
+
 const ICON_OPTIONS = [
   { key: 'briefcase', name: 'briefcase-outline' as const },
   { key: 'barbell', name: 'barbell-outline' as const },
@@ -32,6 +40,7 @@ export default function RoutinesScreen() {
   const [locationName, setLocationName] = useState('');
   const [radius, setRadius] = useState(100);
   const [selectedIcon, setSelectedIcon] = useState('briefcase');
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
 
   useEffect(() => {
     loadRoutines().then(setRoutines);
@@ -56,21 +65,22 @@ export default function RoutinesScreen() {
     setLocationName('');
     setRadius(100);
     setSelectedIcon('briefcase');
+    setSelectedPreset(null);
   };
 
   const handleSubmit = async () => {
     if (!missionName.trim()) return;
 
-    // V1: mock coordinates until geocoding is integrated
-    const mockLat = 52.52 + (Math.random() - 0.5) * 0.01;
-    const mockLng = 13.405 + (Math.random() - 0.5) * 0.01;
+    const preset = selectedPreset !== null ? PRESET_LOCATIONS[selectedPreset] : null;
+    const lat = preset?.lat ?? 52.52 + (Math.random() - 0.5) * 0.01;
+    const lng = preset?.lng ?? 13.405 + (Math.random() - 0.5) * 0.01;
 
     const routine: Routine = {
       id: Date.now().toString(),
       missionName: missionName.trim(),
-      locationName: locationName.trim() || 'Unknown Location',
-      latitude: mockLat,
-      longitude: mockLng,
+      locationName: preset?.label ?? (locationName.trim() || 'Unknown Location'),
+      latitude: lat,
+      longitude: lng,
       radius,
       iconType: selectedIcon,
     };
@@ -168,6 +178,26 @@ export default function RoutinesScreen() {
               value={locationName}
               onChangeText={setLocationName}
             />
+
+            <View style={styles.presetRow}>
+              {PRESET_LOCATIONS.map((loc, i) => (
+                <Pressable
+                  key={loc.label}
+                  style={[styles.presetChip, selectedPreset === i && styles.presetSelected]}
+                  onPress={() => {
+                    setSelectedPreset(i);
+                    setLocationName(loc.label);
+                  }}
+                >
+                  <Text style={[
+                    Typography.caption,
+                    { color: selectedPreset === i ? Colors.accent : Colors.textSecondary },
+                  ]}>
+                    {loc.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
             <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.md }]}>
               Geofence Radius
@@ -278,6 +308,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     padding: Spacing.md,
     marginTop: Spacing.xs,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  presetChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  presetSelected: {
+    borderColor: Colors.accent,
   },
   sliderRow: {
     flexDirection: 'row',
