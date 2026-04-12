@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 
 export default function TabLayout() {
@@ -17,19 +18,39 @@ export default function TabLayout() {
     >
       <Tabs.Screen
         name="map"
-        options={{ title: 'Map' }}
+        options={{
+          title: 'Map',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="map-outline" size={size} color={color} />
+          ),
+        }}
       />
       <Tabs.Screen
         name="history"
-        options={{ title: 'History' }}
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time-outline" size={size} color={color} />
+          ),
+        }}
       />
       <Tabs.Screen
         name="routines"
-        options={{ title: 'Routines' }}
+        options={{
+          title: 'Routines',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="refresh-outline" size={size} color={color} />
+          ),
+        }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: 'Profile' }}
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
+          ),
+        }}
       />
     </Tabs>
   );
