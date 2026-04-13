@@ -44,7 +44,8 @@
     "plugins": [
       "expo-router",
       "@rnmapbox/maps",
-      "expo-video"
+      "expo-video",
+      "expo-secure-store"
     ]
   }
 }

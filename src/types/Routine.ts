@@ -4,6 +4,6 @@ export interface Routine {
   locationName: string;
   latitude: number;
   longitude: number;
-  radius: number;
+  radiusMeters: number;
   iconType: string;
 }

@@ -3,10 +3,11 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import ScreenContainer from '../../components/ScreenContainer';
 import { Colors, Spacing, Typography } from '../../constants';
-import { loadHistory } from '../../src/storage/history';
-import { loadProfile, XP_PER_LEVEL } from '../../src/storage/profile';
+import apiClient from '../../src/services/apiClient';
+import { useAuth } from '../../src/context/AuthContext';
+
+const XP_PER_LEVEL = 1000;
 import type { CompletedMission } from '../../src/types/CompletedMission';
-import type { Profile } from '../../src/types/Profile';
 
 let MapboxAvailable = false;
 let MapView: any;
@@ -34,18 +35,18 @@ function formatTime(iso: string): string {
 }
 
 export default function HistoryScreen() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { username } = useAuth();
   const [history, setHistory] = useState<CompletedMission[]>([]);
 
   useFocusEffect(
     useCallback(() => {
-      loadProfile().then(setProfile);
-      loadHistory().then(setHistory);
+      // TODO: requires GET /api/missions/history — pending backend spec
+      apiClient.get<CompletedMission[]>('/missions/history').then(({ data }) => setHistory(data)).catch(() => {});
     }, [])
   );
 
-  const xpTarget = (profile?.currentLevel ?? 1) * XP_PER_LEVEL;
-  const xpProgress = profile ? profile.currentXP / xpTarget : 0;
+  const xpTarget = XP_PER_LEVEL;
+  const xpProgress = 0;
 
   return (
     <ScreenContainer>
@@ -53,22 +54,22 @@ export default function HistoryScreen() {
       <View style={styles.headerCard}>
         <View style={styles.avatarPlaceholder}>
           <Text style={[Typography.h2, { color: Colors.textSecondary }]}>
-            {(profile?.username ?? 'A')[0]}
+            {(username ?? 'A')[0]}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[Typography.label, { color: Colors.textSecondary }]}>PLAYER</Text>
           <Text style={[Typography.h2, { color: Colors.textPrimary }]}>
-            {profile?.username ?? '...'}
+            {username ?? '...'}
           </Text>
           <View style={styles.levelRow}>
             <View style={styles.levelBadge}>
               <Text style={[Typography.caption, { color: Colors.textPrimary, fontWeight: '700' }]}>
-                LEVEL {profile?.currentLevel ?? 1}
+                LEVEL 1
               </Text>
             </View>
             <Text style={[Typography.caption, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>
-              {profile?.currentXP ?? 0} / {xpTarget} XP
+              0 / {xpTarget} XP
             </Text>
           </View>
           <View style={styles.xpTrack}>

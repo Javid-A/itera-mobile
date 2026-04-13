@@ -1,8 +1,6 @@
 import * as TaskManager from 'expo-task-manager';
 import { GeofencingEventType, type LocationRegion } from 'expo-location';
-import { loadRoutines } from '../storage/routines';
-import { addCompletedMission, isOnCooldown, setCooldown } from '../storage/history';
-import { awardXP, XP_PER_MISSION } from '../storage/profile';
+import apiClient from './apiClient';
 
 export const GEOFENCE_TASK_NAME = 'itera-geofence-task';
 
@@ -22,47 +20,33 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   const routineId = region.identifier;
   if (!routineId) return;
 
-  // Idempotency: 1-hour cooldown per routine
-  if (await isOnCooldown(routineId)) {
-    console.log(`[GeofenceTask] Cooldown active for: ${routineId}`);
-    return;
-  }
-
-  // Find routine details
-  const routines = await loadRoutines();
-  const routine = routines.find((r) => r.id === routineId);
-  const missionName = routine?.missionName ?? 'Unknown Mission';
-
-  // Log to history
-  await addCompletedMission({
-    id: Date.now().toString(),
-    routineId,
-    missionName,
-    completedAt: new Date().toISOString(),
-    xpEarned: XP_PER_MISSION,
-    latitude: routine?.latitude ?? region.latitude,
-    longitude: routine?.longitude ?? region.longitude,
-  });
-
-  // Award XP
-  await awardXP();
-
-  // Set cooldown
-  await setCooldown(routineId);
-
-  // Local notification
   try {
-    const Notifications = require('expo-notifications');
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Mission Complete!',
-        body: `${missionName} — +${XP_PER_MISSION} XP`,
-      },
-      trigger: null,
+    const { data: result } = await apiClient.post('/missions/arrive', {
+      routineId,
+      latitude: region.latitude,
+      longitude: region.longitude,
     });
-  } catch {
-    // Native module unavailable (Expo Go)
-  }
 
-  console.log(`[GeofenceTask] Completed: ${missionName} +${XP_PER_MISSION} XP`);
+    if (result.cooldownActive) {
+      console.log(`[GeofenceTask] Cooldown active for: ${routineId}`);
+      return;
+    }
+
+    console.log(`[GeofenceTask] Completed: ${result.missionName} +${result.earnedXP} XP (Level ${result.currentLevel})`);
+
+    try {
+      const Notifications = require('expo-notifications');
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: result.leveledUp ? 'Level Up!' : 'Mission Complete!',
+          body: `${result.missionName} — +${result.earnedXP} XP`,
+        },
+        trigger: null,
+      });
+    } catch {
+      // Native module unavailable (Expo Go)
+    }
+  } catch (e) {
+    console.error('[GeofenceTask] Failed to process arrival:', e);
+  }
 });

@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -19,8 +21,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ScreenContainer from '../../components/ScreenContainer';
 import BackgroundLocationPrompt from '../../components/BackgroundLocationPrompt';
 import { Colors, Spacing, Typography } from '../../constants';
-import { addRoutine, loadRoutines, removeRoutine } from '../../src/storage/routines';
 import { LocationService } from '../../src/services/LocationService';
+import apiClient from '../../src/services/apiClient';
 import type { Routine } from '../../src/types/Routine';
 
 const PRESET_LOCATIONS = [
@@ -42,6 +44,7 @@ const ICON_OPTIONS = [
 
 export default function RoutinesScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [missionName, setMissionName] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -50,13 +53,23 @@ export default function RoutinesScreen() {
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
 
+  const fetchRoutines = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get<Routine[]>('/routines');
+      setRoutines(data);
+      await syncGeofences(data);
+    } catch {
+      // Silently fail — routines will be empty but app stays functional
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      loadRoutines().then(setRoutines);
-    }, [])
+      fetchRoutines();
+    }, [fetchRoutines])
   );
 
-  const syncGeofences = useCallback(async (list: Routine[]) => {
+  const syncGeofences = async (list: Routine[]) => {
     const granted = await LocationService.requestPermissions();
     if (granted && list.length > 0) {
       await LocationService.registerGeofences(
@@ -64,11 +77,11 @@ export default function RoutinesScreen() {
           id: r.id,
           latitude: r.latitude,
           longitude: r.longitude,
-          radius: r.radius,
+          radius: r.radiusMeters,
         }))
       );
     }
-  }, []);
+  };
 
   const resetForm = () => {
     setMissionName('');
@@ -82,41 +95,48 @@ export default function RoutinesScreen() {
     if (!missionName.trim()) return;
 
     const preset = selectedPreset !== null ? PRESET_LOCATIONS[selectedPreset] : null;
-    const lat = preset?.lat ?? 52.52 + (Math.random() - 0.5) * 0.01;
-    const lng = preset?.lng ?? 13.405 + (Math.random() - 0.5) * 0.01;
+    const latitude = preset?.lat ?? 52.52 + (Math.random() - 0.5) * 0.01;
+    const longitude = preset?.lng ?? 13.405 + (Math.random() - 0.5) * 0.01;
 
-    const routine: Routine = {
-      id: Date.now().toString(),
-      missionName: missionName.trim(),
-      locationName: preset?.label ?? (locationName.trim() || 'Unknown Location'),
-      latitude: lat,
-      longitude: lng,
-      radius,
-      iconType: selectedIcon,
-    };
+    setLoading(true);
+    try {
+      await apiClient.post('/routines', {
+        missionName: missionName.trim(),
+        locationName: preset?.label ?? (locationName.trim() || 'Unknown Location'),
+        latitude,
+        longitude,
+        radiusMeters: radius,
+        iconType: selectedIcon,
+      });
 
-    const updated = await addRoutine(routine);
-    setRoutines(updated);
-    await syncGeofences(updated);
-    resetForm();
-    setModalVisible(false);
+      resetForm();
+      setModalVisible(false);
+      await fetchRoutines();
 
-    // Gentle escalation: show prompt on 1st, 3rd, and 7th routine if bg not granted
-    const bg = await Location.getBackgroundPermissionsAsync();
-    if (bg.status !== 'granted') {
-      const raw = await AsyncStorage.getItem('itera_routine_count');
-      const count = (raw ? parseInt(raw, 10) : 0) + 1;
-      await AsyncStorage.setItem('itera_routine_count', String(count));
-      if (count === 1 || count === 3 || count === 7) {
-        setShowBgPrompt(true);
+      // Gentle escalation: show bg prompt on 1st, 3rd, and 7th routine
+      const bg = await Location.getBackgroundPermissionsAsync();
+      if (bg.status !== 'granted') {
+        const raw = await AsyncStorage.getItem('itera_routine_count');
+        const count = (raw ? parseInt(raw, 10) : 0) + 1;
+        await AsyncStorage.setItem('itera_routine_count', String(count));
+        if (count === 1 || count === 3 || count === 7) setShowBgPrompt(true);
       }
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.error ?? 'Failed to create routine.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    const updated = await removeRoutine(id);
-    setRoutines(updated);
-    await syncGeofences(updated);
+    try {
+      await apiClient.delete(`/routines/${id}`);
+      const updated = routines.filter((r) => r.id !== id);
+      setRoutines(updated);
+      await syncGeofences(updated);
+    } catch {
+      Alert.alert('Error', 'Failed to delete routine.');
+    }
   };
 
   const getIconName = (key: string) =>
@@ -155,7 +175,7 @@ export default function RoutinesScreen() {
                   {item.missionName}
                 </Text>
                 <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
-                  {item.locationName} · {item.radius}m
+                  {item.locationName} · {item.radiusMeters}m
                 </Text>
               </View>
               <Pressable onPress={() => handleDelete(item.id)}>
@@ -270,8 +290,11 @@ export default function RoutinesScreen() {
               ))}
             </View>
 
-            <Pressable style={styles.submitButton} onPress={handleSubmit}>
-              <Text style={[Typography.h3, { color: Colors.textPrimary }]}>SET ROUTINE</Text>
+            <Pressable style={[styles.submitButton, loading && { opacity: 0.6 }]} onPress={handleSubmit} disabled={loading}>
+              {loading
+                ? <ActivityIndicator color={Colors.textPrimary} />
+                : <Text style={[Typography.h3, { color: Colors.textPrimary }]}>SET ROUTINE</Text>
+              }
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>

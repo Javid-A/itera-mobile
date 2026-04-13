@@ -1,0 +1,67 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import apiClient from '../services/apiClient';
+import { saveAuthData, getStoredUser, clearAuthData } from '../services/tokenStorage';
+
+interface AuthState {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  userId: string | null;
+  username: string | null;
+}
+
+interface AuthContextValue extends AuthState {
+  login: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({
+    isAuthenticated: false,
+    isLoading: true,
+    userId: null,
+    username: null,
+  });
+
+  // Rehydrate session on app start
+  useEffect(() => {
+    getStoredUser().then((user) => {
+      if (user) {
+        setState({ isAuthenticated: true, isLoading: false, userId: user.userId, username: user.username });
+      } else {
+        setState((s) => ({ ...s, isLoading: false }));
+      }
+    });
+  }, []);
+
+  const login = async (username: string, password: string) => {
+    const { data } = await apiClient.post('/auth/login', { username, password });
+    await saveAuthData(data.token, data.userId, data.username);
+    setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
+  };
+
+  const register = async (username: string, password: string) => {
+    const { data } = await apiClient.post('/auth/register', { username, password });
+    await saveAuthData(data.token, data.userId, data.username);
+    setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
+  };
+
+  const logout = async () => {
+    await clearAuthData();
+    setState({ isAuthenticated: false, isLoading: false, userId: null, username: null });
+  };
+
+  return (
+    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}

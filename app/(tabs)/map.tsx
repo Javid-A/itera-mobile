@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Colors, Spacing, Typography } from '../../constants';
-import { loadRoutines } from '../../src/storage/routines';
+import apiClient from '../../src/services/apiClient';
 import MissionPin from '../../components/MissionPin';
 import type { Routine } from '../../src/types/Routine';
 
@@ -69,7 +69,7 @@ export default function MapScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadRoutines().then(setRoutines);
+      apiClient.get('/routines').then(({ data }) => setRoutines(data)).catch(() => {});
       Location.getBackgroundPermissionsAsync().then((bg) => {
         setBgDenied(bg.status !== 'granted');
       });
