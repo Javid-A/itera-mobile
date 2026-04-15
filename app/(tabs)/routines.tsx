@@ -5,7 +5,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,13 +24,6 @@ import { LocationService } from '../../src/services/LocationService';
 import apiClient from '../../src/services/apiClient';
 import type { Routine } from '../../src/types/Routine';
 
-const PRESET_LOCATIONS = [
-  { label: 'Brandenburg Gate', lat: 52.5163, lng: 13.3777 },
-  { label: 'Berlin Hbf', lat: 52.525, lng: 13.3694 },
-  { label: 'Alexanderplatz', lat: 52.5219, lng: 13.4132 },
-  { label: 'Potsdamer Platz', lat: 52.5096, lng: 13.3761 },
-  { label: 'East Side Gallery', lat: 52.5052, lng: 13.4396 },
-];
 
 const ICON_OPTIONS = [
   { key: 'briefcase', name: 'briefcase-outline' as const },
@@ -50,8 +42,10 @@ export default function RoutinesScreen() {
   const [locationName, setLocationName] = useState('');
   const [radius, setRadius] = useState(100);
   const [selectedIcon, setSelectedIcon] = useState('briefcase');
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuRoutineId, setMenuRoutineId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ y: 0 });
 
   const fetchRoutines = useCallback(async () => {
     try {
@@ -88,21 +82,19 @@ export default function RoutinesScreen() {
     setLocationName('');
     setRadius(100);
     setSelectedIcon('briefcase');
-    setSelectedPreset(null);
   };
 
   const handleSubmit = async () => {
     if (!missionName.trim()) return;
 
-    const preset = selectedPreset !== null ? PRESET_LOCATIONS[selectedPreset] : null;
-    const latitude = preset?.lat ?? 52.52 + (Math.random() - 0.5) * 0.01;
-    const longitude = preset?.lng ?? 13.405 + (Math.random() - 0.5) * 0.01;
+    const latitude = 52.52 + (Math.random() - 0.5) * 0.01;
+    const longitude = 13.405 + (Math.random() - 0.5) * 0.01;
 
     setLoading(true);
     try {
       await apiClient.post('/routines', {
         missionName: missionName.trim(),
-        locationName: preset?.label ?? (locationName.trim() || 'Unknown Location'),
+        locationName: locationName.trim() || 'Unknown Location',
         latitude,
         longitude,
         radiusMeters: radius,
@@ -146,15 +138,13 @@ export default function RoutinesScreen() {
     <ScreenContainer>
       <View style={styles.header}>
         <Text style={[Typography.h2, { color: Colors.textPrimary }]}>Routines</Text>
-        <Pressable style={styles.addButton} onPress={() => setModalVisible(true)}>
-          <Ionicons name="add" size={24} color={Colors.textPrimary} />
-        </Pressable>
       </View>
 
       {routines.length === 0 ? (
         <View style={styles.empty}>
+          <Ionicons name="repeat-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
           <Text style={[Typography.body, { color: Colors.textSecondary }]}>
-            No routines yet. Tap + to create one.
+            No routines yet.
           </Text>
         </View>
       ) : (
@@ -178,18 +168,29 @@ export default function RoutinesScreen() {
                   {item.locationName} · {item.radiusMeters}m
                 </Text>
               </View>
-              <Pressable onPress={() => handleDelete(item.id)}>
-                <Ionicons name="trash-outline" size={20} color={Colors.textSecondary} />
+              <Pressable
+                onPress={(e) => {
+                  setMenuPosition({ y: e.nativeEvent.pageY });
+                  setMenuRoutineId(item.id);
+                  setMenuVisible(true);
+                }}
+                hitSlop={8}
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color={Colors.textSecondary} />
               </Pressable>
             </View>
           )}
         />
       )}
 
+      <Pressable style={styles.fab} onPress={() => setModalVisible(true)}>
+        <Ionicons name="add" size={28} color={Colors.textPrimary} />
+      </Pressable>
+
       <Modal visible={modalVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
         >
           <ScrollView
             contentContainerStyle={styles.modalContent}
@@ -218,33 +219,12 @@ export default function RoutinesScreen() {
             <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.md }]}>
               Location
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Unter den Linden 10, Berlin"
-              placeholderTextColor={Colors.textSecondary}
-              value={locationName}
-              onChangeText={setLocationName}
-            />
-
-            <View style={styles.presetRow}>
-              {PRESET_LOCATIONS.map((loc, i) => (
-                <Pressable
-                  key={loc.label}
-                  style={[styles.presetChip, selectedPreset === i && styles.presetSelected]}
-                  onPress={() => {
-                    setSelectedPreset(i);
-                    setLocationName(loc.label);
-                  }}
-                >
-                  <Text style={[
-                    Typography.caption,
-                    { color: selectedPreset === i ? Colors.accent : Colors.textSecondary },
-                  ]}>
-                    {loc.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <Pressable style={styles.locationTrigger} onPress={() => { /* TODO: open Location Picker */ }}>
+              <Text style={[Typography.body, { color: locationName ? Colors.textPrimary : Colors.textSecondary, flex: 1 }]}>
+                {locationName || 'Select a location'}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+            </Pressable>
 
             <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.md }]}>
               Geofence Radius
@@ -252,7 +232,7 @@ export default function RoutinesScreen() {
             <View style={styles.sliderRow}>
               <Text style={[Typography.caption, { color: Colors.textSecondary }]}>50m</Text>
               <Slider
-                style={{ flex: 1, marginHorizontal: Spacing.sm }}
+                style={{ flex: 1, height: 44, marginHorizontal: Spacing.sm }}
                 minimumValue={50}
                 maximumValue={500}
                 step={10}
@@ -284,7 +264,7 @@ export default function RoutinesScreen() {
                   <Ionicons
                     name={icon.name}
                     size={28}
-                    color={selectedIcon === icon.key ? Colors.accent : Colors.textSecondary}
+                    color={selectedIcon === icon.key ? Colors.accent : 'rgba(255, 255, 255, 0.45)'}
                   />
                 </Pressable>
               ))}
@@ -298,6 +278,30 @@ export default function RoutinesScreen() {
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
+          <View style={[styles.menuCard, { top: menuPosition.y + 8 }]}>
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                if (menuRoutineId) handleDelete(menuRoutineId);
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color="#FF4444" />
+              <Text style={[Typography.body, { color: '#FF4444', marginLeft: Spacing.sm }]}>
+                Delete Routine
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
       </Modal>
 
       <BackgroundLocationPrompt
@@ -317,13 +321,21 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  fab: {
+    position: 'absolute',
+    bottom: Spacing.lg,
+    right: Spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
   },
   empty: {
     flex: 1,
@@ -336,7 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   modalOverlay: {
     flex: 1,
@@ -361,28 +373,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#444444',
     color: Colors.textPrimary,
     fontSize: 16,
     padding: Spacing.md,
     marginTop: Spacing.xs,
   },
-  presetRow: {
+  locationTrigger: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-    marginTop: Spacing.sm,
-  },
-  presetChip: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: 16,
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  presetSelected: {
-    borderColor: Colors.accent,
+    padding: Spacing.md,
+    marginTop: Spacing.xs,
   },
   sliderRow: {
     flexDirection: 'row',
@@ -413,5 +418,29 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     alignItems: 'center',
     marginTop: Spacing.lg,
+  },
+  menuOverlay: {
+    flex: 1,
+  },
+  menuCard: {
+    position: 'absolute',
+    right: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 4,
+    minWidth: 160,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
 });

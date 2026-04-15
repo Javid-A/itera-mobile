@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import ScreenContainer from '../../components/ScreenContainer';
 import { Colors, Spacing, Typography } from '../../constants';
@@ -36,6 +38,7 @@ function formatTime(iso: string): string {
 
 export default function HistoryScreen() {
   const { username } = useAuth();
+  const router = useRouter();
   const [history, setHistory] = useState<CompletedMission[]>([]);
 
   useFocusEffect(
@@ -80,15 +83,21 @@ export default function HistoryScreen() {
       </View>
 
       {/* Mission History Header */}
-      <Text style={[Typography.h3, { color: Colors.textPrimary, marginTop: Spacing.lg, marginBottom: Spacing.sm }]}>
+      <Text style={[Typography.h3, { color: Colors.textPrimary, marginBottom: Spacing.md }]}>
         MISSION HISTORY
       </Text>
 
       {history.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={[Typography.body, { color: Colors.textSecondary }]}>
+          <Ionicons name="map-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
+          <Text style={[Typography.body, { color: Colors.textSecondary, textAlign: 'center' }]}>
             No completed missions yet.
           </Text>
+          <Pressable onPress={() => router.push('/(tabs)/map')} style={styles.emptyAction}>
+            <Text style={[Typography.caption, { color: Colors.accent }]}>
+              Go to Map to find missions
+            </Text>
+          </Pressable>
         </View>
       ) : (
         <>
@@ -166,8 +175,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: Spacing.md,
     marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
     alignItems: 'center',
     gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   avatarPlaceholder: {
     width: 48,
@@ -204,6 +221,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyAction: {
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
   },
   missionCard: {
     flexDirection: 'row',

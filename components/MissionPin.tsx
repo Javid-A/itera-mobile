@@ -22,7 +22,7 @@ export default function MissionPin({ iconType }: Props) {
     <View style={styles.container}>
       <View style={styles.diamond}>
         <View style={styles.iconInner}>
-          <Ionicons name={iconName} size={18} color={Colors.textPrimary} />
+          <Ionicons name={iconName} size={12} color={Colors.textPrimary} />
         </View>
       </View>
       <View style={styles.stem} />
@@ -34,26 +34,26 @@ export default function MissionPin({ iconType }: Props) {
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    width: 48,
-    height: 64,
+    width: 30,
+    height: 42,
   },
   diamond: {
-    width: 36,
-    height: 36,
+    width: 22,
+    height: 22,
     backgroundColor: Colors.accent,
     transform: [{ rotate: '45deg' }],
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 6,
+    borderRadius: 4,
     shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.6,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowRadius: 8,
+    elevation: 6,
   },
   stem: {
     width: 2,
-    height: 12,
+    height: 10,
     backgroundColor: Colors.accent,
     marginTop: -2,
   },
@@ -61,9 +61,9 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-45deg' }],
   },
   glow: {
-    width: 16,
-    height: 4,
-    borderRadius: 8,
+    width: 10,
+    height: 3,
+    borderRadius: 6,
     backgroundColor: Colors.accent,
     opacity: 0.3,
     marginTop: 2,

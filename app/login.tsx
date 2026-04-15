@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { Colors, Spacing, Typography } from '../constants';
 
@@ -25,6 +26,7 @@ export default function LoginScreen() {
       } else {
         await login(username.trim(), password.trim());
       }
+      router.replace('/(tabs)/map');
     } catch (e: any) {
       const msg = e?.response?.data?.error ?? 'Something went wrong. Try again.';
       setError(msg);
@@ -118,7 +120,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#444444',
     color: Colors.textPrimary,
     fontSize: 16,
     padding: Spacing.md,

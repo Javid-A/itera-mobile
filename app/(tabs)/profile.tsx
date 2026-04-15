@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import BackgroundLocationPrompt from '../../components/BackgroundLocationPrompt'
 import { Colors, Spacing, Typography } from '../../constants';
 import { useAuth } from '../../src/context/AuthContext';
 import apiClient from '../../src/services/apiClient';
+import { openAppPermissions, requestBackgroundLocation } from '../../src/services/locationSettings';
 
 const XP_PER_LEVEL = 1000;
 
@@ -23,14 +24,44 @@ export default function ProfileScreen() {
   const [stats, setStats] = useState<ProfileStats>({ currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0 });
   const [bgGranted, setBgGranted] = useState(false);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
+  const appState = useRef(AppState.currentState);
 
-  const refresh = useCallback(() => {
-    // TODO: requires GET /api/profile — pending backend spec
-    apiClient.get<ProfileStats>('/profile').then(({ data }) => setStats(data)).catch(() => {});
+  const checkBgPermission = useCallback(() => {
     Location.getBackgroundPermissionsAsync().then((bg) => setBgGranted(bg.status === 'granted'));
   }, []);
 
+  const refresh = useCallback(() => {
+    apiClient.get<ProfileStats>('/profile').then(({ data }) => setStats(data)).catch(() => {});
+    checkBgPermission();
+  }, [checkBgPermission]);
+
   useFocusEffect(refresh);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (appState.current.match(/inactive|background/) && next === 'active') {
+        checkBgPermission();
+      }
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, [checkBgPermission]);
+
+  // When permission is OFF: modal closes → request permission → opens settings if needed
+  const handleEnableAutoTracking = async () => {
+    setShowBgPrompt(false);
+    const granted = await requestBackgroundLocation();
+    if (granted) setBgGranted(true);
+  };
+
+  // Tap the settings row: OFF → show modal, ON → open settings to revoke
+  const handleAutoTrackingPress = () => {
+    if (bgGranted) {
+      openAppPermissions();
+    } else {
+      setShowBgPrompt(true);
+    }
+  };
 
   const xpTarget = stats.currentLevel * XP_PER_LEVEL;
   const xpProgress = stats.currentXP / xpTarget;
@@ -85,10 +116,7 @@ export default function ProfileScreen() {
         <Text style={[Typography.label, { color: Colors.textSecondary, marginBottom: Spacing.sm }]}>
           Settings
         </Text>
-        <Pressable
-          style={styles.settingsRow}
-          onPress={() => { if (!bgGranted) setShowBgPrompt(true); }}
-        >
+        <Pressable style={styles.settingsRow} onPress={handleAutoTrackingPress}>
           <Ionicons name="navigate-outline" size={20} color={bgGranted ? Colors.accent : Colors.textSecondary} />
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
             <Text style={[Typography.body, { color: Colors.textPrimary }]}>Auto-Tracking</Text>
@@ -101,24 +129,21 @@ export default function ProfileScreen() {
               {bgGranted ? 'ON' : 'OFF'}
             </Text>
           </View>
-          {!bgGranted && <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} style={{ marginLeft: Spacing.xs }} />}
+          <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} style={{ marginLeft: Spacing.xs }} />
         </Pressable>
       </View>
 
       <BackgroundLocationPrompt
         visible={showBgPrompt}
-        onEnable={() => { setShowBgPrompt(false); refresh(); }}
+        onEnable={handleEnableAutoTracking}
         onSkip={() => setShowBgPrompt(false)}
       />
 
       {/* Account */}
       <View style={styles.dangerZone}>
-        <Text style={[Typography.label, { color: Colors.textSecondary, marginBottom: Spacing.sm }]}>
-          Account
-        </Text>
         <Pressable style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#FF4444" />
-          <Text style={[Typography.body, { color: '#FF4444', marginLeft: Spacing.sm }]}>Sign Out</Text>
+          <Ionicons name="log-out-outline" size={16} color={Colors.textSecondary} />
+          <Text style={[Typography.caption, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>Sign Out</Text>
         </Pressable>
       </View>
     </ScreenContainer>
@@ -138,29 +163,30 @@ const styles = StyleSheet.create({
   },
   xpRow: { flexDirection: 'row', alignItems: 'center', width: '80%', marginTop: Spacing.sm },
   xpTrack: {
-    flex: 1, flexDirection: 'row', height: 6,
-    backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden',
+    flex: 1, flexDirection: 'row', height: 8,
+    backgroundColor: Colors.border, borderRadius: 4, overflow: 'hidden',
   },
-  xpFill: { backgroundColor: Colors.accent, borderRadius: 3 },
+  xpFill: { backgroundColor: Colors.accent, borderRadius: 4 },
   statsRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
   statCard: {
     flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
     padding: Spacing.lg, alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.border,
   },
   settingsSection: { marginTop: Spacing.xl },
   settingsRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderRadius: 12, padding: Spacing.md,
+    borderWidth: 1, borderColor: Colors.border,
   },
   statusPill: { paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: 10, borderWidth: 1 },
   statusOn: { borderColor: Colors.accent, backgroundColor: 'rgba(255,87,34,0.1)' },
   statusOff: { borderColor: Colors.border, backgroundColor: Colors.background },
   dangerZone: {
     marginTop: 'auto', marginBottom: Spacing.lg,
-    paddingTop: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border,
   },
   logoutButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: Spacing.md, borderRadius: 8, borderWidth: 1, borderColor: '#FF4444',
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: Spacing.sm,
   },
 });

@@ -16,14 +16,24 @@ function RootNavigator() {
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="login" />
+        </Stack>
+        <Redirect href="/login" />
+      </>
+    );
+  }
+
   return (
     <>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="login" />
       </Stack>
-      {!isAuthenticated && <Redirect href="/login" />}
     </>
   );
 }

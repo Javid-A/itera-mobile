@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Colors, Spacing, Typography } from '../constants';
@@ -31,19 +30,6 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
     }
   }, [visible, player]);
 
-  const handleEnable = async () => {
-    const fg = await Location.getForegroundPermissionsAsync();
-    if (fg.status !== 'granted') {
-      const req = await Location.requestForegroundPermissionsAsync();
-      if (req.status !== 'granted') {
-        onEnable();
-        return;
-      }
-    }
-    await Location.requestBackgroundPermissionsAsync();
-    onEnable();
-  };
-
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onSkip}>
       <Pressable style={styles.overlay} onPress={onSkip}>
@@ -64,16 +50,16 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
             />
           </View>
 
-          <Text style={[Typography.body, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md }]}>
+          <Text style={[Typography.body, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md, lineHeight: 24 }]}>
             To automatically complete missions when you arrive, Itera needs location access{' '}
             <Text style={{ color: Colors.textPrimary, fontWeight: '600' }}>all the time</Text>.
           </Text>
 
-          <Text style={[Typography.caption, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm }]}>
+          <Text style={[Typography.caption, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 20 }]}>
             Without this, you'll need to open the app at each location to check in manually.
           </Text>
 
-          <Pressable style={styles.enableButton} onPress={handleEnable}>
+          <Pressable style={styles.enableButton} onPress={onEnable}>
             <Ionicons name="shield-checkmark-outline" size={20} color={Colors.textPrimary} />
             <Text style={[Typography.h3, { color: Colors.textPrimary, marginLeft: Spacing.sm }]}>
               Enable Auto-Tracking
@@ -81,7 +67,7 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
           </Pressable>
 
           <Pressable style={styles.skipButton} onPress={onSkip}>
-            <Text style={[Typography.body, { color: Colors.textSecondary }]}>
+            <Text style={[Typography.body, { color: Colors.textPrimary, opacity: 0.6 }]}>
               I'll do it manually
             </Text>
           </Pressable>
@@ -135,7 +121,11 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
   },
   skipButton: {
-    padding: Spacing.md,
+    minHeight: 44,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
     marginTop: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
