@@ -20,6 +20,7 @@ import CharacterSprite, {
   type Direction,
 } from "../../components/CharacterSprite";
 import type { Routine } from "../../src/types/Routine";
+import type { CompletedMission } from "../../src/types/CompletedMission";
 
 let MapboxAvailable = false;
 let Mapbox: any;
@@ -56,37 +57,36 @@ const MAP_ZOOM_MIN = 17.5;
 const MAP_ZOOM_MAX = 20.5;
 const SHEET_COLLAPSED_HEIGHT = 72;
 const SHEET_EXPANDED_HEIGHT = 300;
+const GREEN = "#22C55E";
+
 // ─── GPS tuning ────────────────────────────────────────────────────────────
-// Switch to "indoor" when testing inside a building, "outdoor" for production.
 const GPS_ENV: "indoor" | "outdoor" = "outdoor";
 
 const GPS_CONFIG = {
   indoor: {
-    GPS_ACCURACY_MAX: 60, // accept weaker fixes indoors
-    MIN_MOVE_METERS: 1, // trigger on smaller steps
-    WALK_START_SPEED: 0.3, // lower bar to detect walking
-    WALK_STOP_SPEED: 0.1,
-    BEARING_EMA_ALPHA: 0.5, // react faster to direction changes
-    STATIONARY_TIMEOUT_MS: 2000,
+    GPS_ACCURACY_MAX: 60,
+    MIN_MOVE_METERS: 1,
+    STATIONARY_TIMEOUT_MS: 1500,
   },
   outdoor: {
-    GPS_ACCURACY_MAX: 25, // reject poor fixes
-    MIN_MOVE_METERS: 2, // ignore GPS jitter
-    WALK_START_SPEED: 0.7, // normal walking pace ~1.2 m/s
-    WALK_STOP_SPEED: 0.3,
-    BEARING_EMA_ALPHA: 0.35, // smooth bearing changes
-    STATIONARY_TIMEOUT_MS: 4000,
+    GPS_ACCURACY_MAX: 25,
+    MIN_MOVE_METERS: 2,
+    STATIONARY_TIMEOUT_MS: 1500,
   },
 } as const;
 
-const {
-  GPS_ACCURACY_MAX,
-  MIN_MOVE_METERS,
-  WALK_START_SPEED,
-  WALK_STOP_SPEED,
-  BEARING_EMA_ALPHA,
-  STATIONARY_TIMEOUT_MS,
-} = GPS_CONFIG[GPS_ENV];
+const { GPS_ACCURACY_MAX, MIN_MOVE_METERS, STATIONARY_TIMEOUT_MS } =
+  GPS_CONFIG[GPS_ENV];
+
+const POSITION_HISTORY_MAX = 8;
+const HEADING_MIN_TOTAL_M = 2.5;
+const HEADING_MIN_CONFIDENCE = 0.65;
+const HEADING_SEGMENT_MIN_M = 0.8;
+const WALK_WINDOW_MS = 3500;
+const WALK_WINDOW_MIN_M = 1.8;
+const WALK_NET_MIN_M = 1.5;
+const ROTATION_DEADZONE_DEG = 8;
+const ROTATION_ANIMATION_MS = 300;
 // ───────────────────────────────────────────────────────────────────────────
 
 const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -102,11 +102,12 @@ function getIconName(iconType: string): keyof typeof Ionicons.glyphMap {
   return ICON_MAP[iconType] ?? "location";
 }
 
-function buildGeofenceGeoJSON(routines: Routine[]) {
+function buildGeofenceGeoJSON(routines: Routine[], radiusScale = 1) {
   const features = routines.map((r) => {
+    const scaledRadius = r.radiusMeters * radiusScale;
     const latRad = (r.latitude * Math.PI) / 180;
-    const deltaLng = r.radiusMeters / (111320 * Math.cos(latRad));
-    const deltaLat = r.radiusMeters / 110540;
+    const deltaLng = scaledRadius / (111320 * Math.cos(latRad));
+    const deltaLat = scaledRadius / 110540;
     const coords: [number, number][] = [];
     for (let i = 0; i <= CIRCLE_POINTS; i++) {
       const angle = (i / CIRCLE_POINTS) * 2 * Math.PI;
@@ -146,12 +147,6 @@ function computeBearing(
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-function emaAngle(prev: number | null, next: number, alpha: number): number {
-  if (prev == null) return next;
-  const diff = ((((next - prev) % 360) + 540) % 360) - 180;
-  return (prev + alpha * diff + 360) % 360;
-}
-
 function haversineMeters(
   lat1: number,
   lon1: number,
@@ -176,16 +171,67 @@ export default function MapScreen() {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [isWalking, setIsWalking] = useState(false);
   const [mapZoom, setMapZoom] = useState(MAP_ZOOM_DEFAULT);
-  const [cameraHeading, setCameraHeading] = useState(0);
   const [charDirection, setCharDirection] = useState<Direction>("s");
+
+  // ─── Completion animation state ────────────────────────────────────────
+  const [completedRoutineIds, setCompletedRoutineIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [completingRoutineId, setCompletingRoutineId] = useState<string | null>(
+    null,
+  );
+  const [completionXP, setCompletionXP] = useState(0);
+  const [completionIsGreen, setCompletionIsGreen] = useState(false);
+  // JS-driven scale (0..1) fed into the completion GeoJSON radius
+  const [completionScale, setCompletionScale] = useState(1);
+  const completionRadiusAnim = useRef(new Animated.Value(1)).current;
+  const greenVignetteAnim = useRef(new Animated.Value(0)).current;
+  const xpToastTranslate = useRef(new Animated.Value(0)).current;
+  const xpToastOpacity = useRef(new Animated.Value(0)).current;
+  // ───────────────────────────────────────────────────────────────────────
+
   const lastAccepted = useRef<{ lng: number; lat: number; t: number } | null>(
     null,
   );
-  const smoothedHeading = useRef<number | null>(null);
+  const positionHistory = useRef<{ lng: number; lat: number; t: number }[]>([]);
+  const lastAbsBearing = useRef<number | null>(null);
+  const lastAppliedCameraBearing = useRef<number | null>(null);
   const stationaryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cameraHeadingRef = useRef(0);
   const cameraRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
+
+  // Refs used inside async completion handler (avoids stale closures)
+  const bgDeniedRef = useRef(bgDenied);
+  const isCompletingRef = useRef(false);
+  const prevActiveRoutineIdRef = useRef<string | null>(null);
+  const userCoordsRef = useRef<[number, number] | null>(null);
+  const routinesRef = useRef<Routine[]>([]);
+  const completedRoutineIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    bgDeniedRef.current = bgDenied;
+  }, [bgDenied]);
+
+  useEffect(() => {
+    userCoordsRef.current = userCoords;
+  }, [userCoords]);
+
+  useEffect(() => {
+    routinesRef.current = routines;
+  }, [routines]);
+
+  useEffect(() => {
+    completedRoutineIdsRef.current = completedRoutineIds;
+  }, [completedRoutineIds]);
+
+  // Feed completionRadiusAnim into completionScale so Mapbox GeoJSON can use it
+  useEffect(() => {
+    const id = completionRadiusAnim.addListener(({ value }) => {
+      setCompletionScale(value);
+    });
+    return () => completionRadiusAnim.removeListener(id);
+  }, [completionRadiusAnim]);
 
   const vignetteAnim = useRef(new Animated.Value(0)).current;
 
@@ -194,6 +240,7 @@ export default function MapScreen() {
     return (
       routines.find(
         (r) =>
+          !completedRoutineIds.has(r.id) &&
           haversineMeters(
             userCoords[1],
             userCoords[0],
@@ -202,10 +249,19 @@ export default function MapScreen() {
           ) < r.radiusMeters,
       ) ?? null
     );
-  }, [userCoords, routines]);
+  }, [userCoords, routines, completedRoutineIds]);
 
+  // Orange pulsing vignette — suppressed while a completion is animating
   useEffect(() => {
-    if (!activeRoutine) return;
+    if (!activeRoutine || activeRoutine.id === completingRoutineId) {
+      vignetteAnim.stopAnimation();
+      Animated.timing(vignetteAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
 
     const loop = Animated.loop(
       Animated.sequence([
@@ -231,12 +287,169 @@ export default function MapScreen() {
         useNativeDriver: true,
       }).start();
     };
-  }, [activeRoutine?.id, vignetteAnim]);
+  }, [activeRoutine?.id, completingRoutineId, vignetteAnim]);
 
-  // sheetY: pixel translateY — 0 = fully expanded, DRAG_RANGE = collapsed
+  // ─── Foreground arrival handler (bg permission denied) ──────────────────
+  const handleForegroundArrival = useCallback(
+    async (routine: Routine, coords: [number, number]) => {
+      if (isCompletingRef.current) return;
+      isCompletingRef.current = true;
+
+      setCompletingRoutineId(routine.id);
+      setCompletionIsGreen(false);
+      completionRadiusAnim.setValue(1);
+
+      // Phase 1: shrink orange ring + call API in parallel
+      const [, apiResult] = await Promise.all([
+        new Promise<void>((resolve) => {
+          Animated.timing(completionRadiusAnim, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: false,
+          }).start(() => resolve());
+        }),
+        apiClient
+          .post("/missions/arrive", {
+            routineId: routine.id,
+            latitude: coords[1],
+            longitude: coords[0],
+          })
+          .then(
+            (r) =>
+              r.data as {
+                earnedXP: number;
+                cooldownActive?: boolean;
+                missionName?: string;
+                leveledUp?: boolean;
+              },
+          )
+          .catch(() => null),
+      ]);
+
+      // Cooldown or error — just clean up silently
+      if (!apiResult || apiResult.cooldownActive) {
+        setCompletingRoutineId(null);
+        isCompletingRef.current = false;
+        return;
+      }
+
+      const earnedXP = apiResult.earnedXP ?? 0;
+      setCompletionXP(earnedXP);
+
+      // Phase 2: switch to green, ring expands from 0 → 1
+      setCompletionIsGreen(true);
+      completionRadiusAnim.setValue(0);
+
+      Animated.parallel([
+        Animated.timing(completionRadiusAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: false,
+        }),
+        Animated.timing(greenVignetteAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // XP toast: slides up and fades out
+      xpToastTranslate.setValue(0);
+      xpToastOpacity.setValue(1);
+      Animated.parallel([
+        Animated.timing(xpToastTranslate, {
+          toValue: -80,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.delay(600),
+          Animated.timing(xpToastOpacity, {
+            toValue: 0,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+
+      // Hold green for 2.5s
+      await new Promise<void>((resolve) => setTimeout(resolve, 2500));
+
+      // Phase 3: fade out green ring + vignette
+      await new Promise<void>((resolve) => {
+        Animated.parallel([
+          Animated.timing(greenVignetteAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(completionRadiusAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: false,
+          }),
+        ]).start(() => resolve());
+      });
+
+      // Mark pin green, remove completion overlay
+      setCompletedRoutineIds((prev) => new Set([...prev, routine.id]));
+      setCompletingRoutineId(null);
+      isCompletingRef.current = false;
+    },
+    [
+      completionRadiusAnim,
+      greenVignetteAnim,
+      xpToastTranslate,
+      xpToastOpacity,
+    ],
+  );
+
+  // Detect foreground geofence entry when bg permission is denied.
+  // Deps include bgDenied + completedRoutineIds so that if the user is already
+  // inside a zone when the permission check resolves we still trigger.
+  useEffect(() => {
+    const newId = activeRoutine?.id ?? null;
+
+    if (
+      newId !== null &&
+      bgDenied &&
+      !completedRoutineIds.has(newId) &&
+      !isCompletingRef.current
+    ) {
+      const coords = userCoordsRef.current;
+      const routine = routinesRef.current.find((r) => r.id === newId);
+      if (routine && coords) {
+        handleForegroundArrival(routine, coords);
+      }
+    }
+
+    prevActiveRoutineIdRef.current = newId;
+  }, [activeRoutine?.id, bgDenied, completedRoutineIds, handleForegroundArrival]);
+
+  // Main GeoJSON — excludes animating and already-completed routines
+  const mainGeofenceGeoJSON = useMemo(
+    () =>
+      buildGeofenceGeoJSON(
+        routines.filter(
+          (r) =>
+            r.id !== completingRoutineId && !completedRoutineIds.has(r.id),
+        ),
+      ),
+    [routines, completingRoutineId, completedRoutineIds],
+  );
+
+  // Completion GeoJSON — single routine with animated radius
+  const completionGeoJSON = useMemo(() => {
+    if (!completingRoutineId) return null;
+    const r = routines.find((rt) => rt.id === completingRoutineId);
+    if (!r) return null;
+    return buildGeofenceGeoJSON([r], completionScale);
+  }, [completingRoutineId, routines, completionScale]);
+
+  // ─── Sheet ───────────────────────────────────────────────────────────────
   const DRAG_RANGE = SHEET_EXPANDED_HEIGHT - SHEET_COLLAPSED_HEIGHT;
   const sheetY = useRef(new Animated.Value(DRAG_RANGE)).current;
-  const sheetYVal = useRef(DRAG_RANGE); // tracks current pixel value for gesture math
+  const sheetYVal = useRef(DRAG_RANGE);
   const gestureStartY = useRef(DRAG_RANGE);
 
   useEffect(() => {
@@ -275,7 +488,6 @@ export default function MapScreen() {
       },
       onPanResponderRelease: (_, { dy, vy }) => {
         if (Math.abs(dy) < 6) {
-          // treat as tap: toggle based on current position
           const currentlyExpanded = sheetYVal.current < DRAG_RANGE / 2;
           snapSheet(!currentlyExpanded);
           return;
@@ -307,6 +519,7 @@ export default function MapScreen() {
     outputRange: [0.45, 0],
   });
 
+  // ─── Permissions / location ───────────────────────────────────────────────
   const checkBg = useCallback(() => {
     Location.getBackgroundPermissionsAsync().then((bg) =>
       setBgDenied(bg.status !== "granted"),
@@ -381,6 +594,11 @@ export default function MapScreen() {
               lat: coords.latitude,
               t: timestamp,
             };
+            positionHistory.current.push({
+              lng: coords.longitude,
+              lat: coords.latitude,
+              t: timestamp,
+            });
             setUserCoords(next);
             return;
           }
@@ -391,30 +609,118 @@ export default function MapScreen() {
             coords.latitude,
             coords.longitude,
           );
-          const dt = (timestamp - last.t) / 1000;
 
           if (moved < MIN_MOVE_METERS) {
             if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
-            stationaryTimer.current = setTimeout(
-              () => setIsWalking(false),
-              STATIONARY_TIMEOUT_MS,
-            );
+            stationaryTimer.current = setTimeout(() => {
+              setIsWalking(false);
+              positionHistory.current = [];
+            }, STATIONARY_TIMEOUT_MS);
             return;
           }
 
-          let speed = 0;
-          if (coords.speed != null && coords.speed >= 0) speed = coords.speed;
-          else if (dt > 0) speed = moved / dt;
-
-          setIsWalking((prev) =>
-            prev ? speed > WALK_STOP_SPEED : speed > WALK_START_SPEED,
-          );
           setUserCoords(next);
           lastAccepted.current = {
             lng: coords.longitude,
             lat: coords.latitude,
             t: timestamp,
           };
+
+          const hist = positionHistory.current;
+          hist.push({
+            lng: coords.longitude,
+            lat: coords.latitude,
+            t: timestamp,
+          });
+          while (hist.length > POSITION_HISTORY_MAX) hist.shift();
+
+          const cutoff = timestamp - WALK_WINDOW_MS;
+          let windowDist = 0;
+          let firstIdx = -1;
+          for (let i = 0; i < hist.length; i++) {
+            if (hist[i].t >= cutoff) {
+              firstIdx = i;
+              break;
+            }
+          }
+          let netDisplacement = 0;
+          if (firstIdx >= 0) {
+            for (let i = firstIdx + 1; i < hist.length; i++) {
+              windowDist += haversineMeters(
+                hist[i - 1].lat,
+                hist[i - 1].lng,
+                hist[i].lat,
+                hist[i].lng,
+              );
+            }
+            if (firstIdx < hist.length - 1) {
+              netDisplacement = haversineMeters(
+                hist[firstIdx].lat,
+                hist[firstIdx].lng,
+                hist[hist.length - 1].lat,
+                hist[hist.length - 1].lng,
+              );
+            }
+          }
+          setIsWalking(
+            windowDist >= WALK_WINDOW_MIN_M &&
+              netDisplacement >= WALK_NET_MIN_M,
+          );
+
+          if (hist.length >= 3) {
+            let sumSin = 0;
+            let sumCos = 0;
+            let totalDist = 0;
+            let segCount = 0;
+            for (let i = 1; i < hist.length; i++) {
+              const d = haversineMeters(
+                hist[i - 1].lat,
+                hist[i - 1].lng,
+                hist[i].lat,
+                hist[i].lng,
+              );
+              if (d < HEADING_SEGMENT_MIN_M) continue;
+              const b = computeBearing(
+                hist[i - 1].lat,
+                hist[i - 1].lng,
+                hist[i].lat,
+                hist[i].lng,
+              );
+              const rad = (b * Math.PI) / 180;
+              sumSin += Math.sin(rad) * d;
+              sumCos += Math.cos(rad) * d;
+              totalDist += d;
+              segCount++;
+            }
+            if (segCount >= 2 && totalDist >= HEADING_MIN_TOTAL_M) {
+              const mag = Math.sqrt(sumSin * sumSin + sumCos * sumCos);
+              const confidence = mag / totalDist;
+              if (confidence >= HEADING_MIN_CONFIDENCE) {
+                const bearingAbs =
+                  ((Math.atan2(sumSin, sumCos) * 180) / Math.PI + 360) % 360;
+                lastAbsBearing.current = bearingAbs;
+
+                const prev = lastAppliedCameraBearing.current;
+                const angDiff =
+                  prev == null
+                    ? Infinity
+                    : Math.abs(
+                        (((bearingAbs - prev) % 360) + 540) % 360 - 180,
+                      );
+                if (angDiff > ROTATION_DEADZONE_DEG) {
+                  cameraRef.current?.setCamera({
+                    heading: bearingAbs,
+                    animationDuration: ROTATION_ANIMATION_MS,
+                  });
+                  lastAppliedCameraBearing.current = bearingAbs;
+                }
+
+                const relative =
+                  (bearingAbs - cameraHeadingRef.current + 360) % 360;
+                setCharDirection(bearingToDirection(relative));
+              }
+            }
+          }
 
           if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
           stationaryTimer.current = setTimeout(
@@ -430,31 +736,6 @@ export default function MapScreen() {
     };
   }, []);
 
-  // Drive character direction from device compass — works indoors and outdoors.
-  useEffect(() => {
-    let sub: Location.LocationSubscription | null = null;
-    (async () => {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== "granted") return;
-      sub = await Location.watchHeadingAsync((heading) => {
-        const raw =
-          heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading;
-        if (raw < 0) return; // unavailable
-        smoothedHeading.current = emaAngle(
-          smoothedHeading.current,
-          raw,
-          BEARING_EMA_ALPHA,
-        );
-        const relative =
-          (smoothedHeading.current - cameraHeadingRef.current + 360) % 360;
-        setCharDirection(bearingToDirection(relative));
-      });
-    })();
-    return () => {
-      sub?.remove();
-    };
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
       apiClient
@@ -462,6 +743,21 @@ export default function MapScreen() {
         .then(({ data }) => setRoutines(data))
         .catch(() => {});
       checkBg();
+      // Seed completedRoutineIds from missions completed within the cooldown window
+      // so green pins and suppressed vignette survive tab switches and re-mounts.
+      apiClient
+        .get<CompletedMission[]>("/missions/history")
+        .then(({ data }) => {
+          const cooldownMs = 60 * 60 * 1000;
+          const cutoff = Date.now() - cooldownMs;
+          const recentIds = data
+            .filter((m) => new Date(m.completedAt).getTime() > cutoff)
+            .map((m) => m.routineId);
+          if (recentIds.length > 0) {
+            setCompletedRoutineIds(new Set(recentIds));
+          }
+        })
+        .catch(() => {});
     }, [checkBg]),
   );
 
@@ -499,11 +795,15 @@ export default function MapScreen() {
         attributionEnabled={false}
         scaleBarEnabled={false}
         pitchEnabled={false}
+        rotateEnabled={false}
         onCameraChanged={(state: any) => {
           setMapZoom(state.properties.zoom);
           const h = state.properties.heading ?? 0;
-          setCameraHeading(h);
           cameraHeadingRef.current = h;
+          if (lastAbsBearing.current != null) {
+            const rel = (lastAbsBearing.current - h + 360) % 360;
+            setCharDirection(bearingToDirection(rel));
+          }
         }}
       >
         <Camera
@@ -530,8 +830,9 @@ export default function MapScreen() {
             fillExtrusionVerticalGradient: true,
           }}
         />
-        <ShapeSource id="geofences" shape={buildGeofenceGeoJSON(routines)}>
-          {/* Ground glow ring */}
+
+        {/* Main geofence rings — completing routine filtered out */}
+        <ShapeSource id="geofences" shape={mainGeofenceGeoJSON}>
           <LineLayer
             id="geofence-glow"
             style={{
@@ -547,7 +848,6 @@ export default function MapScreen() {
               lineWidth: 2,
             }}
           />
-          {/* Hologram wall — stacked extrusions, height proportional to radius, opacity fades to 0 at top */}
           <FillExtrusionLayer
             id="geofence-wall-base"
             style={{
@@ -579,6 +879,82 @@ export default function MapScreen() {
             }}
           />
         </ShapeSource>
+
+        {/* Completion animation ring — shrinks orange then grows green */}
+        {completingRoutineId && completionGeoJSON && (
+          <ShapeSource id="completion-ring" shape={completionGeoJSON}>
+            <LineLayer
+              id="completion-ring-glow"
+              style={{
+                lineColor: completionIsGreen
+                  ? "rgba(34, 197, 94, 0.6)"
+                  : "rgba(255, 100, 0, 0.6)",
+                lineWidth: 18,
+                lineBlur: 12,
+              }}
+            />
+            <LineLayer
+              id="completion-ring-line"
+              style={{
+                lineColor: completionIsGreen
+                  ? "rgba(34, 197, 94, 1)"
+                  : "rgba(255, 140, 60, 1)",
+                lineWidth: 2,
+              }}
+            />
+            <FillExtrusionLayer
+              id="completion-wall-base"
+              style={{
+                fillExtrusionColor: completionIsGreen ? GREEN : Colors.accent,
+                fillExtrusionHeight: [
+                  "min",
+                  ["*", ["get", "radius"], 0.05],
+                  6,
+                ],
+                fillExtrusionBase: 0,
+                fillExtrusionOpacity: completionIsGreen ? 0.55 : 0.42,
+                fillExtrusionVerticalGradient: true,
+              }}
+            />
+            <FillExtrusionLayer
+              id="completion-wall-mid"
+              style={{
+                fillExtrusionColor: completionIsGreen ? GREEN : Colors.accent,
+                fillExtrusionHeight: [
+                  "min",
+                  ["*", ["get", "radius"], 0.1],
+                  14,
+                ],
+                fillExtrusionBase: [
+                  "min",
+                  ["*", ["get", "radius"], 0.05],
+                  6,
+                ],
+                fillExtrusionOpacity: completionIsGreen ? 0.35 : 0.22,
+                fillExtrusionVerticalGradient: true,
+              }}
+            />
+            <FillExtrusionLayer
+              id="completion-wall-top"
+              style={{
+                fillExtrusionColor: completionIsGreen ? GREEN : Colors.accent,
+                fillExtrusionHeight: [
+                  "min",
+                  ["*", ["get", "radius"], 0.18],
+                  22,
+                ],
+                fillExtrusionBase: [
+                  "min",
+                  ["*", ["get", "radius"], 0.1],
+                  14,
+                ],
+                fillExtrusionOpacity: completionIsGreen ? 0.18 : 0.08,
+                fillExtrusionVerticalGradient: true,
+              }}
+            />
+          </ShapeSource>
+        )}
+
         {userCoords && (
           <MarkerView
             key="character"
@@ -606,11 +982,15 @@ export default function MapScreen() {
             coordinate={[routine.longitude, routine.latitude]}
             anchor={{ x: 0.5, y: 1 }}
           >
-            <MissionPin iconType={routine.iconType} />
+            <MissionPin
+              iconType={routine.iconType}
+              completed={completedRoutineIds.has(routine.id)}
+            />
           </MarkerView>
         ))}
       </MapView>
-      {/* Zone vignette — pulses when user is inside a geofence */}
+
+      {/* Orange zone vignette — pulses when inside a geofence (not completing) */}
       <Animated.View
         pointerEvents="none"
         style={[styles.vignetteBorder, { opacity: vignetteAnim }]}
@@ -619,7 +999,27 @@ export default function MapScreen() {
         pointerEvents="none"
         style={[styles.vignetteGlow, { opacity: vignetteAnim }]}
       />
-      {activeRoutine && (
+
+      {/* Green completion vignette */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.vignetteBorder,
+          { opacity: greenVignetteAnim, borderColor: GREEN },
+        ]}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.vignetteGlow,
+          {
+            opacity: greenVignetteAnim,
+            borderColor: "rgba(34, 197, 94, 0.25)",
+          },
+        ]}
+      />
+
+      {activeRoutine && !completingRoutineId && (
         <Animated.View
           pointerEvents="none"
           style={[styles.missionBadge, { opacity: vignetteAnim }]}
@@ -641,6 +1041,24 @@ export default function MapScreen() {
           </Text>
         </Animated.View>
       )}
+
+      {/* XP toast — floats up after completion */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.xpToastContainer,
+          {
+            opacity: xpToastOpacity,
+            transform: [{ translateY: xpToastTranslate }],
+          },
+        ]}
+      >
+        <View style={styles.xpToastBadge}>
+          <Ionicons name="star" size={16} color={GREEN} />
+          <Text style={styles.xpToastText}>+{completionXP} XP</Text>
+        </View>
+      </Animated.View>
+
       {bgDenied && (
         <Pressable style={styles.banner} onPress={handleBannerPress}>
           <Ionicons name="warning-outline" size={16} color={Colors.accent} />
@@ -854,6 +1272,35 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: Colors.accent,
+  },
+  xpToastContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: "48%",
+    alignItems: "center",
+  },
+  xpToastBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: "rgba(11, 13, 18, 0.92)",
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: GREEN,
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  xpToastText: {
+    color: GREEN,
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: 2,
   },
   banner: {
     position: "absolute",

@@ -3,7 +3,7 @@ export interface CompletedMission {
   routineId: string;
   missionName: string;
   completedAt: string;
-  xpEarned: number;
+  earnedXP: number;
   latitude: number;
   longitude: number;
 }

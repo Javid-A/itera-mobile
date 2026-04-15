@@ -11,6 +11,9 @@ const SCALE = DISPLAY_W / FRAME_W;
 
 export type Direction = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 
+const DIRECTION_RING: Direction[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
+const DIR_STEP_MS = 120; // ms per 45° step
+
 // Directions that are horizontal mirrors of another direction
 const MIRRORED_FROM: Partial<Record<Direction, Direction>> = {
   sw: 'se',
@@ -49,6 +52,9 @@ interface Props {
 export default function CharacterSprite({ isWalking = false, scale = 1, direction = 's' }: Props) {
   const [frame, setFrame] = useState(0);
   const frameRef = useRef(0);
+  // displayDir: the direction currently shown — steps toward `direction` prop
+  const [displayDir, setDisplayDir] = useState<Direction>(direction);
+  const displayDirRef = useRef<Direction>(direction);
 
   const totalFrames = isWalking ? WALK_FRAMES : IDLE_FRAMES;
   const fps = isWalking ? 12 : 8;
@@ -66,8 +72,32 @@ export default function CharacterSprite({ isWalking = false, scale = 1, directio
     return () => clearInterval(interval);
   }, [totalFrames, fps]);
 
-  const mirrored = direction in MIRRORED_FROM;
-  const sourceDir = MIRRORED_FROM[direction] ?? direction;
+  // Step through intermediate directions instead of snapping instantly
+  useEffect(() => {
+    if (direction === displayDirRef.current) return;
+
+    const stepTimer = setInterval(() => {
+      const curIdx = DIRECTION_RING.indexOf(displayDirRef.current);
+      const tgtIdx = DIRECTION_RING.indexOf(direction);
+      if (curIdx === tgtIdx) {
+        clearInterval(stepTimer);
+        return;
+      }
+      // Shortest rotation: clockwise or counter-clockwise
+      let diff = tgtIdx - curIdx;
+      if (diff > 4) diff -= 8;
+      if (diff < -4) diff += 8;
+      const nextIdx = (curIdx + (diff > 0 ? 1 : -1) + 8) % 8;
+      const nextDir = DIRECTION_RING[nextIdx];
+      displayDirRef.current = nextDir;
+      setDisplayDir(nextDir);
+    }, DIR_STEP_MS);
+
+    return () => clearInterval(stepTimer);
+  }, [direction]);
+
+  const mirrored = displayDir in MIRRORED_FROM;
+  const sourceDir = MIRRORED_FROM[displayDir] ?? displayDir;
   const sprite = isWalking ? WALK[sourceDir] : IDLE[sourceDir];
 
   const scaledW = DISPLAY_W * scale;
