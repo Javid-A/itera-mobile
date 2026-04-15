@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants';
 
@@ -17,9 +18,29 @@ interface Props {
 
 export default function MissionPin({ iconType }: Props) {
   const iconName = ICON_MAP[iconType] ?? 'location';
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -5,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, []);
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { transform: [{ translateY: floatAnim }] }]}>
       <View style={styles.diamond}>
         <View style={styles.iconInner}>
           <Ionicons name={iconName} size={12} color={Colors.textPrimary} />
@@ -27,7 +48,7 @@ export default function MissionPin({ iconType }: Props) {
       </View>
       <View style={styles.stem} />
       <View style={styles.glow} />
-    </View>
+    </Animated.View>
   );
 }
 

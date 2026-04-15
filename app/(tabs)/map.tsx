@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   AppState,
@@ -62,17 +62,17 @@ const GPS_ENV: "indoor" | "outdoor" = "outdoor";
 
 const GPS_CONFIG = {
   indoor: {
-    GPS_ACCURACY_MAX: 60,    // accept weaker fixes indoors
-    MIN_MOVE_METERS: 1,      // trigger on smaller steps
-    WALK_START_SPEED: 0.3,   // lower bar to detect walking
+    GPS_ACCURACY_MAX: 60, // accept weaker fixes indoors
+    MIN_MOVE_METERS: 1, // trigger on smaller steps
+    WALK_START_SPEED: 0.3, // lower bar to detect walking
     WALK_STOP_SPEED: 0.1,
-    BEARING_EMA_ALPHA: 0.5,  // react faster to direction changes
+    BEARING_EMA_ALPHA: 0.5, // react faster to direction changes
     STATIONARY_TIMEOUT_MS: 2000,
   },
   outdoor: {
-    GPS_ACCURACY_MAX: 25,    // reject poor fixes
-    MIN_MOVE_METERS: 2,      // ignore GPS jitter
-    WALK_START_SPEED: 0.7,   // normal walking pace ~1.2 m/s
+    GPS_ACCURACY_MAX: 25, // reject poor fixes
+    MIN_MOVE_METERS: 2, // ignore GPS jitter
+    WALK_START_SPEED: 0.7, // normal walking pace ~1.2 m/s
     WALK_STOP_SPEED: 0.3,
     BEARING_EMA_ALPHA: 0.35, // smooth bearing changes
     STATIONARY_TIMEOUT_MS: 4000,
@@ -117,7 +117,7 @@ function buildGeofenceGeoJSON(routines: Routine[]) {
     }
     return {
       type: "Feature" as const,
-      properties: { id: r.id },
+      properties: { id: r.id, radius: r.radiusMeters },
       geometry: { type: "Polygon" as const, coordinates: [coords] },
     };
   });
@@ -143,7 +143,7 @@ function computeBearing(
     Math.sin(toRad(lat1)) *
       Math.cos(toRad(lat2)) *
       Math.cos(toRad(lon2 - lon1));
-  return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 function emaAngle(prev: number | null, next: number, alpha: number): number {
@@ -186,6 +186,52 @@ export default function MapScreen() {
   const cameraHeadingRef = useRef(0);
   const cameraRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
+
+  const vignetteAnim = useRef(new Animated.Value(0)).current;
+
+  const activeRoutine = useMemo(() => {
+    if (!userCoords) return null;
+    return (
+      routines.find(
+        (r) =>
+          haversineMeters(
+            userCoords[1],
+            userCoords[0],
+            r.latitude,
+            r.longitude,
+          ) < r.radiusMeters,
+      ) ?? null
+    );
+  }, [userCoords, routines]);
+
+  useEffect(() => {
+    if (!activeRoutine) return;
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(vignetteAnim, {
+          toValue: 0.85,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(vignetteAnim, {
+          toValue: 0.4,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+      Animated.timing(vignetteAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    };
+  }, [activeRoutine?.id, vignetteAnim]);
 
   // sheetY: pixel translateY — 0 = fully expanded, DRAG_RANGE = collapsed
   const DRAG_RANGE = SHEET_EXPANDED_HEIGHT - SHEET_COLLAPSED_HEIGHT;
@@ -391,14 +437,22 @@ export default function MapScreen() {
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") return;
       sub = await Location.watchHeadingAsync((heading) => {
-        const raw = heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading;
+        const raw =
+          heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading;
         if (raw < 0) return; // unavailable
-        smoothedHeading.current = emaAngle(smoothedHeading.current, raw, BEARING_EMA_ALPHA);
-        const relative = (smoothedHeading.current - cameraHeadingRef.current + 360) % 360;
+        smoothedHeading.current = emaAngle(
+          smoothedHeading.current,
+          raw,
+          BEARING_EMA_ALPHA,
+        );
+        const relative =
+          (smoothedHeading.current - cameraHeadingRef.current + 360) % 360;
         setCharDirection(bearingToDirection(relative));
       });
     })();
-    return () => { sub?.remove(); };
+    return () => {
+      sub?.remove();
+    };
   }, []);
 
   useFocusEffect(
@@ -477,16 +531,52 @@ export default function MapScreen() {
           }}
         />
         <ShapeSource id="geofences" shape={buildGeofenceGeoJSON(routines)}>
-          <FillLayer
-            id="geofence-fill"
+          {/* Ground glow ring */}
+          <LineLayer
+            id="geofence-glow"
             style={{
-              fillColor: "rgba(255, 100, 0, 0.15)",
-              fillOutlineColor: "transparent",
+              lineColor: "rgba(255, 100, 0, 0.6)",
+              lineWidth: 18,
+              lineBlur: 12,
             }}
           />
           <LineLayer
-            id="geofence-border"
-            style={{ lineColor: "rgba(255, 100, 0, 0.4)", lineWidth: 1 }}
+            id="geofence-ring"
+            style={{
+              lineColor: "rgba(255, 140, 60, 1)",
+              lineWidth: 2,
+            }}
+          />
+          {/* Hologram wall — stacked extrusions, height proportional to radius, opacity fades to 0 at top */}
+          <FillExtrusionLayer
+            id="geofence-wall-base"
+            style={{
+              fillExtrusionColor: Colors.accent,
+              fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.05], 6],
+              fillExtrusionBase: 0,
+              fillExtrusionOpacity: 0.42,
+              fillExtrusionVerticalGradient: true,
+            }}
+          />
+          <FillExtrusionLayer
+            id="geofence-wall-mid"
+            style={{
+              fillExtrusionColor: Colors.accent,
+              fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.1], 14],
+              fillExtrusionBase: ["min", ["*", ["get", "radius"], 0.05], 6],
+              fillExtrusionOpacity: 0.22,
+              fillExtrusionVerticalGradient: true,
+            }}
+          />
+          <FillExtrusionLayer
+            id="geofence-wall-top"
+            style={{
+              fillExtrusionColor: Colors.accent,
+              fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.18], 22],
+              fillExtrusionBase: ["min", ["*", ["get", "radius"], 0.1], 14],
+              fillExtrusionOpacity: 0.08,
+              fillExtrusionVerticalGradient: true,
+            }}
           />
         </ShapeSource>
         {userCoords && (
@@ -520,6 +610,37 @@ export default function MapScreen() {
           </MarkerView>
         ))}
       </MapView>
+      {/* Zone vignette — pulses when user is inside a geofence */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.vignetteBorder, { opacity: vignetteAnim }]}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.vignetteGlow, { opacity: vignetteAnim }]}
+      />
+      {activeRoutine && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.missionBadge, { opacity: vignetteAnim }]}
+        >
+          <Ionicons name="radio-outline" size={12} color={Colors.accent} />
+          <Text
+            style={[
+              Typography.caption,
+              {
+                color: Colors.accent,
+                marginLeft: Spacing.xs,
+                fontWeight: "700",
+                letterSpacing: 0.8,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {activeRoutine.missionName.toUpperCase()}
+          </Text>
+        </Animated.View>
+      )}
       {bgDenied && (
         <Pressable style={styles.banner} onPress={handleBannerPress}>
           <Ionicons name="warning-outline" size={16} color={Colors.accent} />
@@ -698,6 +819,41 @@ const styles = StyleSheet.create({
   },
   missionInfo: {
     flex: 1,
+  },
+  vignetteBorder: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 3,
+    borderColor: Colors.accent,
+  },
+  vignetteGlow: {
+    position: "absolute",
+    top: -6,
+    left: -6,
+    right: -6,
+    bottom: -6,
+    borderWidth: 24,
+    borderColor: "rgba(255, 87, 34, 0.25)",
+  },
+  missionBadge: {
+    position: "absolute",
+    top: 52,
+    alignSelf: "center",
+    left: "50%",
+    transform: [{ translateX: -80 }],
+    width: 160,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(11, 13, 18, 0.85)",
+    borderRadius: 20,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.accent,
   },
   banner: {
     position: "absolute",

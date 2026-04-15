@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -40,12 +40,19 @@ export default function RoutinesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [missionName, setMissionName] = useState('');
   const [locationName, setLocationName] = useState('');
+  const [locationLat, setLocationLat] = useState<number | null>(null);
+  const [locationLng, setLocationLng] = useState<number | null>(null);
+  const [locationEditing, setLocationEditing] = useState(false);
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationResults, setLocationResults] = useState<{ id: string; name: string; lat: number; lng: number }[]>([]);
+  const [locationSearching, setLocationSearching] = useState(false);
   const [radius, setRadius] = useState(100);
   const [selectedIcon, setSelectedIcon] = useState('briefcase');
   const [showBgPrompt, setShowBgPrompt] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuRoutineId, setMenuRoutineId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ y: 0 });
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchRoutines = useCallback(async () => {
     try {
@@ -80,15 +87,67 @@ export default function RoutinesScreen() {
   const resetForm = () => {
     setMissionName('');
     setLocationName('');
+    setLocationLat(null);
+    setLocationLng(null);
+    setLocationEditing(false);
+    setLocationQuery('');
+    setLocationResults([]);
     setRadius(100);
     setSelectedIcon('briefcase');
+  };
+
+  const handleLocationQueryChange = (query: string) => {
+    setLocationQuery(query);
+    setLocationResults([]);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    if (query.trim().length < 2) return;
+    searchDebounce.current = setTimeout(async () => {
+      setLocationSearching(true);
+      try {
+        const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=5`
+        );
+        const json = await res.json();
+        setLocationResults(
+          (json.features ?? []).map((f: any) => ({
+            id: f.id,
+            name: f.place_name,
+            lat: f.center[1],
+            lng: f.center[0],
+          }))
+        );
+      } catch {
+        setLocationResults([]);
+      } finally {
+        setLocationSearching(false);
+      }
+    }, 300);
+  };
+
+  const selectLocation = (item: { name: string; lat: number; lng: number }) => {
+    setLocationName(item.name);
+    setLocationLat(item.lat);
+    setLocationLng(item.lng);
+    setLocationEditing(false);
+    setLocationQuery('');
+    setLocationResults([]);
+  };
+
+  const clearLocation = () => {
+    setLocationName('');
+    setLocationLat(null);
+    setLocationLng(null);
+    setLocationEditing(false);
+    setLocationQuery('');
+    setLocationResults([]);
   };
 
   const handleSubmit = async () => {
     if (!missionName.trim()) return;
 
-    const latitude = 52.52 + (Math.random() - 0.5) * 0.01;
-    const longitude = 13.405 + (Math.random() - 0.5) * 0.01;
+    const latitude = locationLat ?? 52.52 + (Math.random() - 0.5) * 0.01;
+    const longitude = locationLng ?? 13.405 + (Math.random() - 0.5) * 0.01;
 
     setLoading(true);
     try {
@@ -219,12 +278,62 @@ export default function RoutinesScreen() {
             <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.md }]}>
               Location
             </Text>
-            <Pressable style={styles.locationTrigger} onPress={() => { /* TODO: open Location Picker */ }}>
-              <Text style={[Typography.body, { color: locationName ? Colors.textPrimary : Colors.textSecondary, flex: 1 }]}>
-                {locationName || 'Select a location'}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
-            </Pressable>
+
+            {locationEditing ? (
+              <View style={styles.locationSearchContainer}>
+                <View style={styles.locationSearchRow}>
+                  <Ionicons name="search-outline" size={16} color={Colors.textSecondary} style={{ marginRight: Spacing.sm }} />
+                  <TextInput
+                    style={styles.locationSearchInput}
+                    placeholder="Search for a place..."
+                    placeholderTextColor={Colors.textSecondary}
+                    value={locationQuery}
+                    onChangeText={handleLocationQueryChange}
+                    autoFocus
+                  />
+                  {locationSearching
+                    ? <ActivityIndicator size="small" color={Colors.accent} />
+                    : <Pressable onPress={() => { setLocationEditing(false); setLocationQuery(''); setLocationResults([]); }} hitSlop={8}>
+                        <Ionicons name="close" size={18} color={Colors.textSecondary} />
+                      </Pressable>
+                  }
+                </View>
+                {locationResults.length > 0 && (
+                  <View style={styles.locationResultsList}>
+                    {locationResults.map((item, index) => (
+                      <Pressable
+                        key={item.id}
+                        style={[styles.locationResultItem, index < locationResults.length - 1 && styles.locationResultBorder]}
+                        onPress={() => selectLocation(item)}
+                      >
+                        <Ionicons name="location-outline" size={15} color={Colors.accent} style={{ marginRight: Spacing.sm, marginTop: 2 }} />
+                        <Text style={[Typography.body, { color: Colors.textPrimary, flex: 1, fontSize: 14 }]} numberOfLines={2}>
+                          {item.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : (
+              <Pressable style={styles.locationTrigger} onPress={() => setLocationEditing(true)}>
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={locationName ? Colors.accent : Colors.textSecondary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+                <Text style={[Typography.body, { color: locationName ? Colors.textPrimary : Colors.textSecondary, flex: 1 }]}>
+                  {locationName || 'Select a location'}
+                </Text>
+                {locationName
+                  ? <Pressable onPress={clearLocation} hitSlop={8}>
+                      <Ionicons name="close-circle" size={18} color={Colors.textSecondary} />
+                    </Pressable>
+                  : <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+                }
+              </Pressable>
+            )}
 
             <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.md }]}>
               Geofence Radius
@@ -388,6 +497,37 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     padding: Spacing.md,
     marginTop: Spacing.xs,
+  },
+  locationSearchContainer: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    marginTop: Spacing.xs,
+    overflow: 'hidden',
+  },
+  locationSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+  },
+  locationSearchInput: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: 16,
+  },
+  locationResultsList: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  locationResultItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: Spacing.md,
+  },
+  locationResultBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   sliderRow: {
     flexDirection: 'row',
