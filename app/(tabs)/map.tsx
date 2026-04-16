@@ -748,7 +748,7 @@ export default function MapScreen() {
       apiClient
         .get<CompletedMission[]>("/missions/history")
         .then(({ data }) => {
-          const cooldownMs = 60 * 60 * 1000;
+          const cooldownMs = 24 * 60 * 60 * 1000;
           const cutoff = Date.now() - cooldownMs;
           const recentIds = data
             .filter((m) => new Date(m.completedAt).getTime() > cutoff)

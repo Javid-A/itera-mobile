@@ -219,10 +219,10 @@ function DayAccordion({ group, defaultOpen }: { group: DayGroup; defaultOpen: bo
                     pitch: 0,
                   }}
                 />
-                {group.missions.map((m) => (
+                {spreadDuplicates(group.missions).map((p) => (
                   <MarkerView
-                    key={m.id}
-                    coordinate={[m.longitude, m.latitude]}
+                    key={p.id}
+                    coordinate={[p.lng, p.lat]}
                     anchor={{ x: 0.5, y: 0.5 }}
                   >
                     <View style={styles.mapPin}>
