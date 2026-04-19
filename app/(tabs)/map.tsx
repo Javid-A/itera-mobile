@@ -12,13 +12,11 @@ import {
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { Platform } from "react-native";
 import { Colors, Spacing, Typography } from "../../constants";
 import apiClient from "../../src/services/apiClient";
 import { requestBackgroundLocation } from "../../src/services/locationSettings";
 import MissionPin from "../../components/MissionPin";
-import CharacterSprite, {
-  type Direction,
-} from "../../components/CharacterSprite";
 import CreateRoutineModal from "../../components/CreateRoutineModal";
 import type { Routine } from "../../src/types/Routine";
 import type { CompletedMission } from "../../src/types/CompletedMission";
@@ -33,6 +31,8 @@ let SymbolLayer: any;
 let ShapeSource: any;
 let FillLayer: any;
 let LineLayer: any;
+let Models: any;
+let ModelLayer: any;
 
 try {
   const maps = require("@rnmapbox/maps");
@@ -45,6 +45,8 @@ try {
   ShapeSource = maps.ShapeSource;
   FillLayer = maps.FillLayer;
   LineLayer = maps.LineLayer;
+  Models = maps.Models;
+  ModelLayer = maps.ModelLayer;
   Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
   MapboxAvailable = true;
 } catch {
@@ -53,6 +55,7 @@ try {
 
 const XP_PER_LEVEL = 1000;
 const CIRCLE_POINTS = 64;
+const CHARACTER_MODEL_SCALE = 1.0; // calibrate if needed
 const MAP_PITCH = 65;
 const MAP_ZOOM_DEFAULT = 17.5;
 const MAP_ZOOM_MIN = 17.5;
@@ -133,12 +136,6 @@ function buildGeofenceGeoJSON(routines: Routine[], radiusScale = 1) {
   return { type: "FeatureCollection" as const, features };
 }
 
-function bearingToDirection(bearing: number): Direction {
-  const b = ((bearing % 360) + 360) % 360;
-  const dirs: Direction[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
-  return dirs[Math.round(b / 45) % 8];
-}
-
 function computeBearing(
   lat1: number,
   lon1: number,
@@ -179,9 +176,17 @@ export default function MapScreen() {
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [isWalking, setIsWalking] = useState(false);
-  const [mapZoom, setMapZoom] = useState(MAP_ZOOM_DEFAULT);
-  const [charDirection, setCharDirection] = useState<Direction>("s");
+  const [charBearing, setCharBearing] = useState(0);
+  const [styleLoaded, setStyleLoaded] = useState(false);
   const [createVisible, setCreateVisible] = useState(false);
+
+  const modelUris = useMemo(() => {
+    if (Platform.OS !== "android") return null;
+    return {
+      idle: "asset://GLB/idle_2_male_free_animation_220_frames_loop.glb",
+      walk: "asset://GLB/male_basic_walk_30_frames_loop.glb",
+    };
+  }, []);
 
   // ─── Completion animation state ────────────────────────────────────────
   const [completedRoutineIds, setCompletedRoutineIds] = useState<Set<string>>(
@@ -444,6 +449,15 @@ export default function MapScreen() {
     return buildGeofenceGeoJSON([r], completionScale);
   }, [completingRoutineId, routines, completionScale]);
 
+  const characterGeoJSON = useMemo(() => {
+    if (!userCoords) return null;
+    return {
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: userCoords },
+      properties: {},
+    };
+  }, [userCoords]);
+
   // ─── Sheet ───────────────────────────────────────────────────────────────
   const DRAG_RANGE = SHEET_EXPANDED_HEIGHT - SHEET_COLLAPSED_HEIGHT;
   const sheetY = useRef(new Animated.Value(DRAG_RANGE)).current;
@@ -695,6 +709,7 @@ export default function MapScreen() {
                 const bearingAbs =
                   ((Math.atan2(sumSin, sumCos) * 180) / Math.PI + 360) % 360;
                 lastAbsBearing.current = bearingAbs;
+                setCharBearing(bearingAbs);
 
                 const prev = lastAppliedCameraBearing.current;
                 const angDiff =
@@ -710,10 +725,6 @@ export default function MapScreen() {
                   });
                   lastAppliedCameraBearing.current = bearingAbs;
                 }
-
-                const relative =
-                  (bearingAbs - cameraHeadingRef.current + 360) % 360;
-                setCharDirection(bearingToDirection(relative));
               }
             }
           }
@@ -803,14 +814,9 @@ export default function MapScreen() {
         scaleBarEnabled={false}
         pitchEnabled={true}
         rotateEnabled={true}
+        onDidFinishLoadingStyle={() => setStyleLoaded(true)}
         onCameraChanged={(state: any) => {
-          setMapZoom(state.properties.zoom);
-          const h = state.properties.heading ?? 0;
-          cameraHeadingRef.current = h;
-          if (lastAbsBearing.current != null) {
-            const rel = (lastAbsBearing.current - h + 360) % 360;
-            setCharDirection(bearingToDirection(rel));
-          }
+          cameraHeadingRef.current = state.properties.heading ?? 0;
         }}
       >
         <Camera
@@ -950,26 +956,29 @@ export default function MapScreen() {
           </ShapeSource>
         )}
 
-        {userCoords && (
-          <MarkerView
-            key="character"
-            coordinate={userCoords}
-            anchor={{ x: 0.5, y: 1 }}
-          >
-            <CharacterSprite
-              isWalking={isWalking}
-              direction={charDirection}
-              scale={(() => {
-                const base = Math.pow(2, mapZoom - 20);
-                const mid = (MAP_ZOOM_MIN + MAP_ZOOM_MAX) / 2;
-                const boost =
-                  mapZoom < mid
-                    ? 1 + ((mid - mapZoom) / (mid - MAP_ZOOM_MIN)) * 1.0
-                    : 1;
-                return base * boost;
-              })()}
+        {styleLoaded && modelUris && (
+          <>
+            <Models
+              models={{
+                character_idle: modelUris.idle,
+                character_walk: modelUris.walk,
+              }}
             />
-          </MarkerView>
+            {characterGeoJSON && (
+              <ShapeSource id="character-source" shape={characterGeoJSON}>
+                <ModelLayer
+                  id="character-layer"
+                  style={{
+                    modelId: isWalking ? "character_walk" : "character_idle",
+                    modelType: "location-indicator",
+                    modelScale: [CHARACTER_MODEL_SCALE, CHARACTER_MODEL_SCALE, CHARACTER_MODEL_SCALE],
+                    modelRotation: [-90, 0, charBearing],
+                    modelOpacity: 1,
+                  }}
+                />
+              </ShapeSource>
+            )}
+          </>
         )}
         {routines.map((routine) => (
           <MarkerView
