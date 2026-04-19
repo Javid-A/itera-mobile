@@ -1,16 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
 import ScreenContainer from '../../components/ScreenContainer';
 import { Colors, Spacing, Typography } from '../../constants';
 import apiClient from '../../src/services/apiClient';
-import { useAuth } from '../../src/context/AuthContext';
 import type { CompletedMission } from '../../src/types/CompletedMission';
-
-const XP_PER_LEVEL = 1000;
-const GREEN = '#22C55E';
 
 let MapboxAvailable = false;
 let MapView: any;
@@ -25,13 +20,6 @@ try {
   MapboxAvailable = true;
 } catch {
   MapboxAvailable = false;
-}
-
-interface Profile {
-  username: string;
-  currentLevel: number;
-  currentXP: number;
-  totalMissions: number;
 }
 
 interface DayGroup {
@@ -69,16 +57,12 @@ function groupByDay(missions: CompletedMission[]): DayGroup[] {
   return Array.from(map.values()).sort((a, b) => b.dateKey.localeCompare(a.dateKey));
 }
 
-// Returns camera props to fit all mission coordinates
-// Map frame dimensions (height fixed, width conservative floor for zoom calc)
 const MAP_FRAME_H = 160;
 const MAP_FRAME_W = 320;
 
-// Spread pins that share identical coordinates into a small circle so they
-// don't stack invisibly. Offset ≈ 20m at the given latitude.
 function spreadDuplicates(missions: CompletedMission[]): { id: string; lng: number; lat: number }[] {
-  const OFFSET_DEG = 0.00018; // ~20m
-  const seen = new Map<string, number>(); // "lat,lng" → count
+  const OFFSET_DEG = 0.00018;
+  const seen = new Map<string, number>();
 
   return missions.map((m) => {
     const key = `${m.latitude.toFixed(6)},${m.longitude.toFixed(6)}`;
@@ -87,8 +71,7 @@ function spreadDuplicates(missions: CompletedMission[]): { id: string; lng: numb
 
     if (idx === 0) return { id: m.id, lng: m.longitude, lat: m.latitude };
 
-    // Distribute duplicates evenly around a small circle
-    const angle = (idx / 6) * 2 * Math.PI; // max 6 before overlap
+    const angle = (idx / 6) * 2 * Math.PI;
     return {
       id: m.id,
       lng: m.longitude + OFFSET_DEG * Math.cos(angle),
@@ -97,9 +80,6 @@ function spreadDuplicates(missions: CompletedMission[]): { id: string; lng: numb
   });
 }
 
-// Calculates { centerCoordinate, zoom } to fit all valid pins.
-// Uses explicit Mercator zoom formula so every pin is always visible
-// regardless of how spread out they are.
 function calcCameraProps(missions: CompletedMission[]) {
   const valid = missions.filter((m) => m.latitude !== 0 || m.longitude !== 0);
   if (valid.length === 0) return null;
@@ -116,15 +96,12 @@ function calcCameraProps(missions: CompletedMission[]) {
   const lngSpan = maxLng - minLng;
   const latSpan = maxLat - minLat;
 
-  // All pins at the same spot → street-level zoom
   if (lngSpan < 0.0001 && latSpan < 0.0001) {
     return { centerCoordinate: [centerLng, centerLat] as [number, number], zoom: 15 };
   }
 
-  // Standard Web-Mercator: at zoom Z, 256 × 2^Z px covers 360° of longitude.
-  // Solve for Z per axis, take the tighter one, subtract 1 for padding margin.
   const lngZoom = Math.log2((MAP_FRAME_W / 256) * (360 / lngSpan));
-  const latZoom = Math.log2((MAP_FRAME_H / 256) * (170 / latSpan)); // 170 ≈ Mercator-visible range
+  const latZoom = Math.log2((MAP_FRAME_H / 256) * (170 / latSpan));
   const zoom = Math.max(1, Math.min(15, Math.floor(Math.min(lngZoom, latZoom)) - 1));
 
   return { centerCoordinate: [centerLng, centerLat] as [number, number], zoom };
@@ -153,19 +130,18 @@ function DayAccordion({ group, defaultOpen }: { group: DayGroup; defaultOpen: bo
 
   return (
     <View style={styles.accordion}>
-      {/* Header */}
       <Pressable style={styles.accordionHeader} onPress={toggle}>
         <View style={styles.accordionLeft}>
-          <Text style={[Typography.label, { color: Colors.textPrimary, fontWeight: '700' }]}>
+          <Text style={[Typography.displaySM, { color: Colors.textPrimary }]}>
             {group.label}
           </Text>
           <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
-            {group.missions.length} {group.missions.length === 1 ? 'mission' : 'missions'}
+            {group.missions.length} {group.missions.length === 1 ? 'MISSION' : 'MISSIONS'}
           </Text>
         </View>
         <View style={styles.accordionRight}>
           <View style={styles.xpBadge}>
-            <Text style={[Typography.caption, { color: Colors.accent, fontWeight: '700' }]}>
+            <Text style={[Typography.label, { color: Colors.accent }]}>
               +{group.totalXP} XP
             </Text>
           </View>
@@ -177,27 +153,25 @@ function DayAccordion({ group, defaultOpen }: { group: DayGroup; defaultOpen: bo
 
       {open && (
         <>
-          {/* Mission rows */}
           <View style={styles.missionList}>
             {group.missions.map((m) => (
               <View key={m.id} style={styles.missionRow}>
                 <View style={styles.missionDot} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[Typography.body, { color: Colors.textPrimary }]}>
+                  <Text style={[Typography.bodyMedium, { color: Colors.textPrimary }]}>
                     {m.missionName}
                   </Text>
-                  <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
+                  <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
                     {formatTime(m.completedAt)}
                   </Text>
                 </View>
-                <Text style={[Typography.caption, { color: Colors.accent, fontWeight: '700' }]}>
-                  +{m.earnedXP} XP
+                <Text style={[Typography.statSM, { color: Colors.accent }]}>
+                  +{m.earnedXP}
                 </Text>
               </View>
             ))}
           </View>
 
-          {/* Map frame */}
           {MapboxAvailable && camera && (
             <View style={styles.mapFrame}>
               <MapView
@@ -232,11 +206,10 @@ function DayAccordion({ group, defaultOpen }: { group: DayGroup; defaultOpen: bo
                 ))}
               </MapView>
 
-              {/* Overlay: day label bottom-left */}
               <View style={styles.mapOverlayBadge}>
-                <Ionicons name="checkmark-circle" size={11} color={GREEN} />
-                <Text style={[Typography.caption, { color: GREEN, marginLeft: 4, fontWeight: '700', fontSize: 10 }]}>
-                  {group.missions.length} completed
+                <Ionicons name="checkmark-circle" size={11} color={Colors.accent} />
+                <Text style={[Typography.label, { color: Colors.accent, marginLeft: 4 }]}>
+                  {group.missions.length} COMPLETED
                 </Text>
               </View>
             </View>
@@ -248,72 +221,58 @@ function DayAccordion({ group, defaultOpen }: { group: DayGroup; defaultOpen: bo
 }
 
 export default function HistoryScreen() {
-  const { username } = useAuth();
   const router = useRouter();
   const [history, setHistory] = useState<CompletedMission[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       apiClient.get<CompletedMission[]>('/missions/history').then(({ data }) => setHistory(data)).catch(() => {});
-      apiClient.get<Profile>('/profile').then(({ data }) => setProfile(data)).catch(() => {});
     }, [])
   );
 
-  const xpTarget = XP_PER_LEVEL;
-  const xpProgress = profile ? (profile.currentXP % XP_PER_LEVEL) / XP_PER_LEVEL : 0;
   const dayGroups = groupByDay(history);
+  const totalMissions = history.length;
+  const totalXP = history.reduce((sum, m) => sum + m.earnedXP, 0);
 
   return (
     <ScreenContainer>
-      {/* Player Header */}
-      <View style={styles.headerCard}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={[Typography.h2, { color: Colors.textSecondary }]}>
-            {(username ?? 'A')[0]}
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={[Typography.label, { color: Colors.textSecondary }]}>ACTIVITY</Text>
+          <Text style={[Typography.displayLG, { color: Colors.textPrimary, marginTop: 2 }]}>
+            MISSION LOG
           </Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[Typography.label, { color: Colors.textSecondary }]}>PLAYER</Text>
-          <Text style={[Typography.h2, { color: Colors.textPrimary }]}>
-            {username ?? '...'}
-          </Text>
-          <View style={styles.levelRow}>
-            <View style={styles.levelBadge}>
-              <Text style={[Typography.caption, { color: Colors.textPrimary, fontWeight: '700' }]}>
-                LEVEL {profile?.currentLevel ?? 0}
-              </Text>
-            </View>
-            <Text style={[Typography.caption, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>
-              {profile ? profile.currentXP % XP_PER_LEVEL : 0} / {xpTarget} XP
-            </Text>
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryItem}>
+            <Text style={[Typography.statMD, { color: Colors.textPrimary }]}>{totalMissions}</Text>
+            <Text style={[Typography.label, { color: Colors.textSecondary }]}>TOTAL</Text>
           </View>
-          <View style={styles.xpTrack}>
-            <View style={[styles.xpFill, { flex: xpProgress }]} />
-            <View style={{ flex: 1 - xpProgress }} />
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={[Typography.statMD, { color: Colors.accent }]}>{totalXP}</Text>
+            <Text style={[Typography.label, { color: Colors.textSecondary }]}>XP</Text>
           </View>
         </View>
       </View>
 
-      {/* Mission History */}
-      <Text style={[Typography.h3, { color: Colors.textPrimary, marginBottom: Spacing.md }]}>
-        MISSION HISTORY
-      </Text>
-
       {dayGroups.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="map-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
-          <Text style={[Typography.body, { color: Colors.textSecondary, textAlign: 'center' }]}>
+          <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center' }]}>
             No completed missions yet.
           </Text>
           <Pressable onPress={() => router.push('/(tabs)/map')} style={styles.emptyAction}>
-            <Text style={[Typography.caption, { color: Colors.accent }]}>
-              Go to Map to find missions
+            <Text style={[Typography.cta, { color: Colors.accent, fontSize: 13 }]}>
+              GO TO MAP →
             </Text>
           </Pressable>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.lg }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: Spacing.xxl, paddingTop: Spacing.md }}
+        >
           {dayGroups.map((group, i) => (
             <DayAccordion key={group.dateKey} group={group} defaultOpen={i === 0} />
           ))}
@@ -324,53 +283,32 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerCard: {
+  headerRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing.md,
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
     marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  summaryRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    borderColor: Colors.borderBright,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
-  avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.background,
+  summaryItem: {
     alignItems: 'center',
-    justifyContent: 'center',
+    minWidth: 40,
   },
-  levelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.xs,
-  },
-  levelBadge: {
-    backgroundColor: Colors.accent,
-    borderRadius: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-  },
-  xpTrack: {
-    flexDirection: 'row',
-    height: 4,
+  summaryDivider: {
+    width: 1,
+    height: 24,
     backgroundColor: Colors.border,
-    borderRadius: 2,
-    marginTop: Spacing.xs,
-    overflow: 'hidden',
-  },
-  xpFill: {
-    backgroundColor: Colors.accent,
-    borderRadius: 2,
+    marginHorizontal: Spacing.md,
   },
   empty: {
     flex: 1,
@@ -384,10 +322,10 @@ const styles = StyleSheet.create({
   },
   accordion: {
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: 14,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderBright,
     overflow: 'hidden',
   },
   accordionHeader: {
@@ -395,7 +333,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   accordionLeft: {
     flex: 1,
@@ -405,12 +343,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   xpBadge: {
-    backgroundColor: Colors.background,
-    borderRadius: 6,
+    backgroundColor: Colors.accentDim,
+    borderRadius: 8,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.accentDim,
   },
   missionList: {
     borderTopWidth: 1,
@@ -420,16 +358,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
   missionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: Colors.accent,
     marginRight: Spacing.md,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
   },
   mapFrame: {
     height: 160,
@@ -443,17 +385,17 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: 'rgba(34, 197, 94, 0.25)',
+    backgroundColor: Colors.accentDim,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: GREEN,
+    borderColor: Colors.accent,
   },
   mapPinInner: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: GREEN,
+    backgroundColor: Colors.accent,
   },
   mapOverlayBadge: {
     position: 'absolute',
@@ -461,11 +403,11 @@ const styles = StyleSheet.create({
     left: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(11, 13, 18, 0.80)',
-    borderRadius: 6,
-    paddingHorizontal: 7,
+    backgroundColor: 'rgba(7, 8, 15, 0.85)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.35)',
+    borderColor: Colors.accentDim,
   },
 });

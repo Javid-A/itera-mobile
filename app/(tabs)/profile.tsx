@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 import ScreenContainer from '../../components/ScreenContainer';
 import BackgroundLocationPrompt from '../../components/BackgroundLocationPrompt';
 import { Colors, Spacing, Typography } from '../../constants';
@@ -18,6 +19,11 @@ interface ProfileStats {
   totalMissions: number;
   totalXP: number;
 }
+
+const RING_SIZE = 132;
+const RING_STROKE = 6;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRC = 2 * Math.PI * RING_RADIUS;
 
 export default function ProfileScreen() {
   const { username, logout } = useAuth();
@@ -47,14 +53,12 @@ export default function ProfileScreen() {
     return () => sub.remove();
   }, [checkBgPermission]);
 
-  // When permission is OFF: modal closes → request permission → opens settings if needed
   const handleEnableAutoTracking = async () => {
     setShowBgPrompt(false);
     const granted = await requestBackgroundLocation();
     if (granted) setBgGranted(true);
   };
 
-  // Tap the settings row: OFF → show modal, ON → open settings to revoke
   const handleAutoTrackingPress = () => {
     if (bgGranted) {
       openAppPermissions();
@@ -64,7 +68,8 @@ export default function ProfileScreen() {
   };
 
   const xpTarget = stats.currentLevel * XP_PER_LEVEL;
-  const xpProgress = stats.currentXP / xpTarget;
+  const xpProgress = Math.min(1, stats.currentXP / xpTarget);
+  const dashOffset = RING_CIRC * (1 - xpProgress);
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -73,120 +78,229 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleResetStats = () => {
+    Alert.alert(
+      'Reset Stats',
+      'This wipes all completed missions and resets XP/level to zero. Dev use only.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiClient.delete('/profile/stats');
+              refresh();
+            } catch {
+              Alert.alert('Error', 'Failed to reset stats.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ScreenContainer>
-      {/* Player Identity */}
-      <View style={styles.identitySection}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={40} color={Colors.textSecondary} />
-        </View>
-        <Text style={[Typography.h1, { color: Colors.textPrimary, marginTop: Spacing.md }]}>
-          {username ?? '...'}
-        </Text>
-        <View style={styles.levelBadge}>
-          <Text style={[Typography.caption, { color: Colors.textPrimary, fontWeight: '700' }]}>
-            LEVEL {stats.currentLevel}
-          </Text>
-        </View>
-        <View style={styles.xpRow}>
-          <View style={styles.xpTrack}>
-            <View style={[styles.xpFill, { flex: xpProgress }]} />
-            <View style={{ flex: 1 - xpProgress }} />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+      >
+        <View style={styles.identitySection}>
+          <View style={styles.ringWrap}>
+            <Svg width={RING_SIZE} height={RING_SIZE}>
+              <Circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_RADIUS}
+                stroke={Colors.border}
+                strokeWidth={RING_STROKE}
+                fill="none"
+              />
+              <Circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_RADIUS}
+                stroke={Colors.accent}
+                strokeWidth={RING_STROKE}
+                fill="none"
+                strokeDasharray={RING_CIRC}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+              />
+            </Svg>
+            <View style={styles.ringCenter}>
+              <Text style={[Typography.label, { color: Colors.textSecondary }]}>LEVEL</Text>
+              <Text style={[Typography.statXL, { color: Colors.textPrimary, marginTop: -2 }]}>
+                {stats.currentLevel}
+              </Text>
+            </View>
           </View>
-          <Text style={[Typography.caption, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>
-            {stats.currentXP} / {xpTarget} XP
+
+          <Text style={[Typography.displayLG, { color: Colors.textPrimary, marginTop: Spacing.md }]}>
+            {(username ?? '...').toUpperCase()}
+          </Text>
+          <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
+            {stats.currentXP} / {xpTarget} XP · {Math.round(xpProgress * 100)}% TO NEXT
           </Text>
         </View>
-      </View>
 
-      {/* Stats Grid */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={[Typography.h1, { color: Colors.accent }]}>{stats.totalXP}</Text>
-          <Text style={[Typography.label, { color: Colors.textSecondary }]}>Total XP</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={[Typography.statLG, { color: Colors.accent }]}>{stats.totalXP}</Text>
+            <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: 2 }]}>TOTAL XP</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[Typography.statLG, { color: Colors.textPrimary }]}>{stats.totalMissions}</Text>
+            <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: 2 }]}>MISSIONS</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[Typography.statLG, { color: Colors.orange }]}>0</Text>
+            <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: 2 }]}>STREAK</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[Typography.statLG, { color: Colors.blue }]}>0</Text>
+            <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: 2 }]}>LOCATIONS</Text>
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Text style={[Typography.h1, { color: Colors.accent }]}>{stats.totalMissions}</Text>
-          <Text style={[Typography.label, { color: Colors.textSecondary }]}>Missions</Text>
-        </View>
-      </View>
 
-      {/* Location Settings */}
-      <View style={styles.settingsSection}>
-        <Text style={[Typography.label, { color: Colors.textSecondary, marginBottom: Spacing.sm }]}>
-          Settings
+        <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.xl, marginBottom: Spacing.sm }]}>
+          SETTINGS
         </Text>
+
         <Pressable style={styles.settingsRow} onPress={handleAutoTrackingPress}>
-          <Ionicons name="navigate-outline" size={20} color={bgGranted ? Colors.accent : Colors.textSecondary} />
+          <View style={[styles.settingsIcon, bgGranted && styles.settingsIconActive]}>
+            <Ionicons
+              name="navigate-outline"
+              size={18}
+              color={bgGranted ? Colors.accent : Colors.textSecondary}
+            />
+          </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
-            <Text style={[Typography.body, { color: Colors.textPrimary }]}>Auto-Tracking</Text>
-            <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
+            <Text style={[Typography.bodyMedium, { color: Colors.textPrimary }]}>Auto-Tracking</Text>
+            <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
               {bgGranted ? 'Missions complete automatically' : 'Tap to enable background location'}
             </Text>
           </View>
           <View style={[styles.statusPill, bgGranted ? styles.statusOn : styles.statusOff]}>
-            <Text style={[Typography.caption, { color: bgGranted ? Colors.accent : Colors.textSecondary, fontWeight: '700' }]}>
+            <Text style={[Typography.label, { color: bgGranted ? Colors.accent : Colors.textSecondary }]}>
               {bgGranted ? 'ON' : 'OFF'}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} style={{ marginLeft: Spacing.xs }} />
         </Pressable>
-      </View>
+
+        <Pressable style={[styles.settingsRow, { marginTop: Spacing.sm }]} onPress={handleLogout}>
+          <View style={styles.settingsIcon}>
+            <Ionicons name="log-out-outline" size={18} color={Colors.danger} />
+          </View>
+          <View style={{ flex: 1, marginLeft: Spacing.md }}>
+            <Text style={[Typography.bodyMedium, { color: Colors.textPrimary }]}>Sign Out</Text>
+            <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
+              End your current session
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+        </Pressable>
+
+        {__DEV__ && (
+          <>
+            <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.xl, marginBottom: Spacing.sm }]}>
+              DEVELOPER
+            </Text>
+            <Pressable style={styles.settingsRow} onPress={handleResetStats}>
+              <View style={styles.settingsIcon}>
+                <Ionicons name="refresh-outline" size={18} color={Colors.orange} />
+              </View>
+              <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                <Text style={[Typography.bodyMedium, { color: Colors.textPrimary }]}>Reset Stats</Text>
+                <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
+                  Wipe completed missions, XP and level
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+            </Pressable>
+          </>
+        )}
+      </ScrollView>
 
       <BackgroundLocationPrompt
         visible={showBgPrompt}
         onEnable={handleEnableAutoTracking}
         onSkip={() => setShowBgPrompt(false)}
       />
-
-      {/* Account */}
-      <View style={styles.dangerZone}>
-        <Pressable style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={16} color={Colors.textSecondary} />
-          <Text style={[Typography.caption, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>Sign Out</Text>
-        </Pressable>
-      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  identitySection: { alignItems: 'center', marginTop: Spacing.xl },
-  avatar: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: Colors.border,
+  identitySection: {
+    alignItems: 'center',
+    marginTop: Spacing.xl,
   },
-  levelBadge: {
-    backgroundColor: Colors.accent, borderRadius: 4,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginTop: Spacing.sm,
+  ringWrap: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  xpRow: { flexDirection: 'row', alignItems: 'center', width: '80%', marginTop: Spacing.sm },
-  xpTrack: {
-    flex: 1, flexDirection: 'row', height: 8,
-    backgroundColor: Colors.border, borderRadius: 4, overflow: 'hidden',
+  ringCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  xpFill: { backgroundColor: Colors.accent, borderRadius: 4 },
-  statsRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.xl,
+  },
   statCard: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
-    padding: Spacing.lg, alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
+    flexGrow: 1,
+    flexBasis: '47%',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderBright,
   },
-  settingsSection: { marginTop: Spacing.xl },
   settingsRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.surface, borderRadius: 12, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderBright,
   },
-  statusPill: { paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: 10, borderWidth: 1 },
-  statusOn: { borderColor: Colors.accent, backgroundColor: 'rgba(255,87,34,0.1)' },
-  statusOff: { borderColor: Colors.border, backgroundColor: Colors.background },
-  dangerZone: {
-    marginTop: 'auto', marginBottom: Spacing.lg,
+  settingsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  logoutButton: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: Spacing.sm,
+  settingsIconActive: {
+    backgroundColor: Colors.accentDim,
+    borderColor: Colors.accentDim,
+  },
+  statusPill: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  statusOn: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentDim,
+  },
+  statusOff: {
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface2,
   },
 });

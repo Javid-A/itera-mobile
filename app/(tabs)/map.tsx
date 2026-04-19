@@ -19,6 +19,7 @@ import MissionPin from "../../components/MissionPin";
 import CharacterSprite, {
   type Direction,
 } from "../../components/CharacterSprite";
+import CreateRoutineModal from "../../components/CreateRoutineModal";
 import type { Routine } from "../../src/types/Routine";
 import type { CompletedMission } from "../../src/types/CompletedMission";
 
@@ -50,14 +51,14 @@ try {
   MapboxAvailable = false;
 }
 
+const XP_PER_LEVEL = 1000;
 const CIRCLE_POINTS = 64;
 const MAP_PITCH = 65;
 const MAP_ZOOM_DEFAULT = 17.5;
 const MAP_ZOOM_MIN = 17.5;
 const MAP_ZOOM_MAX = 20.5;
-const SHEET_COLLAPSED_HEIGHT = 72;
-const SHEET_EXPANDED_HEIGHT = 300;
-const GREEN = "#22C55E";
+const SHEET_COLLAPSED_HEIGHT = 82;
+const SHEET_EXPANDED_HEIGHT = 320;
 
 // ─── GPS tuning ────────────────────────────────────────────────────────────
 const GPS_ENV: "indoor" | "outdoor" = "outdoor";
@@ -100,6 +101,13 @@ const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 function getIconName(iconType: string): keyof typeof Ionicons.glyphMap {
   return ICON_MAP[iconType] ?? "location";
+}
+
+interface Profile {
+  username: string;
+  currentLevel: number;
+  currentXP: number;
+  totalMissions: number;
 }
 
 function buildGeofenceGeoJSON(routines: Routine[], radiusScale = 1) {
@@ -166,12 +174,14 @@ function haversineMeters(
 
 export default function MapScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [bgDenied, setBgDenied] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [isWalking, setIsWalking] = useState(false);
   const [mapZoom, setMapZoom] = useState(MAP_ZOOM_DEFAULT);
   const [charDirection, setCharDirection] = useState<Direction>("s");
+  const [createVisible, setCreateVisible] = useState(false);
 
   // ─── Completion animation state ────────────────────────────────────────
   const [completedRoutineIds, setCompletedRoutineIds] = useState<Set<string>>(
@@ -182,7 +192,6 @@ export default function MapScreen() {
   );
   const [completionXP, setCompletionXP] = useState(0);
   const [completionIsGreen, setCompletionIsGreen] = useState(false);
-  // JS-driven scale (0..1) fed into the completion GeoJSON radius
   const [completionScale, setCompletionScale] = useState(1);
   const completionRadiusAnim = useRef(new Animated.Value(1)).current;
   const greenVignetteAnim = useRef(new Animated.Value(0)).current;
@@ -201,7 +210,6 @@ export default function MapScreen() {
   const cameraRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
 
-  // Refs used inside async completion handler (avoids stale closures)
   const bgDeniedRef = useRef(bgDenied);
   const isCompletingRef = useRef(false);
   const prevActiveRoutineIdRef = useRef<string | null>(null);
@@ -225,7 +233,6 @@ export default function MapScreen() {
     completedRoutineIdsRef.current = completedRoutineIds;
   }, [completedRoutineIds]);
 
-  // Feed completionRadiusAnim into completionScale so Mapbox GeoJSON can use it
   useEffect(() => {
     const id = completionRadiusAnim.addListener(({ value }) => {
       setCompletionScale(value);
@@ -251,7 +258,6 @@ export default function MapScreen() {
     );
   }, [userCoords, routines, completedRoutineIds]);
 
-  // Orange pulsing vignette — suppressed while a completion is animating
   useEffect(() => {
     if (!activeRoutine || activeRoutine.id === completingRoutineId) {
       vignetteAnim.stopAnimation();
@@ -289,7 +295,6 @@ export default function MapScreen() {
     };
   }, [activeRoutine?.id, completingRoutineId, vignetteAnim]);
 
-  // ─── Foreground arrival handler (bg permission denied) ──────────────────
   const handleForegroundArrival = useCallback(
     async (routine: Routine, coords: [number, number]) => {
       if (isCompletingRef.current) return;
@@ -299,7 +304,6 @@ export default function MapScreen() {
       setCompletionIsGreen(false);
       completionRadiusAnim.setValue(1);
 
-      // Phase 1: shrink orange ring + call API in parallel
       const [, apiResult] = await Promise.all([
         new Promise<void>((resolve) => {
           Animated.timing(completionRadiusAnim, {
@@ -326,7 +330,6 @@ export default function MapScreen() {
           .catch(() => null),
       ]);
 
-      // Cooldown or error — just clean up silently
       if (!apiResult || apiResult.cooldownActive) {
         setCompletingRoutineId(null);
         isCompletingRef.current = false;
@@ -336,7 +339,6 @@ export default function MapScreen() {
       const earnedXP = apiResult.earnedXP ?? 0;
       setCompletionXP(earnedXP);
 
-      // Phase 2: switch to green, ring expands from 0 → 1
       setCompletionIsGreen(true);
       completionRadiusAnim.setValue(0);
 
@@ -353,7 +355,6 @@ export default function MapScreen() {
         }),
       ]).start();
 
-      // XP toast: slides up and fades out
       xpToastTranslate.setValue(0);
       xpToastOpacity.setValue(1);
       Animated.parallel([
@@ -372,10 +373,8 @@ export default function MapScreen() {
         ]),
       ]).start();
 
-      // Hold green for 2.5s
       await new Promise<void>((resolve) => setTimeout(resolve, 2500));
 
-      // Phase 3: fade out green ring + vignette
       await new Promise<void>((resolve) => {
         Animated.parallel([
           Animated.timing(greenVignetteAnim, {
@@ -391,22 +390,19 @@ export default function MapScreen() {
         ]).start(() => resolve());
       });
 
-      // Mark pin green, remove completion overlay
       setCompletedRoutineIds((prev) => new Set([...prev, routine.id]));
       setCompletingRoutineId(null);
       isCompletingRef.current = false;
+
+      // Refresh profile after arrival so HUD XP/level updates
+      apiClient
+        .get<Profile>("/profile")
+        .then(({ data }) => setProfile(data))
+        .catch(() => {});
     },
-    [
-      completionRadiusAnim,
-      greenVignetteAnim,
-      xpToastTranslate,
-      xpToastOpacity,
-    ],
+    [completionRadiusAnim, greenVignetteAnim, xpToastTranslate, xpToastOpacity],
   );
 
-  // Detect foreground geofence entry when bg permission is denied.
-  // Deps include bgDenied + completedRoutineIds so that if the user is already
-  // inside a zone when the permission check resolves we still trigger.
   useEffect(() => {
     const newId = activeRoutine?.id ?? null;
 
@@ -424,21 +420,23 @@ export default function MapScreen() {
     }
 
     prevActiveRoutineIdRef.current = newId;
-  }, [activeRoutine?.id, bgDenied, completedRoutineIds, handleForegroundArrival]);
+  }, [
+    activeRoutine?.id,
+    bgDenied,
+    completedRoutineIds,
+    handleForegroundArrival,
+  ]);
 
-  // Main GeoJSON — excludes animating and already-completed routines
   const mainGeofenceGeoJSON = useMemo(
     () =>
       buildGeofenceGeoJSON(
         routines.filter(
-          (r) =>
-            r.id !== completingRoutineId && !completedRoutineIds.has(r.id),
+          (r) => r.id !== completingRoutineId && !completedRoutineIds.has(r.id),
         ),
       ),
     [routines, completingRoutineId, completedRoutineIds],
   );
 
-  // Completion GeoJSON — single routine with animated radius
   const completionGeoJSON = useMemo(() => {
     if (!completingRoutineId) return null;
     const r = routines.find((rt) => rt.id === completingRoutineId);
@@ -519,7 +517,6 @@ export default function MapScreen() {
     outputRange: [0.45, 0],
   });
 
-  // ─── Permissions / location ───────────────────────────────────────────────
   const checkBg = useCallback(() => {
     Location.getBackgroundPermissionsAsync().then((bg) =>
       setBgDenied(bg.status !== "granted"),
@@ -569,7 +566,6 @@ export default function MapScreen() {
     })();
   }, []);
 
-  // Track user position for character sprite
   useEffect(() => {
     let sub: Location.LocationSubscription | null = null;
     (async () => {
@@ -705,7 +701,7 @@ export default function MapScreen() {
                   prev == null
                     ? Infinity
                     : Math.abs(
-                        (((bearingAbs - prev) % 360) + 540) % 360 - 180,
+                        ((((bearingAbs - prev) % 360) + 540) % 360) - 180,
                       );
                 if (angDiff > ROTATION_DEADZONE_DEG) {
                   cameraRef.current?.setCamera({
@@ -736,15 +732,21 @@ export default function MapScreen() {
     };
   }, []);
 
+  const refreshRoutines = useCallback(() => {
+    apiClient
+      .get("/routines")
+      .then(({ data }) => setRoutines(data))
+      .catch(() => {});
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
+      refreshRoutines();
       apiClient
-        .get("/routines")
-        .then(({ data }) => setRoutines(data))
+        .get<Profile>("/profile")
+        .then(({ data }) => setProfile(data))
         .catch(() => {});
       checkBg();
-      // Seed completedRoutineIds from missions completed within the cooldown window
-      // so green pins and suppressed vignette survive tab switches and re-mounts.
       apiClient
         .get<CompletedMission[]>("/missions/history")
         .then(({ data }) => {
@@ -758,7 +760,7 @@ export default function MapScreen() {
           }
         })
         .catch(() => {});
-    }, [checkBg]),
+    }, [checkBg, refreshRoutines]),
   );
 
   const handleBannerPress = async () => {
@@ -766,10 +768,15 @@ export default function MapScreen() {
     if (granted) setBgDenied(false);
   };
 
+  const xpForLevel = (profile?.currentLevel ?? 1) * XP_PER_LEVEL;
+  const xpProgress = profile ? Math.min(1, profile.currentXP / xpForLevel) : 0;
+
   if (!MapboxAvailable) {
     return (
       <View style={styles.fallback}>
-        <Text style={[Typography.h3, { color: Colors.textPrimary }]}>Map</Text>
+        <Text style={[Typography.displayMD, { color: Colors.textPrimary }]}>
+          Map
+        </Text>
         <Text
           style={[
             Typography.caption,
@@ -794,8 +801,8 @@ export default function MapScreen() {
         logoEnabled={false}
         attributionEnabled={false}
         scaleBarEnabled={false}
-        pitchEnabled={false}
-        rotateEnabled={false}
+        pitchEnabled={true}
+        rotateEnabled={true}
         onCameraChanged={(state: any) => {
           setMapZoom(state.properties.zoom);
           const h = state.properties.heading ?? 0;
@@ -831,12 +838,11 @@ export default function MapScreen() {
           }}
         />
 
-        {/* Main geofence rings — completing routine filtered out */}
         <ShapeSource id="geofences" shape={mainGeofenceGeoJSON}>
           <LineLayer
             id="geofence-glow"
             style={{
-              lineColor: "rgba(255, 100, 0, 0.6)",
+              lineColor: "rgba(249, 115, 22, 0.6)",
               lineWidth: 18,
               lineBlur: 12,
             }}
@@ -844,14 +850,14 @@ export default function MapScreen() {
           <LineLayer
             id="geofence-ring"
             style={{
-              lineColor: "rgba(255, 140, 60, 1)",
+              lineColor: "rgba(255, 160, 80, 1)",
               lineWidth: 2,
             }}
           />
           <FillExtrusionLayer
             id="geofence-wall-base"
             style={{
-              fillExtrusionColor: Colors.accent,
+              fillExtrusionColor: Colors.orange,
               fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.05], 6],
               fillExtrusionBase: 0,
               fillExtrusionOpacity: 0.42,
@@ -861,7 +867,7 @@ export default function MapScreen() {
           <FillExtrusionLayer
             id="geofence-wall-mid"
             style={{
-              fillExtrusionColor: Colors.accent,
+              fillExtrusionColor: Colors.orange,
               fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.1], 14],
               fillExtrusionBase: ["min", ["*", ["get", "radius"], 0.05], 6],
               fillExtrusionOpacity: 0.22,
@@ -871,7 +877,7 @@ export default function MapScreen() {
           <FillExtrusionLayer
             id="geofence-wall-top"
             style={{
-              fillExtrusionColor: Colors.accent,
+              fillExtrusionColor: Colors.orange,
               fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.18], 22],
               fillExtrusionBase: ["min", ["*", ["get", "radius"], 0.1], 14],
               fillExtrusionOpacity: 0.08,
@@ -880,7 +886,6 @@ export default function MapScreen() {
           />
         </ShapeSource>
 
-        {/* Completion animation ring — shrinks orange then grows green */}
         {completingRoutineId && completionGeoJSON && (
           <ShapeSource id="completion-ring" shape={completionGeoJSON}>
             <LineLayer
@@ -888,7 +893,7 @@ export default function MapScreen() {
               style={{
                 lineColor: completionIsGreen
                   ? "rgba(34, 197, 94, 0.6)"
-                  : "rgba(255, 100, 0, 0.6)",
+                  : "rgba(249, 115, 22, 0.6)",
                 lineWidth: 18,
                 lineBlur: 12,
               }}
@@ -898,19 +903,17 @@ export default function MapScreen() {
               style={{
                 lineColor: completionIsGreen
                   ? "rgba(34, 197, 94, 1)"
-                  : "rgba(255, 140, 60, 1)",
+                  : "rgba(255, 160, 80, 1)",
                 lineWidth: 2,
               }}
             />
             <FillExtrusionLayer
               id="completion-wall-base"
               style={{
-                fillExtrusionColor: completionIsGreen ? GREEN : Colors.accent,
-                fillExtrusionHeight: [
-                  "min",
-                  ["*", ["get", "radius"], 0.05],
-                  6,
-                ],
+                fillExtrusionColor: completionIsGreen
+                  ? Colors.success
+                  : Colors.orange,
+                fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.05], 6],
                 fillExtrusionBase: 0,
                 fillExtrusionOpacity: completionIsGreen ? 0.55 : 0.42,
                 fillExtrusionVerticalGradient: true,
@@ -919,17 +922,11 @@ export default function MapScreen() {
             <FillExtrusionLayer
               id="completion-wall-mid"
               style={{
-                fillExtrusionColor: completionIsGreen ? GREEN : Colors.accent,
-                fillExtrusionHeight: [
-                  "min",
-                  ["*", ["get", "radius"], 0.1],
-                  14,
-                ],
-                fillExtrusionBase: [
-                  "min",
-                  ["*", ["get", "radius"], 0.05],
-                  6,
-                ],
+                fillExtrusionColor: completionIsGreen
+                  ? Colors.success
+                  : Colors.orange,
+                fillExtrusionHeight: ["min", ["*", ["get", "radius"], 0.1], 14],
+                fillExtrusionBase: ["min", ["*", ["get", "radius"], 0.05], 6],
                 fillExtrusionOpacity: completionIsGreen ? 0.35 : 0.22,
                 fillExtrusionVerticalGradient: true,
               }}
@@ -937,17 +934,15 @@ export default function MapScreen() {
             <FillExtrusionLayer
               id="completion-wall-top"
               style={{
-                fillExtrusionColor: completionIsGreen ? GREEN : Colors.accent,
+                fillExtrusionColor: completionIsGreen
+                  ? Colors.success
+                  : Colors.orange,
                 fillExtrusionHeight: [
                   "min",
                   ["*", ["get", "radius"], 0.18],
                   22,
                 ],
-                fillExtrusionBase: [
-                  "min",
-                  ["*", ["get", "radius"], 0.1],
-                  14,
-                ],
+                fillExtrusionBase: ["min", ["*", ["get", "radius"], 0.1], 14],
                 fillExtrusionOpacity: completionIsGreen ? 0.18 : 0.08,
                 fillExtrusionVerticalGradient: true,
               }}
@@ -990,22 +985,26 @@ export default function MapScreen() {
         ))}
       </MapView>
 
-      {/* Orange zone vignette — pulses when inside a geofence (not completing) */}
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.vignetteBorder, { opacity: vignetteAnim }]}
-      />
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.vignetteGlow, { opacity: vignetteAnim }]}
-      />
-
-      {/* Green completion vignette */}
+      {/* Vignettes */}
       <Animated.View
         pointerEvents="none"
         style={[
           styles.vignetteBorder,
-          { opacity: greenVignetteAnim, borderColor: GREEN },
+          { opacity: vignetteAnim, borderColor: Colors.orange },
+        ]}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.vignetteGlow,
+          { opacity: vignetteAnim, borderColor: "rgba(249, 115, 22, 0.25)" },
+        ]}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.vignetteBorder,
+          { opacity: greenVignetteAnim, borderColor: Colors.success },
         ]}
       />
       <Animated.View
@@ -1019,21 +1018,45 @@ export default function MapScreen() {
         ]}
       />
 
+      {/* ── Top HUD: Level / XP bar ── */}
+      <View style={styles.topHud} pointerEvents="box-none">
+        <View style={styles.hudCard}>
+          <View style={styles.levelChip}>
+            <Text style={[Typography.statMD, { color: Colors.accent }]}>
+              {profile?.currentLevel ?? 1}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.hudLabelRow}>
+              <Text
+                style={[Typography.caption, { color: Colors.textSecondary }]}
+              >
+                Level {profile?.currentLevel ?? 1}
+              </Text>
+              <Text style={[Typography.statSM, { color: Colors.accent }]}>
+                {profile?.currentXP ?? 0} / {xpForLevel}
+              </Text>
+            </View>
+            <View style={styles.xpTrack}>
+              <View
+                style={[styles.xpFill, { width: `${xpProgress * 100}%` }]}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Active mission badge */}
       {activeRoutine && !completingRoutineId && (
         <Animated.View
           pointerEvents="none"
           style={[styles.missionBadge, { opacity: vignetteAnim }]}
         >
-          <Ionicons name="radio-outline" size={12} color={Colors.accent} />
+          <Ionicons name="radio-outline" size={12} color={Colors.orange} />
           <Text
             style={[
-              Typography.caption,
-              {
-                color: Colors.accent,
-                marginLeft: Spacing.xs,
-                fontWeight: "700",
-                letterSpacing: 0.8,
-              },
+              Typography.label,
+              { color: Colors.orange, marginLeft: Spacing.xs },
             ]}
             numberOfLines={1}
           >
@@ -1042,7 +1065,7 @@ export default function MapScreen() {
         </Animated.View>
       )}
 
-      {/* XP toast — floats up after completion */}
+      {/* XP toast */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -1054,14 +1077,15 @@ export default function MapScreen() {
         ]}
       >
         <View style={styles.xpToastBadge}>
-          <Ionicons name="star" size={16} color={GREEN} />
+          <Ionicons name="star" size={16} color={Colors.success} />
           <Text style={styles.xpToastText}>+{completionXP} XP</Text>
         </View>
       </Animated.View>
 
+      {/* Auto-tracking banner */}
       {bgDenied && (
         <Pressable style={styles.banner} onPress={handleBannerPress}>
-          <Ionicons name="warning-outline" size={16} color={Colors.accent} />
+          <Ionicons name="warning-outline" size={16} color={Colors.orange} />
           <Text
             style={[
               Typography.caption,
@@ -1070,34 +1094,49 @@ export default function MapScreen() {
           >
             Auto-tracking is off
           </Text>
-          <Text style={[Typography.caption, { color: Colors.accent }]}>
+          <Text style={[Typography.captionMedium, { color: Colors.accent }]}>
             Enable
           </Text>
         </Pressable>
       )}
+
+      {/* Recenter */}
       <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
         <Ionicons name="locate" size={22} color={Colors.textPrimary} />
       </Pressable>
+
+      {/* FAB */}
+      <Pressable
+        style={styles.fab}
+        onPress={() => setCreateVisible(true)}
+        hitSlop={8}
+      >
+        <Ionicons name="add" size={26} color={Colors.background} />
+      </Pressable>
+
+      {/* Backdrop */}
       <Animated.View
         pointerEvents={isSheetExpanded ? "auto" : "none"}
         style={[styles.backdrop, { opacity: backdropOpacity }]}
       >
         <Pressable style={{ flex: 1 }} onPress={() => snapSheet(false)} />
       </Animated.View>
+
+      {/* Bottom sheet */}
       <Animated.View
         style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}
       >
         <View style={styles.sheetHeader} {...panResponder.panHandlers}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetTitleRow}>
-            <Text style={[Typography.label, { color: Colors.textSecondary }]}>
-              {routines.length} {routines.length === 1 ? "Mission" : "Missions"}
+            <Text style={[Typography.displaySM, { color: Colors.textPrimary }]}>
+              Active Missions
             </Text>
-            <Ionicons
-              name={isSheetExpanded ? "chevron-down" : "chevron-up"}
-              size={16}
-              color={Colors.textSecondary}
-            />
+            <View style={styles.countPill}>
+              <Text style={[Typography.label, { color: Colors.accent }]}>
+                {routines.length} ACTIVE
+              </Text>
+            </View>
           </View>
         </View>
         <ScrollView
@@ -1105,42 +1144,61 @@ export default function MapScreen() {
           scrollEnabled={isSheetExpanded}
           showsVerticalScrollIndicator={false}
         >
-          {routines.map((routine) => (
-            <Pressable
-              key={routine.id}
-              style={styles.missionRow}
-              onPress={() => flyToMission(routine)}
-            >
-              <View style={styles.missionIconWrap}>
-                <Ionicons
-                  name={getIconName(routine.iconType)}
-                  size={14}
-                  color={Colors.textPrimary}
-                />
-              </View>
-              <View style={styles.missionInfo}>
-                <Text
-                  style={[Typography.body, { color: Colors.textPrimary }]}
-                  numberOfLines={1}
-                >
-                  {routine.missionName}
+          {routines.length === 0 ? (
+            <View style={styles.emptySheet}>
+              <Text
+                style={[
+                  Typography.body,
+                  { color: Colors.textSecondary, textAlign: "center" },
+                ]}
+              >
+                No missions yet. Tap the + button to add your first.
+              </Text>
+            </View>
+          ) : (
+            routines.map((routine, i) => (
+              <Pressable
+                key={routine.id}
+                style={[styles.missionRow, i > 0 && styles.missionRowBorder]}
+                onPress={() => flyToMission(routine)}
+              >
+                <View style={styles.missionIconWrap}>
+                  <View style={styles.missionIconDot} />
+                </View>
+                <View style={styles.missionInfo}>
+                  <Text
+                    style={[
+                      Typography.bodyMedium,
+                      { color: Colors.textPrimary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {routine.missionName}
+                  </Text>
+                  <Text
+                    style={[
+                      Typography.caption,
+                      { color: Colors.textSecondary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {routine.locationName}
+                  </Text>
+                </View>
+                <Text style={[Typography.statSM, { color: Colors.accent }]}>
+                  +100 XP
                 </Text>
-                <Text
-                  style={[Typography.caption, { color: Colors.textSecondary }]}
-                  numberOfLines={1}
-                >
-                  {routine.locationName}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={14}
-                color={Colors.border}
-              />
-            </Pressable>
-          ))}
+              </Pressable>
+            ))
+          )}
         </ScrollView>
       </Animated.View>
+
+      <CreateRoutineModal
+        visible={createVisible}
+        onClose={() => setCreateVisible(false)}
+        onCreated={refreshRoutines}
+      />
     </View>
   );
 }
@@ -1155,23 +1213,97 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  topHud: {
+    position: "absolute",
+    top: 58,
+    left: Spacing.md,
+    right: Spacing.md,
+    zIndex: 10,
+  },
+  hudCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(11, 14, 26, 0.88)",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.borderBright,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  levelChip: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(141, 232, 58, 0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(141, 232, 58, 0.4)",
+  },
+  hudLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
+  xpTrack: {
+    height: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  xpFill: {
+    height: "100%",
+    backgroundColor: Colors.accent,
+    borderRadius: 3,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 6,
+  },
+  missionBadge: {
+    position: "absolute",
+    top: 132,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(11, 13, 18, 0.85)",
+    borderRadius: 20,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.orange,
+  },
   recenterButton: {
     position: "absolute",
     right: Spacing.md,
-    bottom: SHEET_COLLAPSED_HEIGHT + Spacing.md,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.surface,
+    bottom: SHEET_COLLAPSED_HEIGHT + Spacing.md + 64,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(11, 14, 26, 0.9)",
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderBright,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+  },
+  fab: {
+    position: "absolute",
+    right: Spacing.md,
+    bottom: SHEET_COLLAPSED_HEIGHT + Spacing.md,
+    width: 54,
+    height: 54,
+    borderRadius: 17,
+    backgroundColor: Colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 8,
+    zIndex: 25,
   },
   backdrop: {
     position: "absolute",
@@ -1187,13 +1319,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: SHEET_EXPANDED_HEIGHT,
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: "rgba(6, 7, 14, 0.96)",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderBright,
   },
   sheetHeader: {
     paddingHorizontal: Spacing.md,
@@ -1201,9 +1333,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   sheetHandle: {
-    width: 36,
+    width: 40,
     height: 4,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.muted,
     borderRadius: 2,
     alignSelf: "center",
     marginBottom: Spacing.sm,
@@ -1213,27 +1345,51 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  countPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    backgroundColor: "rgba(141, 232, 58, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(141, 232, 58, 0.4)",
+  },
   sheetList: {
     flex: 1,
+  },
+  emptySheet: {
+    padding: Spacing.xl,
+    alignItems: "center",
   },
   missionRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
+  },
+  missionRowBorder: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
   missionIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: Colors.background,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "rgba(141, 232, 58, 0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: Spacing.sm,
+    marginRight: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: "rgba(141, 232, 58, 0.4)",
+  },
+  missionIconDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
   },
   missionInfo: {
     flex: 1,
@@ -1245,7 +1401,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderWidth: 3,
-    borderColor: Colors.accent,
   },
   vignetteGlow: {
     position: "absolute",
@@ -1254,24 +1409,6 @@ const styles = StyleSheet.create({
     right: -6,
     bottom: -6,
     borderWidth: 24,
-    borderColor: "rgba(255, 87, 34, 0.25)",
-  },
-  missionBadge: {
-    position: "absolute",
-    top: 52,
-    alignSelf: "center",
-    left: "50%",
-    transform: [{ translateX: -80 }],
-    width: 160,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(11, 13, 18, 0.85)",
-    borderRadius: 20,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: Colors.accent,
   },
   xpToastContainer: {
     position: "absolute",
@@ -1289,32 +1426,31 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(11, 13, 18, 0.92)",
     borderRadius: 28,
     borderWidth: 1.5,
-    borderColor: GREEN,
-    shadowColor: GREEN,
+    borderColor: Colors.success,
+    shadowColor: Colors.success,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 16,
     elevation: 10,
   },
   xpToastText: {
-    color: GREEN,
+    color: Colors.success,
+    fontFamily: "Rajdhani_700Bold",
     fontSize: 28,
-    fontWeight: "800",
     letterSpacing: 2,
   },
   banner: {
     position: "absolute",
-    top: 50,
+    top: 128,
     left: Spacing.md,
     right: Spacing.md,
     zIndex: 10,
-    elevation: 10,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderRadius: 8,
+    backgroundColor: "rgba(11, 14, 26, 0.92)",
+    borderRadius: 14,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderBright,
   },
 });

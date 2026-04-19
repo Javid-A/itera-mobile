@@ -37,11 +37,16 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={[Typography.h1, styles.title]}>ITERA</Text>
-      <Text style={[Typography.caption, styles.subtitle]}>GAMIFIED PRODUCTIVITY</Text>
+      <View style={styles.titleWrap}>
+        <Text style={styles.title}>
+          ITERA<Text style={{ color: Colors.accent }}>.</Text>
+        </Text>
+        <Text style={styles.subtitle}>GAMIFIED PRODUCTIVITY</Text>
+        <View style={styles.divider} />
+      </View>
 
       <View style={styles.card}>
-        <Text style={[Typography.h3, { color: Colors.textPrimary, marginBottom: Spacing.lg }]}>
+        <Text style={[Typography.displayMD, { color: Colors.textPrimary, marginBottom: Spacing.lg }]}>
           {showRegister ? 'CREATE ACCOUNT' : 'SIGN IN'}
         </Text>
 
@@ -49,7 +54,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Enter username"
-          placeholderTextColor={Colors.textSecondary}
+          placeholderTextColor={Colors.muted}
           autoCapitalize="none"
           value={username}
           onChangeText={setUsername}
@@ -59,22 +64,22 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Enter password"
-          placeholderTextColor={Colors.textSecondary}
+          placeholderTextColor={Colors.muted}
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
 
         {error ? (
-          <Text style={[Typography.caption, { color: '#FF4444', marginTop: Spacing.sm }]}>{error}</Text>
+          <Text style={[Typography.caption, { color: Colors.danger, marginTop: Spacing.sm }]}>{error}</Text>
         ) : null}
 
         <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color={Colors.textPrimary} />
+            <ActivityIndicator color={Colors.background} />
           ) : (
-            <Text style={[Typography.h3, { color: Colors.textPrimary }]}>
-              {showRegister ? 'REGISTER' : 'LOGIN'}
+            <Text style={[Typography.cta, { color: Colors.background }]}>
+              {showRegister ? 'REGISTER →' : 'LOGIN →'}
             </Text>
           )}
         </Pressable>
@@ -82,7 +87,7 @@ export default function LoginScreen() {
         <Pressable onPress={() => { setShowRegister((v) => !v); setError(''); }} style={styles.toggle}>
           <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
             {showRegister ? 'Already have an account? ' : "Don't have an account? "}
-            <Text style={{ color: Colors.accent }}>
+            <Text style={{ color: Colors.accent, fontFamily: 'Inter_600SemiBold' }}>
               {showRegister ? 'Sign in' : 'Register'}
             </Text>
           </Text>
@@ -100,38 +105,67 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.xl,
   },
+  titleWrap: {
+    alignItems: 'center',
+    marginBottom: Spacing.xxl,
+  },
   title: {
-    color: Colors.accent,
-    letterSpacing: 8,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 52,
+    color: Colors.textPrimary,
+    letterSpacing: -1,
+    lineHeight: 56,
   },
   subtitle: {
+    fontFamily: 'Rajdhani_600SemiBold',
+    fontSize: 12,
     color: Colors.textSecondary,
-    letterSpacing: 4,
+    letterSpacing: 3,
     marginTop: Spacing.xs,
-    marginBottom: Spacing.xxl,
+  },
+  divider: {
+    width: 44,
+    height: 3,
+    backgroundColor: Colors.accent,
+    borderRadius: 2,
+    marginTop: Spacing.md,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
   },
   card: {
     width: '100%',
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: Spacing.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderBright,
   },
   input: {
-    backgroundColor: Colors.background,
-    borderRadius: 8,
+    backgroundColor: Colors.surface2,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#444444',
+    borderColor: Colors.borderBright,
     color: Colors.textPrimary,
-    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
     padding: Spacing.md,
     marginTop: Spacing.xs,
+    height: 48,
   },
   button: {
     backgroundColor: Colors.accent,
-    borderRadius: 8,
-    padding: Spacing.md,
+    borderRadius: 16,
+    height: 52,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: Spacing.xl,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 6,
   },
   toggle: {
     alignItems: 'center',
