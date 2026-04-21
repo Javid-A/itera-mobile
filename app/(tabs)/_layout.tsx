@@ -28,7 +28,7 @@ export default function TabLayout() {
         options={{
           title: 'Map',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="map-outline" color={color} focused={focused} />
+            <TabIcon name="location-outline" color={color} focused={focused} />
           ),
         }}
       />
@@ -37,7 +37,7 @@ export default function TabLayout() {
         options={{
           title: 'Log',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="pulse-outline" color={color} focused={focused} />
+            <TabIcon name="document-text-outline" color={color} focused={focused} />
           ),
         }}
       />

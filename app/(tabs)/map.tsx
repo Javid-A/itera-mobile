@@ -12,12 +12,15 @@ import {
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { Platform } from "react-native";
 import { Colors, Spacing, Typography } from "../../constants";
 import apiClient from "../../src/services/apiClient";
 import { requestBackgroundLocation } from "../../src/services/locationSettings";
 import MissionPin from "../../components/MissionPin";
 import CreateRoutineModal from "../../components/CreateRoutineModal";
+import CharacterSprite, {
+  bearingToDirection,
+  type Direction,
+} from "../../components/CharacterSprite";
 import type { Routine } from "../../src/types/Routine";
 import type { CompletedMission } from "../../src/types/CompletedMission";
 
@@ -27,12 +30,8 @@ let MapView: any;
 let Camera: any;
 let MarkerView: any;
 let FillExtrusionLayer: any;
-let SymbolLayer: any;
 let ShapeSource: any;
-let FillLayer: any;
 let LineLayer: any;
-let Models: any;
-let ModelLayer: any;
 
 try {
   const maps = require("@rnmapbox/maps");
@@ -41,12 +40,8 @@ try {
   Camera = maps.Camera;
   MarkerView = maps.MarkerView;
   FillExtrusionLayer = maps.FillExtrusionLayer;
-  SymbolLayer = maps.SymbolLayer;
   ShapeSource = maps.ShapeSource;
-  FillLayer = maps.FillLayer;
   LineLayer = maps.LineLayer;
-  Models = maps.Models;
-  ModelLayer = maps.ModelLayer;
   Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
   MapboxAvailable = true;
 } catch {
@@ -55,7 +50,6 @@ try {
 
 const XP_PER_LEVEL = 1000;
 const CIRCLE_POINTS = 64;
-const CHARACTER_MODEL_SCALE = 1.0; // calibrate if needed
 const MAP_PITCH = 65;
 const MAP_ZOOM_DEFAULT = 17.5;
 const MAP_ZOOM_MIN = 17.5;
@@ -69,12 +63,12 @@ const GPS_ENV: "indoor" | "outdoor" = "outdoor";
 const GPS_CONFIG = {
   indoor: {
     GPS_ACCURACY_MAX: 60,
-    MIN_MOVE_METERS: 1,
+    MIN_MOVE_METERS: 1.5,
     STATIONARY_TIMEOUT_MS: 1500,
   },
   outdoor: {
     GPS_ACCURACY_MAX: 25,
-    MIN_MOVE_METERS: 2,
+    MIN_MOVE_METERS: 1.5,
     STATIONARY_TIMEOUT_MS: 1500,
   },
 } as const;
@@ -89,8 +83,14 @@ const HEADING_SEGMENT_MIN_M = 0.8;
 const WALK_WINDOW_MS = 3500;
 const WALK_WINDOW_MIN_M = 1.8;
 const WALK_NET_MIN_M = 1.5;
-const ROTATION_DEADZONE_DEG = 8;
-const ROTATION_ANIMATION_MS = 300;
+const CHARACTER_DISPLAY_SIZE = 88;
+const CHARACTER_MAX_SCALE = 1.25;
+
+// GPS smoothing: exponential low-pass on accepted fixes; speed gate freezes jitter.
+const SMOOTH_ALPHA = 0.35;
+const STATIONARY_SPEED_MS = 0.3;
+// RAF tween duration for the character marker — matches camera animationDuration.
+const MARKER_TWEEN_MS = 900;
 // ───────────────────────────────────────────────────────────────────────────
 
 const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -175,18 +175,15 @@ export default function MapScreen() {
   const [bgDenied, setBgDenied] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+  const [displayedCoords, setDisplayedCoords] = useState<
+    [number, number] | null
+  >(null);
+  const displayedCoordsRef = useRef<[number, number] | null>(null);
   const [isWalking, setIsWalking] = useState(false);
-  const [charBearing, setCharBearing] = useState(0);
-  const [styleLoaded, setStyleLoaded] = useState(false);
   const [createVisible, setCreateVisible] = useState(false);
-
-  const modelUris = useMemo(() => {
-    if (Platform.OS !== "android") return null;
-    return {
-      idle: "asset://GLB/idle_2_male_free_animation_220_frames_loop.glb",
-      walk: "asset://GLB/male_basic_walk_30_frames_loop.glb",
-    };
-  }, []);
+  const [characterDirection, setCharacterDirection] = useState<Direction>("s");
+  const [characterScale, setCharacterScale] = useState(1);
+  const characterScaleRef = useRef(1);
 
   // ─── Completion animation state ────────────────────────────────────────
   const [completedRoutineIds, setCompletedRoutineIds] = useState<Set<string>>(
@@ -208,10 +205,12 @@ export default function MapScreen() {
     null,
   );
   const positionHistory = useRef<{ lng: number; lat: number; t: number }[]>([]);
-  const lastAbsBearing = useRef<number | null>(null);
-  const lastAppliedCameraBearing = useRef<number | null>(null);
+  // Default world-south (180°) so camera rotation updates the sprite even
+  // before the user has walked. Overwritten by actual walk bearing later.
+  const lastAbsBearing = useRef<number | null>(180);
   const stationaryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cameraHeadingRef = useRef(0);
+  const characterDirectionRef = useRef<Direction>("s");
   const cameraRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
 
@@ -228,6 +227,36 @@ export default function MapScreen() {
 
   useEffect(() => {
     userCoordsRef.current = userCoords;
+  }, [userCoords]);
+
+  // Smoothly tween the rendered character coordinate toward the latest accepted
+  // GPS fix so the marker glides instead of jumping each sample.
+  useEffect(() => {
+    if (!userCoords) return;
+    const current = displayedCoordsRef.current;
+    if (!current) {
+      displayedCoordsRef.current = userCoords;
+      setDisplayedCoords(userCoords);
+      return;
+    }
+    const from = current;
+    const to = userCoords;
+    const start = Date.now();
+    let raf: number | null = null;
+    const step = () => {
+      const t = Math.min(1, (Date.now() - start) / MARKER_TWEEN_MS);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const lng = from[0] + (to[0] - from[0]) * eased;
+      const lat = from[1] + (to[1] - from[1]) * eased;
+      const next: [number, number] = [lng, lat];
+      displayedCoordsRef.current = next;
+      setDisplayedCoords(next);
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      if (raf != null) cancelAnimationFrame(raf);
+    };
   }, [userCoords]);
 
   useEffect(() => {
@@ -449,15 +478,6 @@ export default function MapScreen() {
     return buildGeofenceGeoJSON([r], completionScale);
   }, [completingRoutineId, routines, completionScale]);
 
-  const characterGeoJSON = useMemo(() => {
-    if (!userCoords) return null;
-    return {
-      type: "Feature" as const,
-      geometry: { type: "Point" as const, coordinates: userCoords },
-      properties: {},
-    };
-  }, [userCoords]);
-
   // ─── Sheet ───────────────────────────────────────────────────────────────
   const DRAG_RANGE = SHEET_EXPANDED_HEIGHT - SHEET_COLLAPSED_HEIGHT;
   const sheetY = useRef(new Animated.Value(DRAG_RANGE)).current;
@@ -610,6 +630,10 @@ export default function MapScreen() {
               t: timestamp,
             });
             setUserCoords(next);
+            cameraRef.current?.setCamera({
+              centerCoordinate: next,
+              animationDuration: 0,
+            });
             return;
           }
 
@@ -620,6 +644,20 @@ export default function MapScreen() {
             coords.longitude,
           );
 
+          // Stationary gates: ignore small wobbles AND low-speed fixes.
+          const reportedSpeed = coords.speed ?? -1;
+          const stationaryBySpeed =
+            reportedSpeed >= 0 && reportedSpeed < STATIONARY_SPEED_MS;
+
+          // Phone's speed sensor is authoritative — kill walk state immediately
+          // so GPS wobble can't keep the sprite animating in place.
+          if (stationaryBySpeed) {
+            if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
+            setIsWalking(false);
+            positionHistory.current = [];
+            return;
+          }
+
           if (moved < MIN_MOVE_METERS) {
             if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
             stationaryTimer.current = setTimeout(() => {
@@ -629,10 +667,21 @@ export default function MapScreen() {
             return;
           }
 
-          setUserCoords(next);
+          // Exponential low-pass smoothing toward the new raw fix.
+          const smoothedLng =
+            last.lng + SMOOTH_ALPHA * (coords.longitude - last.lng);
+          const smoothedLat =
+            last.lat + SMOOTH_ALPHA * (coords.latitude - last.lat);
+          const smoothed: [number, number] = [smoothedLng, smoothedLat];
+
+          setUserCoords(smoothed);
+          cameraRef.current?.setCamera({
+            centerCoordinate: smoothed,
+            animationDuration: MARKER_TWEEN_MS,
+          });
           lastAccepted.current = {
-            lng: coords.longitude,
-            lat: coords.latitude,
+            lng: smoothedLng,
+            lat: smoothedLat,
             t: timestamp,
           };
 
@@ -672,9 +721,14 @@ export default function MapScreen() {
               );
             }
           }
+          // If speed is unreported (< 0) fall back to distance thresholds alone;
+          // if reported, require it above the stationary cutoff.
+          const speedIndicatesWalk =
+            reportedSpeed < 0 || reportedSpeed >= STATIONARY_SPEED_MS;
           setIsWalking(
             windowDist >= WALK_WINDOW_MIN_M &&
-              netDisplacement >= WALK_NET_MIN_M,
+              netDisplacement >= WALK_NET_MIN_M &&
+              speedIndicatesWalk,
           );
 
           if (hist.length >= 3) {
@@ -709,21 +763,12 @@ export default function MapScreen() {
                 const bearingAbs =
                   ((Math.atan2(sumSin, sumCos) * 180) / Math.PI + 360) % 360;
                 lastAbsBearing.current = bearingAbs;
-                setCharBearing(bearingAbs);
 
-                const prev = lastAppliedCameraBearing.current;
-                const angDiff =
-                  prev == null
-                    ? Infinity
-                    : Math.abs(
-                        ((((bearingAbs - prev) % 360) + 540) % 360) - 180,
-                      );
-                if (angDiff > ROTATION_DEADZONE_DEG) {
-                  cameraRef.current?.setCamera({
-                    heading: bearingAbs,
-                    animationDuration: ROTATION_ANIMATION_MS,
-                  });
-                  lastAppliedCameraBearing.current = bearingAbs;
+                const rel = (bearingAbs - cameraHeadingRef.current + 360) % 360;
+                const nextDir = bearingToDirection(rel);
+                if (nextDir !== characterDirectionRef.current) {
+                  characterDirectionRef.current = nextDir;
+                  setCharacterDirection(nextDir);
                 }
               }
             }
@@ -749,6 +794,14 @@ export default function MapScreen() {
       .then(({ data }) => setRoutines(data))
       .catch(() => {});
   }, []);
+
+  const deleteRoutine = useCallback(
+    (id: string) => {
+      setRoutines((prev) => prev.filter((r) => r.id !== id));
+      apiClient.delete(`/routines/${id}`).catch(() => refreshRoutines());
+    },
+    [refreshRoutines],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -814,9 +867,30 @@ export default function MapScreen() {
         scaleBarEnabled={false}
         pitchEnabled={true}
         rotateEnabled={true}
-        onDidFinishLoadingStyle={() => setStyleLoaded(true)}
         onCameraChanged={(state: any) => {
-          cameraHeadingRef.current = state.properties.heading ?? 0;
+          const heading = state.properties.heading ?? 0;
+          cameraHeadingRef.current = heading;
+          const charBearing = lastAbsBearing.current;
+          if (charBearing != null) {
+            const rel = (charBearing - heading + 360) % 360;
+            const nextDir = bearingToDirection(rel);
+            if (nextDir !== characterDirectionRef.current) {
+              characterDirectionRef.current = nextDir;
+              setCharacterDirection(nextDir);
+            }
+          }
+          // Scale character with zoom: 1.0x at MAP_ZOOM_MIN → MAX at MAP_ZOOM_MAX.
+          const zoom = state.properties.zoom ?? MAP_ZOOM_MIN;
+          const zoomT = Math.max(
+            0,
+            Math.min(1, (zoom - MAP_ZOOM_MIN) / (MAP_ZOOM_MAX - MAP_ZOOM_MIN)),
+          );
+          const nextScale =
+            Math.round((1 + zoomT * (CHARACTER_MAX_SCALE - 1)) * 100) / 100;
+          if (nextScale !== characterScaleRef.current) {
+            characterScaleRef.current = nextScale;
+            setCharacterScale(nextScale);
+          }
         }}
       >
         <Camera
@@ -956,29 +1030,22 @@ export default function MapScreen() {
           </ShapeSource>
         )}
 
-        {styleLoaded && modelUris && (
-          <>
-            <Models
-              models={{
-                character_idle: modelUris.idle,
-                character_walk: modelUris.walk,
-              }}
-            />
-            {characterGeoJSON && (
-              <ShapeSource id="character-source" shape={characterGeoJSON}>
-                <ModelLayer
-                  id="character-layer"
-                  style={{
-                    modelId: isWalking ? "character_walk" : "character_idle",
-                    modelType: "location-indicator",
-                    modelScale: [CHARACTER_MODEL_SCALE, CHARACTER_MODEL_SCALE, CHARACTER_MODEL_SCALE],
-                    modelRotation: [-90, 0, charBearing],
-                    modelOpacity: 1,
-                  }}
-                />
-              </ShapeSource>
-            )}
-          </>
+        {(displayedCoords ?? userCoords) && (
+          <MarkerView
+            coordinate={(displayedCoords ?? userCoords) as [number, number]}
+            anchor={{ x: 0.5, y: 0.85 }}
+            allowOverlap
+          >
+            <View collapsable={false} pointerEvents="none">
+              <CharacterSprite
+                isWalking={isWalking}
+                direction={characterDirection}
+                displaySize={Math.round(
+                  CHARACTER_DISPLAY_SIZE * characterScale,
+                )}
+              />
+            </View>
+          </MarkerView>
         )}
         {routines.map((routine) => (
           <MarkerView
@@ -1037,13 +1104,11 @@ export default function MapScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.hudLabelRow}>
-              <Text
-                style={[Typography.caption, { color: Colors.textSecondary }]}
-              >
-                Level {profile?.currentLevel ?? 1}
+              <Text style={styles.hudLevelLabel}>
+                LEVEL {profile?.currentLevel ?? 1}
               </Text>
               <Text style={[Typography.statSM, { color: Colors.accent }]}>
-                {profile?.currentXP ?? 0} / {xpForLevel}
+                {(profile?.currentXP ?? 0).toLocaleString()} / {xpForLevel.toLocaleString()} XP
               </Text>
             </View>
             <View style={styles.xpTrack}>
@@ -1052,7 +1117,29 @@ export default function MapScreen() {
               />
             </View>
           </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
         </View>
+
+        {(routines.length > 0 && completedRoutineIds.size === 0) || bgDenied ? (
+          <View style={styles.hudPillRow}>
+            {routines.length > 0 && completedRoutineIds.size === 0 && (
+              <View style={styles.hudPill}>
+                <Text style={styles.hudPillFlame}>🔥</Text>
+                <Text style={styles.hudPillText}>STREAK AT RISK</Text>
+                <View style={styles.hudPillBadge}>
+                  <Text style={styles.hudPillBadgeText}>7D</Text>
+                </View>
+              </View>
+            )}
+            {bgDenied && (
+              <Pressable style={[styles.hudPill, styles.hudPillWarning]} onPress={handleBannerPress}>
+                <Ionicons name="warning-outline" size={13} color={Colors.orange} />
+                <Text style={[styles.hudPillText, { color: Colors.orange }]}>AUTO-TRACKING OFF</Text>
+                <Text style={styles.hudPillEnable}>FIX</Text>
+              </Pressable>
+            )}
+          </View>
+        ) : null}
       </View>
 
       {/* Active mission badge */}
@@ -1091,23 +1178,6 @@ export default function MapScreen() {
         </View>
       </Animated.View>
 
-      {/* Auto-tracking banner */}
-      {bgDenied && (
-        <Pressable style={styles.banner} onPress={handleBannerPress}>
-          <Ionicons name="warning-outline" size={16} color={Colors.orange} />
-          <Text
-            style={[
-              Typography.caption,
-              { color: Colors.textSecondary, marginLeft: Spacing.xs, flex: 1 },
-            ]}
-          >
-            Auto-tracking is off
-          </Text>
-          <Text style={[Typography.captionMedium, { color: Colors.accent }]}>
-            Enable
-          </Text>
-        </Pressable>
-      )}
 
       {/* Recenter */}
       <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
@@ -1197,6 +1267,13 @@ export default function MapScreen() {
                 <Text style={[Typography.statSM, { color: Colors.accent }]}>
                   +100 XP
                 </Text>
+                <Pressable
+                  style={styles.deleteRoutineBtn}
+                  onPress={() => deleteRoutine(routine.id)}
+                  hitSlop={8}
+                >
+                  <Ionicons name="trash-outline" size={16} color={Colors.textSecondary} />
+                </Pressable>
               </Pressable>
             ))
           )}
@@ -1232,13 +1309,66 @@ const styles = StyleSheet.create({
   hudCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(11, 14, 26, 0.88)",
-    borderRadius: 18,
+    backgroundColor: "rgba(11, 14, 26, 0.92)",
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.borderBright,
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
     gap: 12,
+  },
+  hudLevelLabel: {
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 11,
+    letterSpacing: 1.6,
+    color: Colors.textSecondary,
+  },
+  hudPillRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  hudPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(20, 14, 8, 0.92)",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(249, 115, 22, 0.45)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  hudPillWarning: {
+    backgroundColor: "rgba(11, 14, 26, 0.92)",
+    borderColor: "rgba(249, 115, 22, 0.5)",
+  },
+  hudPillFlame: {
+    fontSize: 13,
+  },
+  hudPillText: {
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: Colors.orange,
+  },
+  hudPillBadge: {
+    backgroundColor: Colors.orange,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  hudPillBadgeText: {
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 10,
+    color: "#1a0f06",
+    letterSpacing: 0.5,
+  },
+  hudPillEnable: {
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 11,
+    letterSpacing: 1,
+    color: Colors.accent,
   },
   levelChip: {
     width: 38,
@@ -1403,6 +1533,10 @@ const styles = StyleSheet.create({
   missionInfo: {
     flex: 1,
   },
+  deleteRoutineBtn: {
+    marginLeft: Spacing.sm,
+    padding: 4,
+  },
   vignetteBorder: {
     position: "absolute",
     top: 0,
@@ -1447,19 +1581,5 @@ const styles = StyleSheet.create({
     fontFamily: "Rajdhani_700Bold",
     fontSize: 28,
     letterSpacing: 2,
-  },
-  banner: {
-    position: "absolute",
-    top: 128,
-    left: Spacing.md,
-    right: Spacing.md,
-    zIndex: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(11, 14, 26, 0.92)",
-    borderRadius: 14,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
   },
 });

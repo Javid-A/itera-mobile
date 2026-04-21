@@ -1,413 +1,520 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenContainer from '../../components/ScreenContainer';
+import RouteMapModal from '../../components/RouteMapModal';
 import { Colors, Spacing, Typography } from '../../constants';
 import apiClient from '../../src/services/apiClient';
 import type { CompletedMission } from '../../src/types/CompletedMission';
 
-let MapboxAvailable = false;
-let MapView: any;
-let Camera: any;
-let MarkerView: any;
+const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-try {
-  const maps = require('@rnmapbox/maps');
-  MapView = maps.MapView;
-  Camera = maps.Camera;
-  MarkerView = maps.MarkerView;
-  MapboxAvailable = true;
-} catch {
-  MapboxAvailable = false;
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
 
-interface DayGroup {
-  dateKey: string;
-  label: string;
-  totalXP: number;
-  missions: CompletedMission[];
+function isoDateKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
-function toDateKey(iso: string): string {
-  return iso.slice(0, 10);
-}
-
-function formatDayLabel(dateKey: string): string {
-  const d = new Date(dateKey + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+function startOfWeek(d: Date): Date {
+  const x = startOfDay(d);
+  // Monday-first; getDay() returns 0=Sun..6=Sat
+  const day = (x.getDay() + 6) % 7;
+  x.setDate(x.getDate() - day);
+  return x;
 }
 
 function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-}
-
-function groupByDay(missions: CompletedMission[]): DayGroup[] {
-  const map = new Map<string, DayGroup>();
-  for (const m of missions) {
-    const key = toDateKey(m.completedAt);
-    if (!map.has(key)) {
-      map.set(key, { dateKey: key, label: formatDayLabel(key), totalXP: 0, missions: [] });
-    }
-    const group = map.get(key)!;
-    group.totalXP += m.earnedXP;
-    group.missions.push(m);
-  }
-  return Array.from(map.values()).sort((a, b) => b.dateKey.localeCompare(a.dateKey));
-}
-
-const MAP_FRAME_H = 160;
-const MAP_FRAME_W = 320;
-
-function spreadDuplicates(missions: CompletedMission[]): { id: string; lng: number; lat: number }[] {
-  const OFFSET_DEG = 0.00018;
-  const seen = new Map<string, number>();
-
-  return missions.map((m) => {
-    const key = `${m.latitude.toFixed(6)},${m.longitude.toFixed(6)}`;
-    const idx = seen.get(key) ?? 0;
-    seen.set(key, idx + 1);
-
-    if (idx === 0) return { id: m.id, lng: m.longitude, lat: m.latitude };
-
-    const angle = (idx / 6) * 2 * Math.PI;
-    return {
-      id: m.id,
-      lng: m.longitude + OFFSET_DEG * Math.cos(angle),
-      lat: m.latitude + OFFSET_DEG * Math.sin(angle),
-    };
+  return new Date(iso).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
-function calcCameraProps(missions: CompletedMission[]) {
-  const valid = missions.filter((m) => m.latitude !== 0 || m.longitude !== 0);
-  if (valid.length === 0) return null;
-
-  const lngs = valid.map((m) => m.longitude);
-  const lats = valid.map((m) => m.latitude);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const centerLng = (minLng + maxLng) / 2;
-  const centerLat = (minLat + maxLat) / 2;
-
-  const lngSpan = maxLng - minLng;
-  const latSpan = maxLat - minLat;
-
-  if (lngSpan < 0.0001 && latSpan < 0.0001) {
-    return { centerCoordinate: [centerLng, centerLat] as [number, number], zoom: 15 };
-  }
-
-  const lngZoom = Math.log2((MAP_FRAME_W / 256) * (360 / lngSpan));
-  const latZoom = Math.log2((MAP_FRAME_H / 256) * (170 / latSpan));
-  const zoom = Math.max(1, Math.min(15, Math.floor(Math.min(lngZoom, latZoom)) - 1));
-
-  return { centerCoordinate: [centerLng, centerLat] as [number, number], zoom };
+function formatDuration(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m.toString().padStart(2, '0')}m`;
 }
 
-function DayAccordion({ group, defaultOpen }: { group: DayGroup; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const anim = useRef(new Animated.Value(defaultOpen ? 1 : 0)).current;
+interface MissionRowData {
+  id: string;
+  name: string;
+  location: string;
+  time: string;
+  duration: string;
+  xp: number;
+  status: 'completed' | 'missed';
+}
 
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    Animated.timing(anim, {
-      toValue: next ? 1 : 0,
-      duration: 220,
-      useNativeDriver: false,
-    }).start();
+function toMissionRow(m: CompletedMission): MissionRowData {
+  return {
+    id: m.id,
+    name: m.missionName,
+    location: m.missionName,
+    time: formatTime(m.completedAt),
+    duration: formatDuration(48),
+    xp: m.earnedXP,
+    status: 'completed',
   };
+}
 
-  const chevronRotation = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-
-  const camera = calcCameraProps(group.missions);
-
+function MissionCard({ row }: { row: MissionRowData }) {
+  const missed = row.status === 'missed';
   return (
-    <View style={styles.accordion}>
-      <Pressable style={styles.accordionHeader} onPress={toggle}>
-        <View style={styles.accordionLeft}>
-          <Text style={[Typography.displaySM, { color: Colors.textPrimary }]}>
-            {group.label}
-          </Text>
-          <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
-            {group.missions.length} {group.missions.length === 1 ? 'MISSION' : 'MISSIONS'}
-          </Text>
+    <View style={[styles.missionCard, missed && styles.missionCardMissed]}>
+      <View style={styles.missionAccent} />
+      <View
+        style={[
+          styles.missionIcon,
+          missed
+            ? { borderColor: 'rgba(239, 68, 68, 0.6)', backgroundColor: 'rgba(239, 68, 68, 0.12)' }
+            : { borderColor: 'rgba(166, 230, 53, 0.55)', backgroundColor: Colors.accentSoft },
+        ]}
+      >
+        <Ionicons
+          name={missed ? 'alert-circle-outline' : 'checkmark'}
+          size={20}
+          color={missed ? Colors.danger : Colors.accent}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[Typography.bodyBold, { color: Colors.textPrimary }]} numberOfLines={1}>
+          {row.name}
+        </Text>
+        <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+          {missed ? `${row.location} · Not completed` : `${row.location} · ${row.time} · ${row.duration}`}
+        </Text>
+      </View>
+      {missed ? (
+        <View style={styles.missedPill}>
+          <Text style={styles.missedPillText}>MISSED</Text>
         </View>
-        <View style={styles.accordionRight}>
-          <View style={styles.xpBadge}>
-            <Text style={[Typography.label, { color: Colors.accent }]}>
-              +{group.totalXP} XP
-            </Text>
-          </View>
-          <Animated.View style={{ transform: [{ rotate: chevronRotation }], marginLeft: Spacing.sm }}>
-            <Ionicons name="chevron-down" size={16} color={Colors.textSecondary} />
-          </Animated.View>
+      ) : (
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[Typography.statMD, { color: Colors.accent }]}>+{row.xp}</Text>
+          <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: -2 }]}>XP</Text>
         </View>
-      </Pressable>
-
-      {open && (
-        <>
-          <View style={styles.missionList}>
-            {group.missions.map((m) => (
-              <View key={m.id} style={styles.missionRow}>
-                <View style={styles.missionDot} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[Typography.bodyMedium, { color: Colors.textPrimary }]}>
-                    {m.missionName}
-                  </Text>
-                  <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
-                    {formatTime(m.completedAt)}
-                  </Text>
-                </View>
-                <Text style={[Typography.statSM, { color: Colors.accent }]}>
-                  +{m.earnedXP}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {MapboxAvailable && camera && (
-            <View style={styles.mapFrame}>
-              <MapView
-                style={styles.mapView}
-                styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa"
-                compassEnabled={false}
-                logoEnabled={false}
-                attributionEnabled={false}
-                scaleBarEnabled={false}
-                scrollEnabled={false}
-                pitchEnabled={false}
-                rotateEnabled={false}
-                zoomEnabled={false}
-              >
-                <Camera
-                  defaultSettings={{
-                    centerCoordinate: camera.centerCoordinate,
-                    zoomLevel: camera.zoom,
-                    pitch: 0,
-                  }}
-                />
-                {spreadDuplicates(group.missions).map((p) => (
-                  <MarkerView
-                    key={p.id}
-                    coordinate={[p.lng, p.lat]}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                  >
-                    <View style={styles.mapPin}>
-                      <View style={styles.mapPinInner} />
-                    </View>
-                  </MarkerView>
-                ))}
-              </MapView>
-
-              <View style={styles.mapOverlayBadge}>
-                <Ionicons name="checkmark-circle" size={11} color={Colors.accent} />
-                <Text style={[Typography.label, { color: Colors.accent, marginLeft: 4 }]}>
-                  {group.missions.length} COMPLETED
-                </Text>
-              </View>
-            </View>
-          )}
-        </>
       )}
     </View>
   );
 }
 
+interface DaySection {
+  key: string;
+  label: string;
+  date: Date;
+  rows: MissionRowData[];
+  done: number;
+  total: number;
+}
+
 export default function HistoryScreen() {
   const router = useRouter();
   const [history, setHistory] = useState<CompletedMission[]>([]);
+  const [routeMapDate, setRouteMapDate] = useState<Date | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      apiClient.get<CompletedMission[]>('/missions/history').then(({ data }) => setHistory(data)).catch(() => {});
-    }, [])
+      apiClient
+        .get<CompletedMission[]>('/missions/history')
+        .then(({ data }) => setHistory(data))
+        .catch(() => {});
+    }, []),
   );
 
-  const dayGroups = groupByDay(history);
-  const totalMissions = history.length;
-  const totalXP = history.reduce((sum, m) => sum + m.earnedXP, 0);
+  const { weekTotals, weekTotalXP, todaySection, yesterdaySection } = useMemo(() => {
+    const today = startOfDay(new Date());
+    const weekStart = startOfWeek(today);
+    const totals = new Array(7).fill(0);
+
+    for (const m of history) {
+      const d = startOfDay(new Date(m.completedAt));
+      const diff = Math.floor((d.getTime() - weekStart.getTime()) / 86400000);
+      if (diff >= 0 && diff < 7) totals[diff] += m.earnedXP;
+    }
+
+    const groupByDate = (date: Date): MissionRowData[] => {
+      const key = isoDateKey(date);
+      return history.filter((m) => isoDateKey(new Date(m.completedAt)) === key).map(toMissionRow);
+    };
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const todayRows = groupByDate(today);
+    const yesterdayRows = groupByDate(yesterday);
+
+    return {
+      weekTotals: totals,
+      weekTotalXP: totals.reduce((a, b) => a + b, 0),
+      todaySection: {
+        key: isoDateKey(today),
+        label: 'TODAY',
+        date: today,
+        rows: todayRows,
+        done: todayRows.length,
+        total: Math.max(todayRows.length, 3),
+      } as DaySection,
+      yesterdaySection: {
+        key: isoDateKey(yesterday),
+        label: 'YESTERDAY',
+        date: yesterday,
+        rows: yesterdayRows,
+        done: yesterdayRows.length,
+        total: Math.max(yesterdayRows.length, 3),
+      } as DaySection,
+    };
+  }, [history]);
+
+  const todayIndex = (new Date().getDay() + 6) % 7;
+  const maxBar = Math.max(...weekTotals, 1);
+
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1100, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1100, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  const selfGlowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+  const selfGlowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+
+  const renderSection = (section: DaySection) => {
+    if (section.rows.length === 0 && section.label === 'YESTERDAY') return null;
+    return (
+      <View style={{ marginTop: Spacing.lg }}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionLabelRow}>
+            <Text style={styles.sectionLabel}>{section.label}</Text>
+            <View style={styles.progressPill}>
+              <Text style={styles.progressPillText}>
+                {section.done}/{section.total}
+              </Text>
+            </View>
+          </View>
+          <Pressable style={styles.routeMapButton} onPress={() => setRouteMapDate(section.date)}>
+            <Ionicons name="git-network-outline" size={14} color={Colors.accent} />
+            <Text style={styles.routeMapButtonText}>ROUTE MAP</Text>
+          </Pressable>
+        </View>
+        <View style={styles.sectionDivider} />
+        <View style={{ marginTop: Spacing.sm, gap: Spacing.sm }}>
+          {section.rows.length === 0 ? (
+            <Text style={[Typography.body, { color: Colors.textSecondary, textAlign: 'center', padding: Spacing.md }]}>
+              No missions today yet.
+            </Text>
+          ) : (
+            section.rows.map((row) => <MissionCard key={row.id} row={row} />)
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <ScreenContainer>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={[Typography.label, { color: Colors.textSecondary }]}>ACTIVITY</Text>
-          <Text style={[Typography.displayLG, { color: Colors.textPrimary, marginTop: 2 }]}>
-            MISSION LOG
-          </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryItem}>
-            <Text style={[Typography.statMD, { color: Colors.textPrimary }]}>{totalMissions}</Text>
-            <Text style={[Typography.label, { color: Colors.textSecondary }]}>TOTAL</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={[Typography.statMD, { color: Colors.accent }]}>{totalXP}</Text>
-            <Text style={[Typography.label, { color: Colors.textSecondary }]}>XP</Text>
-          </View>
-        </View>
-      </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Spacing.xxl, paddingTop: Spacing.md }}
+      >
+        <Text style={[Typography.displayXL, { color: Colors.textPrimary }]}>Mission Log</Text>
 
-      {dayGroups.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="map-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
-          <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center' }]}>
-            No completed missions yet.
+        <View style={styles.weekChipRow}>
+          <View style={styles.weekChip}>
+            <Ionicons name="arrow-up" size={11} color={Colors.accent} />
+            <Text style={styles.weekChipText}>THIS WEEK</Text>
+          </View>
+          <Text style={[Typography.body, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>
+            {weekTotalXP.toLocaleString()} XP earned
           </Text>
-          <Pressable onPress={() => router.push('/(tabs)/map')} style={styles.emptyAction}>
-            <Text style={[Typography.cta, { color: Colors.accent, fontSize: 13 }]}>
-              GO TO MAP →
-            </Text>
-          </Pressable>
         </View>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: Spacing.xxl, paddingTop: Spacing.md }}
-        >
-          {dayGroups.map((group, i) => (
-            <DayAccordion key={group.dateKey} group={group} defaultOpen={i === 0} />
-          ))}
-        </ScrollView>
-      )}
+
+        {/* Weekly bar chart */}
+        <View style={styles.chartCard}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>THIS WEEK</Text>
+            <Text style={[Typography.statMD, { color: Colors.accent }]}>
+              {weekTotalXP.toLocaleString()} XP
+            </Text>
+          </View>
+          <View style={styles.chartBars}>
+            {weekTotals.map((xp, i) => {
+              const isToday = i === todayIndex;
+              const heightPct = xp === 0 ? 6 : Math.max(12, (xp / maxBar) * 100);
+              return (
+                <View key={i} style={styles.chartBarCol}>
+                  {xp > 0 && (
+                    <Text style={[styles.chartBarValue, isToday && { color: Colors.accent }]}>{xp}</Text>
+                  )}
+                  <View style={[styles.chartBarStack, { height: `${heightPct}%` }]}>
+                    {isToday ? (
+                      <Animated.View
+                        style={[
+                          styles.chartBar,
+                          styles.chartBarToday,
+                          { opacity: selfGlowOpacity, transform: [{ scaleY: selfGlowScale }] },
+                        ]}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.chartBar,
+                          xp === 0 && styles.chartBarEmpty,
+                        ]}
+                      />
+                    )}
+                  </View>
+                  <Text style={[styles.chartBarLabel, isToday && { color: Colors.accent }]}>{DAY_LABELS[i]}</Text>
+                  {isToday && <View style={styles.todayDot} />}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {renderSection(todaySection)}
+        {renderSection(yesterdaySection)}
+
+        {history.length === 0 && (
+          <View style={styles.empty}>
+            <Ionicons name="map-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
+            <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center' }]}>
+              No completed missions yet.
+            </Text>
+            <Pressable onPress={() => router.push('/(tabs)/map')} style={styles.emptyAction}>
+              <Text style={[Typography.cta, { color: Colors.accent, fontSize: 13 }]}>GO TO MAP →</Text>
+            </Pressable>
+          </View>
+        )}
+      </ScrollView>
+
+      <RouteMapModal
+        visible={routeMapDate !== null}
+        date={routeMapDate}
+        missions={
+          routeMapDate
+            ? history.filter((m) => isoDateKey(new Date(m.completedAt)) === isoDateKey(routeMapDate))
+            : []
+        }
+        onClose={() => setRouteMapDate(null)}
+      />
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
+  weekChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  weekChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.accentSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(166, 230, 53, 0.45)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  weekChipText: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: Colors.accent,
+  },
+  chartCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.borderBright,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  chartTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.4,
+    color: Colors.textSecondary,
+  },
+  chartBars: {
+    flexDirection: 'row',
+    height: 130,
     alignItems: 'flex-end',
     marginTop: Spacing.md,
-    marginBottom: Spacing.md,
+    gap: 6,
   },
-  summaryRow: {
+  chartBarCol: {
+    flex: 1,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    position: 'relative',
+  },
+  chartBarValue: {
+    fontFamily: 'Rajdhani_600SemiBold',
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  chartBarStack: {
+    width: '78%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  chartBar: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(166, 230, 53, 0.45)',
+    borderRadius: 4,
+  },
+  chartBarToday: {
+    backgroundColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
+  },
+  chartBarEmpty: {
+    backgroundColor: Colors.border,
+    height: 4,
+  },
+  chartBarLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 6,
+  },
+  todayDot: {
+    position: 'absolute',
+    bottom: -10,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.accent,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  sectionLabel: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 12,
+    letterSpacing: 1.4,
+    color: Colors.textSecondary,
+  },
+  progressPill: {
+    backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.55)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  progressPillText: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    color: Colors.danger,
+  },
+  routeMapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(166, 230, 53, 0.55)',
+    backgroundColor: Colors.accentSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  routeMapButtonText: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: Colors.accent,
+  },
+  sectionDivider: {
+    height: 2,
+    backgroundColor: 'rgba(166, 230, 53, 0.55)',
+    marginTop: Spacing.sm,
+    borderRadius: 2,
+  },
+  missionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.borderBright,
+    padding: Spacing.md,
+    gap: Spacing.md,
+    overflow: 'hidden',
+  },
+  missionCardMissed: {
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  missionAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: Colors.accent,
+  },
+  missionIcon: {
+    width: 42,
+    height: 42,
     borderRadius: 12,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  summaryItem: {
-    alignItems: 'center',
-    minWidth: 40,
-  },
-  summaryDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: Colors.border,
-    marginHorizontal: Spacing.md,
-  },
-  empty: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  missedPill: {
+    backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.55)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  missedPillText: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 1,
+    color: Colors.danger,
+  },
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xxl,
   },
   emptyAction: {
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-  },
-  accordion: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    overflow: 'hidden',
-  },
-  accordionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 14,
-  },
-  accordionLeft: {
-    flex: 1,
-  },
-  accordionRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  xpBadge: {
-    backgroundColor: Colors.accentDim,
-    borderRadius: 8,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: Colors.accentDim,
-  },
-  missionList: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  missionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  missionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.accent,
-    marginRight: Spacing.md,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-  },
-  mapFrame: {
-    height: 160,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  mapView: {
-    flex: 1,
-  },
-  mapPin: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: Colors.accentDim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: Colors.accent,
-  },
-  mapPinInner: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: Colors.accent,
-  },
-  mapOverlayBadge: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(7, 8, 15, 0.85)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: Colors.accentDim,
   },
 });

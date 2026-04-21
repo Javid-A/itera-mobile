@@ -34,12 +34,14 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onSkip}>
       <Pressable style={styles.overlay} onPress={onSkip}>
         <Pressable style={styles.content} onPress={(e) => e.stopPropagation()}>
-          <Pressable style={styles.closeButton} onPress={onSkip} hitSlop={12}>
-            <Ionicons name="close" size={22} color={Colors.textSecondary} />
-          </Pressable>
-          <Text style={[Typography.displayMD, { color: Colors.textPrimary, textAlign: 'center' }]}>
-            ALMOST THERE
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[Typography.displayLG, { color: Colors.textPrimary, fontSize: 28 }]}>
+              ALMOST THERE
+            </Text>
+            <Pressable style={styles.closeButton} onPress={onSkip} hitSlop={12}>
+              <Ionicons name="close" size={20} color={Colors.textSecondary} />
+            </Pressable>
+          </View>
 
           <View style={styles.videoContainer}>
             <VideoView
@@ -48,11 +50,18 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
               nativeControls={false}
               contentFit="cover"
             />
+            <View style={styles.previewTooltip}>
+              <Text style={styles.previewTooltipTitle}>Mission Complete!</Text>
+              <Text style={styles.previewTooltipXP}>+100 XP</Text>
+            </View>
+            <View style={styles.previewXpChip}>
+              <Text style={styles.previewXpChipText}>+100 XP</Text>
+            </View>
           </View>
 
           <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md }]}>
             To complete missions automatically when you arrive, Itera needs location access{' '}
-            <Text style={{ color: Colors.textPrimary, fontFamily: 'Inter_600SemiBold' }}>all the time</Text>.
+            <Text style={{ color: Colors.textPrimary, fontFamily: 'Inter_700Bold' }}>all the time</Text>.
           </Text>
 
           <Text style={[Typography.caption, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm }]}>
@@ -60,7 +69,7 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
           </Text>
 
           <Pressable style={styles.enableButton} onPress={onEnable}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={Colors.background} />
+            <Ionicons name="shield-checkmark" size={18} color={Colors.background} />
             <Text style={[Typography.cta, { color: Colors.background, marginLeft: Spacing.sm }]}>
               ENABLE AUTO-TRACKING
             </Text>
@@ -85,40 +94,85 @@ const styles = StyleSheet.create({
   },
   content: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: Spacing.lg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.xxl,
-    alignItems: 'center',
     borderTopWidth: 1,
     borderColor: Colors.borderBright,
   },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   closeButton: {
-    position: 'absolute',
-    top: Spacing.md,
-    right: Spacing.md,
-    zIndex: 1,
-    padding: Spacing.xs,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: Colors.surface2,
+    borderWidth: 1,
+    borderColor: Colors.borderBright,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   videoContainer: {
-    width: 220,
+    width: '100%',
     height: 180,
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: Colors.surface2,
-    marginTop: Spacing.lg,
+    backgroundColor: '#0a1226',
+    marginTop: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderBright,
+    position: 'relative',
   },
   video: {
     width: '100%',
     height: '100%',
   },
+  previewTooltip: {
+    position: 'absolute',
+    left: 16,
+    top: '38%',
+    backgroundColor: 'rgba(7, 8, 15, 0.92)',
+    borderWidth: 1,
+    borderColor: Colors.borderBright,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  previewTooltipTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    color: Colors.textPrimary,
+  },
+  previewTooltipXP: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    color: Colors.orange,
+  },
+  previewXpChip: {
+    position: 'absolute',
+    right: 16,
+    top: '38%',
+    backgroundColor: Colors.orange,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  previewXpChipText: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    letterSpacing: 0.6,
+    color: '#1a0f06',
+  },
   enableButton: {
     flexDirection: 'row',
     backgroundColor: Colors.accent,
-    borderRadius: 16,
-    height: 52,
+    borderRadius: 18,
+    height: 56,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -126,9 +180,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 8,
   },
   skipButton: {
     minHeight: 44,

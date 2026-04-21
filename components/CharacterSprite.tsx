@@ -1,124 +1,141 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
 
-const FRAME_W = 153;
-const FRAME_H = 258;
-const IDLE_FRAMES = 15;
+const FRAME_SIZE = 128;
+
+const IDLE_FRAMES = 67;
+const IDLE_COLS = 8;
+const IDLE_ROWS = 9;
+
 const WALK_FRAMES = 15;
-const DISPLAY_W = 59;
-const DISPLAY_H = 100;
-const SCALE = DISPLAY_W / FRAME_W;
+const WALK_COLS = 5;
+const WALK_ROWS = 3;
+
+// Blender 30 FPS: idle exported every 3 frames → 10 FPS; walk every 2 frames → 15 FPS
+const IDLE_FRAME_DURATION = (1000 / 30) * 3;
+const WALK_FRAME_DURATION = (1000 / 30) * 2;
 
 export type Direction = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 
-const DIRECTION_RING: Direction[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
-const DIR_STEP_MS = 120; // ms per 45° step
+export const DIRECTION_RING: Direction[] = [
+  'n',
+  'ne',
+  'e',
+  'se',
+  's',
+  'sw',
+  'w',
+  'nw',
+];
 
-// Directions that are horizontal mirrors of another direction
+// Mirrored pairs: ne/e/se are horizontal flips of nw/w/sw
 const MIRRORED_FROM: Partial<Record<Direction, Direction>> = {
-  sw: 'se',
-  w: 'e',
-  nw: 'ne',
+  ne: 'nw',
+  e: 'w',
+  se: 'sw',
 };
 
-const IDLE: Record<Direction, any> = {
-  s:  require('../assets/idle_s.png'),
-  se: require('../assets/idle_se.png'),
-  e:  require('../assets/idle_e.png'),
-  ne: require('../assets/idle_ne.png'),
-  n:  require('../assets/idle_n.png'),
-  sw: require('../assets/idle_se.png'), // mirrored from se
-  w:  require('../assets/idle_e.png'),  // mirrored from e
-  nw: require('../assets/idle_ne.png'), // mirrored from ne
+const IDLE: Record<string, any> = {
+  n: require('../assets/idle_n.png'),
+  nw: require('../assets/idle_nw.png'),
+  w: require('../assets/idle_w.png'),
+  sw: require('../assets/idle_sw.png'),
+  s: require('../assets/idle_s.png'),
 };
 
-const WALK: Record<Direction, any> = {
-  s:  require('../assets/walk_s.png'),
-  se: require('../assets/walk_se.png'),
-  e:  require('../assets/walk_e.png'),
-  ne: require('../assets/walk_ne.png'),
-  n:  require('../assets/walk_n.png'),
-  sw: require('../assets/walk_se.png'), // mirrored from se
-  w:  require('../assets/walk_e.png'),  // mirrored from e
-  nw: require('../assets/walk_ne.png'), // mirrored from ne
+const WALK: Record<string, any> = {
+  n: require('../assets/walk_n.png'),
+  nw: require('../assets/walk_nw.png'),
+  w: require('../assets/walk_w.png'),
+  sw: require('../assets/walk_sw.png'),
+  s: require('../assets/walk_s.png'),
 };
+
+export function bearingToDirection(relativeBearing: number): Direction {
+  const normalized = ((relativeBearing % 360) + 360) % 360;
+  const index = Math.round(normalized / 45) % 8;
+  return DIRECTION_RING[index];
+}
 
 interface Props {
   isWalking?: boolean;
-  scale?: number;
+  displaySize?: number;
   direction?: Direction;
 }
 
-export default function CharacterSprite({ isWalking = false, scale = 1, direction = 's' }: Props) {
+export default function CharacterSprite({
+  isWalking = false,
+  displaySize = 80,
+  direction = 's',
+}: Props) {
   const [frame, setFrame] = useState(0);
   const frameRef = useRef(0);
-  // displayDir: the direction currently shown — steps toward `direction` prop
-  const [displayDir, setDisplayDir] = useState<Direction>(direction);
-  const displayDirRef = useRef<Direction>(direction);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number>(Date.now());
 
   const totalFrames = isWalking ? WALK_FRAMES : IDLE_FRAMES;
-  const fps = isWalking ? 12 : 8;
+  const cols = isWalking ? WALK_COLS : IDLE_COLS;
+  const rows = isWalking ? WALK_ROWS : IDLE_ROWS;
 
   useEffect(() => {
     frameRef.current = 0;
     setFrame(0);
+    startRef.current = Date.now();
   }, [isWalking]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      frameRef.current = (frameRef.current + 1) % totalFrames;
-      setFrame(frameRef.current);
-    }, 1000 / fps);
-    return () => clearInterval(interval);
-  }, [totalFrames, fps]);
-
-  // Step through intermediate directions instead of snapping instantly
-  useEffect(() => {
-    if (direction === displayDirRef.current) return;
-
-    const stepTimer = setInterval(() => {
-      const curIdx = DIRECTION_RING.indexOf(displayDirRef.current);
-      const tgtIdx = DIRECTION_RING.indexOf(direction);
-      if (curIdx === tgtIdx) {
-        clearInterval(stepTimer);
-        return;
+    const frameDuration = isWalking ? WALK_FRAME_DURATION : IDLE_FRAME_DURATION;
+    const loop = () => {
+      const elapsed = Date.now() - startRef.current;
+      const nextFrame = Math.floor(elapsed / frameDuration) % totalFrames;
+      if (nextFrame !== frameRef.current) {
+        frameRef.current = nextFrame;
+        setFrame(nextFrame);
       }
-      // Shortest rotation: clockwise or counter-clockwise
-      let diff = tgtIdx - curIdx;
-      if (diff > 4) diff -= 8;
-      if (diff < -4) diff += 8;
-      const nextIdx = (curIdx + (diff > 0 ? 1 : -1) + 8) % 8;
-      const nextDir = DIRECTION_RING[nextIdx];
-      displayDirRef.current = nextDir;
-      setDisplayDir(nextDir);
-    }, DIR_STEP_MS);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [totalFrames, isWalking]);
 
-    return () => clearInterval(stepTimer);
-  }, [direction]);
-
-  const mirrored = displayDir in MIRRORED_FROM;
-  const sourceDir = MIRRORED_FROM[displayDir] ?? displayDir;
+  const mirrored = direction in MIRRORED_FROM;
+  const sourceDir = MIRRORED_FROM[direction] ?? direction;
   const sprite = isWalking ? WALK[sourceDir] : IDLE[sourceDir];
 
-  const scaledW = DISPLAY_W * scale;
-  const scaledH = DISPLAY_H * scale;
-  const sheetWidth = totalFrames * FRAME_W * SCALE * scale;
+  const col = frame % cols;
+  const row = Math.floor(frame / cols);
+  const imgWidth = cols * displaySize;
+  const imgHeight = rows * displaySize;
+
+  // Subtle walk bob: 2 bumps per cycle, ~1.5px amplitude
+  const bobY = isWalking
+    ? Math.sin((frame / WALK_FRAMES) * Math.PI * 4) * 1.5
+    : 0;
+
+  const wrapperTransform: any[] = [{ translateY: bobY }];
+  if (mirrored) wrapperTransform.push({ scaleX: -1 });
 
   return (
     <View
+      collapsable={false}
       style={{
-        width: scaledW,
-        height: scaledH,
+        width: displaySize,
+        height: displaySize,
         overflow: 'hidden',
-        transform: mirrored ? [{ scaleX: -1 }] : [],
+        transform: wrapperTransform,
       }}
     >
       <Image
         source={sprite}
         style={{
-          width: sheetWidth,
-          height: scaledH,
-          transform: [{ translateX: -frame * scaledW }],
+          width: imgWidth,
+          height: imgHeight,
+          transform: [
+            { translateX: -col * displaySize },
+            { translateY: -row * displaySize },
+          ],
         }}
         resizeMode="stretch"
       />

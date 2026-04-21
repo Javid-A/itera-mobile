@@ -6,9 +6,11 @@ export const Colors = {
   surface3: '#1c2440',
 
   // Accent (primary = lime; legacy orange kept for warning/geofence glow)
-  accent: '#8de83a',
-  accentDim: 'rgba(141, 232, 58, 0.25)',
+  accent: '#a6e635',
+  accentDim: 'rgba(166, 230, 53, 0.22)',
+  accentSoft: 'rgba(166, 230, 53, 0.12)',
   orange: '#f97316',
+  orangeDim: 'rgba(249, 115, 22, 0.18)',
   blue: '#4f8ef7',
 
   // Text

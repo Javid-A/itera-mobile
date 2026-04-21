@@ -5,13 +5,13 @@ import { useAuth } from '../src/context/AuthContext';
 import { Colors, Spacing, Typography } from '../constants';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const { register } = useAuth();
 
   const handleSubmit = async () => {
     if (!username.trim() || !password.trim()) {
@@ -46,29 +46,50 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={[Typography.displayMD, { color: Colors.textPrimary, marginBottom: Spacing.lg }]}>
+        <Text style={[Typography.displayMD, styles.cardTitle]}>
           {showRegister ? 'CREATE ACCOUNT' : 'SIGN IN'}
         </Text>
 
-        <Text style={[Typography.label, { color: Colors.textSecondary }]}>Username</Text>
+        <Text style={[Typography.label, styles.fieldLabel]}>USERNAME</Text>
         <TextInput
           style={styles.input}
           placeholder="Enter username"
-          placeholderTextColor={Colors.muted}
+          placeholderTextColor={Colors.textSecondary}
           autoCapitalize="none"
           value={username}
           onChangeText={setUsername}
         />
 
-        <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: Spacing.md }]}>Password</Text>
+        {showRegister && (
+          <>
+            <Text style={[Typography.label, styles.fieldLabel, { marginTop: Spacing.md }]}>EMAIL</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter email"
+              placeholderTextColor={Colors.textSecondary}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
+          </>
+        )}
+
+        <Text style={[Typography.label, styles.fieldLabel, { marginTop: Spacing.md }]}>PASSWORD</Text>
         <TextInput
           style={styles.input}
           placeholder="Enter password"
-          placeholderTextColor={Colors.muted}
+          placeholderTextColor={Colors.textSecondary}
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
+
+        {!showRegister && (
+          <Pressable style={styles.forgot} hitSlop={6}>
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </Pressable>
+        )}
 
         {error ? (
           <Text style={[Typography.caption, { color: Colors.danger, marginTop: Spacing.sm }]}>{error}</Text>
@@ -85,10 +106,10 @@ export default function LoginScreen() {
         </Pressable>
 
         <Pressable onPress={() => { setShowRegister((v) => !v); setError(''); }} style={styles.toggle}>
-          <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
+          <Text style={[Typography.body, { color: Colors.textSecondary }]}>
             {showRegister ? 'Already have an account? ' : "Don't have an account? "}
-            <Text style={{ color: Colors.accent, fontFamily: 'Inter_600SemiBold' }}>
-              {showRegister ? 'Sign in' : 'Register'}
+            <Text style={{ color: Colors.accent, fontFamily: 'Inter_700Bold' }}>
+              {showRegister ? 'Sign In' : 'Register'}
             </Text>
           </Text>
         </Pressable>
@@ -120,11 +141,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_600SemiBold',
     fontSize: 12,
     color: Colors.textSecondary,
-    letterSpacing: 3,
+    letterSpacing: 4,
     marginTop: Spacing.xs,
   },
   divider: {
-    width: 44,
+    width: 56,
     height: 3,
     backgroundColor: Colors.accent,
     borderRadius: 2,
@@ -137,10 +158,19 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 22,
     padding: Spacing.xl,
     borderWidth: 1,
     borderColor: Colors.borderBright,
+  },
+  cardTitle: {
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  fieldLabel: {
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
   input: {
     backgroundColor: Colors.surface2,
@@ -151,21 +181,29 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 15,
     padding: Spacing.md,
-    marginTop: Spacing.xs,
-    height: 48,
+    height: 50,
+  },
+  forgot: {
+    alignSelf: 'flex-end',
+    marginTop: Spacing.sm,
+  },
+  forgotText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    color: Colors.blue,
   },
   button: {
     backgroundColor: Colors.accent,
-    borderRadius: 16,
-    height: 52,
+    borderRadius: 18,
+    height: 54,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.xl,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 8,
   },
   toggle: {
     alignItems: 'center',
