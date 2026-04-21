@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants';
+import type { MissionTier } from '../src/types/Routine';
 
 const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
   briefcase: 'briefcase',
@@ -14,13 +15,21 @@ const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 const GREEN = '#22C55E';
 
+const TIER_ACCENT: Record<MissionTier, string> = {
+  A: Colors.accent,
+  B: '#22D3EE',
+  C: '#A855F7',
+};
+
 interface Props {
   iconType: string;
   completed?: boolean;
+  tier?: MissionTier;
 }
 
-export default function MissionPin({ iconType, completed = false }: Props) {
+export default function MissionPin({ iconType, completed = false, tier }: Props) {
   const iconName = ICON_MAP[iconType] ?? 'location';
+  const baseAccent = tier ? TIER_ACCENT[tier] : Colors.accent;
   const floatAnim = useRef(new Animated.Value(0)).current;
   const colorAnim = useRef(new Animated.Value(completed ? 1 : 0)).current;
 
@@ -53,7 +62,7 @@ export default function MissionPin({ iconType, completed = false }: Props) {
 
   const accentColor = colorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [Colors.accent, GREEN],
+    outputRange: [baseAccent, GREEN],
   });
 
   const shadowOpacity = colorAnim.interpolate({
@@ -68,7 +77,7 @@ export default function MissionPin({ iconType, completed = false }: Props) {
           styles.diamond,
           {
             backgroundColor: accentColor,
-            shadowColor: completed ? GREEN : Colors.accent,
+            shadowColor: completed ? GREEN : baseAccent,
             shadowOpacity,
           },
         ]}

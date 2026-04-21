@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { Colors, Spacing, Typography } from '../constants';
 import apiClient from '../src/services/apiClient';
 import { LocationService } from '../src/services/LocationService';
 import type { Routine } from '../src/types/Routine';
+import { classifyDistance, haversineMeters, TIER_CONFIG } from '../src/config/tierConfig';
 import BackgroundLocationPrompt from './BackgroundLocationPrompt';
 import ChooseOnMapModal from './ChooseOnMapModal';
 import XPCountUp from './XPCountUp';
@@ -27,16 +28,26 @@ type LocType = {
   label: string;
   iconType: string;
   icon: keyof typeof Ionicons.glyphMap;
-  baseXP: number;
 };
 
 const LOC_TYPES: LocType[] = [
-  { key: 'gym', label: 'Gym', iconType: 'barbell', icon: 'barbell', baseXP: 80 },
-  { key: 'cafe', label: 'Café', iconType: 'cafe', icon: 'cafe', baseXP: 60 },
-  { key: 'office', label: 'Office', iconType: 'briefcase', icon: 'briefcase', baseXP: 100 },
-  { key: 'park', label: 'Park', iconType: 'leaf', icon: 'leaf', baseXP: 70 },
-  { key: 'custom', label: 'Custom', iconType: 'star', icon: 'location', baseXP: 50 },
+  { key: 'gym', label: 'Gym', iconType: 'barbell', icon: 'barbell' },
+  { key: 'cafe', label: 'Café', iconType: 'cafe', icon: 'cafe' },
+  { key: 'office', label: 'Office', iconType: 'briefcase', icon: 'briefcase' },
+  { key: 'park', label: 'Park', iconType: 'leaf', icon: 'leaf' },
+  { key: 'custom', label: 'Custom', iconType: 'star', icon: 'location' },
 ];
+
+const TIER_COLORS: Record<'A' | 'B' | 'C', string> = {
+  A: Colors.accent,
+  B: '#22D3EE',
+  C: '#A855F7',
+};
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(meters < 10000 ? 2 : 1)} km`;
+}
 
 type Props = {
   visible: boolean;
@@ -66,7 +77,50 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [radiusMeters, setRadiusMeters] = useState(100);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
+  const [anchorCoords, setAnchorCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [anchorError, setAnchorError] = useState<string | null>(null);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Capture the user's position when the modal opens. This anchor freezes the
+  // distance-based XP tier at creation time; without it we cannot classify.
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    (async () => {
+      setAnchorError(null);
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          const req = await Location.requestForegroundPermissionsAsync();
+          if (req.status !== 'granted') {
+            if (!cancelled) setAnchorError('Location permission required to classify mission tier.');
+            return;
+          }
+        }
+        const last = await Location.getLastKnownPositionAsync();
+        const coords = last?.coords ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })).coords;
+        if (!cancelled) {
+          setAnchorCoords({ lat: coords.latitude, lng: coords.longitude });
+        }
+      } catch {
+        if (!cancelled) setAnchorError('Could not determine your location.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
+
+  const tierPreview = useMemo(() => {
+    if (!anchorCoords || locationLat == null || locationLng == null) return null;
+    const distance = haversineMeters(
+      anchorCoords.lat,
+      anchorCoords.lng,
+      locationLat,
+      locationLng,
+    );
+    return { ...classifyDistance(distance), distanceMeters: distance };
+  }, [anchorCoords, locationLat, locationLng]);
 
   const resetForm = useCallback(() => {
     setMissionName('');
@@ -86,6 +140,8 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
     setToMinute(0);
     setToAmPm('PM');
     setActiveTimePicker(null);
+    setAnchorCoords(null);
+    setAnchorError(null);
   }, []);
 
   const handleLocationQueryChange = (query: string) => {
@@ -177,6 +233,13 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
 
   const handleSubmit = async () => {
     if (!missionName.trim()) return;
+    if (!anchorCoords) {
+      Alert.alert(
+        'Location required',
+        anchorError ?? 'Waiting for GPS to determine your position. Try again in a moment.',
+      );
+      return;
+    }
 
     const latitude = locationLat ?? 52.52 + (Math.random() - 0.5) * 0.01;
     const longitude = locationLng ?? 13.405 + (Math.random() - 0.5) * 0.01;
@@ -190,6 +253,8 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
         longitude,
         radiusMeters,
         iconType: selectedType.iconType,
+        anchorLatitude: anchorCoords.lat,
+        anchorLongitude: anchorCoords.lng,
       });
 
       resetForm();
@@ -437,24 +502,42 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
                 </View>
               )}
 
-              {/* XP Reward */}
+              {/* XP Reward — distance-based tier */}
               <View style={styles.xpCard}>
                 <View style={{ flex: 1 }}>
                   <Text style={[Typography.label, { color: Colors.textSecondary }]}>XP REWARD</Text>
-                  <View style={styles.xpRow}>
-                    <Text style={[Typography.body, { color: Colors.textPrimary }]}>{selectedType.label} base</Text>
-                  </View>
-                  <View style={styles.baseChip}>
-                    <Text style={styles.baseChipText}>{selectedType.baseXP} base</Text>
-                  </View>
+                  {tierPreview ? (
+                    <>
+                      <Text style={[Typography.body, { color: Colors.textPrimary, marginTop: 4 }]}>
+                        Tier {tierPreview.tier} · {formatDistance(tierPreview.distanceMeters)} away
+                      </Text>
+                      <View style={[styles.baseChip, { borderColor: TIER_COLORS[tierPreview.tier], backgroundColor: 'rgba(166, 230, 53, 0.08)' }]}>
+                        <Text style={[styles.baseChipText, { color: TIER_COLORS[tierPreview.tier] }]}>
+                          {TIER_CONFIG.baseXP} × {tierPreview.multiplier.toFixed(1)}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[Typography.body, { color: Colors.textSecondary, marginTop: 4 }]}>
+                        {anchorError ? anchorError : anchorCoords ? 'Pick a location to classify tier.' : 'Locating you…'}
+                      </Text>
+                      <View style={styles.baseChip}>
+                        <Text style={styles.baseChipText}>A · B · C</Text>
+                      </View>
+                    </>
+                  )}
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <XPCountUp
-                    key={selectedType.key}
-                    target={selectedType.baseXP}
+                    key={tierPreview ? `${tierPreview.tier}-${tierPreview.potentialXP}` : 'pending'}
+                    target={tierPreview?.potentialXP ?? 0}
                     prefix="+"
                     duration={800}
-                    style={[Typography.statXL, { color: Colors.accent }]}
+                    style={[
+                      Typography.statXL,
+                      { color: tierPreview ? TIER_COLORS[tierPreview.tier] : Colors.textSecondary },
+                    ]}
                   />
                   <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: -4 }]}>XP</Text>
                 </View>

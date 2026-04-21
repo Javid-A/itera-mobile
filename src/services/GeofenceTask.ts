@@ -1,6 +1,7 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import { GeofencingEventType, type LocationRegion } from 'expo-location';
+import { AppState } from 'react-native';
 import axios from 'axios';
 import apiClient from './apiClient';
 
@@ -18,6 +19,14 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   };
 
   if (eventType !== GeofencingEventType.Enter) return;
+
+  // If the app is in the foreground, the map screen's live-watcher owns the
+  // arrival flow (including the shrink/burst animation). Bailing here prevents
+  // the backend cooldown from being tripped before the foreground POST lands.
+  if (AppState.currentState === 'active') {
+    console.log('[GeofenceTask] App active — deferring to foreground handler');
+    return;
+  }
 
   const routineId = region.identifier;
   if (!routineId) return;

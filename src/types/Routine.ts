@@ -1,3 +1,5 @@
+export type MissionTier = 'A' | 'B' | 'C';
+
 export interface Routine {
   id: string;
   missionName: string;
@@ -6,4 +8,7 @@ export interface Routine {
   longitude: number;
   radiusMeters: number;
   iconType: string;
+  tier: MissionTier;
+  potentialXP: number;
+  anchorDistanceMeters: number;
 }

@@ -364,9 +364,18 @@ export default function MapScreen() {
           .catch(() => null),
       ]);
 
+      // If the background GeofenceTask beat us to the POST (cooldown), or the
+      // call failed transiently, we still want the orange ring to stay
+      // collapsed and the pin to flip to "completed" — otherwise the ring
+      // springs back and the mission only appears done after a reload.
       if (!apiResult || apiResult.cooldownActive) {
+        setCompletedRoutineIds((prev) => new Set([...prev, routine.id]));
         setCompletingRoutineId(null);
         isCompletingRef.current = false;
+        apiClient
+          .get<Profile>("/profile")
+          .then(({ data }) => setProfile(data))
+          .catch(() => {});
         return;
       }
 
@@ -439,10 +448,11 @@ export default function MapScreen() {
 
   useEffect(() => {
     const newId = activeRoutine?.id ?? null;
+    const prevId = prevActiveRoutineIdRef.current;
 
     if (
       newId !== null &&
-      bgDenied &&
+      newId !== prevId &&
       !completedRoutineIds.has(newId) &&
       !isCompletingRef.current
     ) {
@@ -456,7 +466,6 @@ export default function MapScreen() {
     prevActiveRoutineIdRef.current = newId;
   }, [
     activeRoutine?.id,
-    bgDenied,
     completedRoutineIds,
     handleForegroundArrival,
   ]);
@@ -1056,6 +1065,7 @@ export default function MapScreen() {
             <MissionPin
               iconType={routine.iconType}
               completed={completedRoutineIds.has(routine.id)}
+              tier={routine.tier}
             />
           </MarkerView>
         ))}
@@ -1265,7 +1275,7 @@ export default function MapScreen() {
                   </Text>
                 </View>
                 <Text style={[Typography.statSM, { color: Colors.accent }]}>
-                  +100 XP
+                  +{routine.potentialXP} XP
                 </Text>
                 <Pressable
                   style={styles.deleteRoutineBtn}
