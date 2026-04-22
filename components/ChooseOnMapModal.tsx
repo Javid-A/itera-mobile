@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -11,11 +11,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Colors, Spacing, Typography } from "../constants";
+import { classifyDistance, haversineMeters } from "../src/config/tierConfig";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 
 let MapboxAvailable = false;
 let MapView: any;
 let Camera: any;
 let MarkerView: any;
+let ShapeSource: any;
+let FillLayer: any;
+let LineLayer: any;
 let Mapbox: any;
 
 try {
@@ -24,10 +30,91 @@ try {
   MapView = maps.MapView;
   Camera = maps.Camera;
   MarkerView = maps.MarkerView;
+  ShapeSource = maps.ShapeSource;
+  FillLayer = maps.FillLayer;
+  LineLayer = maps.LineLayer;
   Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
   MapboxAvailable = true;
 } catch {
   MapboxAvailable = false;
+}
+
+const TIER_COLORS = { A: "#a6e635", B: "#22D3EE", C: "#A855F7" } as const;
+
+function ringCoords(
+  lng: number,
+  lat: number,
+  r: number,
+  steps = 64,
+): [number, number][] {
+  const c: [number, number][] = [];
+  const k = 111320 * Math.cos((lat * Math.PI) / 180);
+  for (let i = 0; i < steps; i++) {
+    const a = (i / steps) * 2 * Math.PI;
+    c.push([lng + (r * Math.cos(a)) / k, lat + (r * Math.sin(a)) / 111320]);
+  }
+  c.push(c[0]);
+  return c;
+}
+
+function createCircleGeoJSON(lng: number, lat: number, r: number) {
+  return {
+    type: "Feature" as const,
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [ringCoords(lng, lat, r)],
+    },
+    properties: {},
+  };
+}
+
+function createAnnulusGeoJSON(
+  lng: number,
+  lat: number,
+  innerR: number,
+  outerR: number,
+) {
+  return {
+    type: "Feature" as const,
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [
+        ringCoords(lng, lat, outerR),
+        ringCoords(lng, lat, innerR).slice().reverse(),
+      ],
+    },
+    properties: {},
+  };
+}
+
+// B sınırından dışa doğru radyal degrade için birden fazla annulus üret.
+// Sınıra yakın en parlak, uzaklaştıkça sönüyor (quadratic falloff).
+function createGradientStops(
+  lng: number,
+  lat: number,
+  innerR: number,
+  outerR: number,
+  peakOpacity: number,
+  steps = 14,
+) {
+  const stops: {
+    feature: ReturnType<typeof createAnnulusGeoJSON>;
+    opacity: number;
+  }[] = [];
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps;
+    const t1 = (i + 1) / steps;
+    // Eases: inner radii are packed tightly near B, outer stretch further away
+    const easeRadius = (t: number) => Math.pow(t, 1.4);
+    const r0 = innerR + (outerR - innerR) * easeRadius(t0);
+    const r1 = innerR + (outerR - innerR) * easeRadius(t1);
+    const opacity = peakOpacity * Math.pow(1 - t0, 2);
+    stops.push({
+      feature: createAnnulusGeoJSON(lng, lat, r0, r1),
+      opacity,
+    });
+  }
+  return stops;
 }
 
 export type LocationResult = {
@@ -59,6 +146,39 @@ export default function ChooseOnMapModal({
     28.9784, 41.0082,
   ]);
   const [scaleLabel, setScaleLabel] = useState("");
+
+  const tierZones = useMemo(() => {
+    const [lng, lat] = userCoord;
+    const cosLat = Math.cos((lat * Math.PI) / 180);
+    return {
+      A: createCircleGeoJSON(lng, lat, 1000),
+      B: createCircleGeoJSON(lng, lat, 5000),
+      B_ring: createAnnulusGeoJSON(lng, lat, 1000, 5000),
+      C_gradient: createGradientStops(lng, lat, 5000, 22000, 0.42, 14),
+      // Etiketler kendi border'ının hemen DIŞINDA duruyor (radius'u görsel olarak işaretliyor)
+      A_label: [lng + 1050 / (111320 * cosLat), lat] as [number, number],
+      B_label: [lng + 5100 / (111320 * cosLat), lat] as [number, number],
+      C_label: [lng + 7500 / (111320 * cosLat), lat - 1800 / 111320] as [
+        number,
+        number,
+      ],
+    };
+  }, [userCoord]);
+
+  const pinTier = useMemo(
+    () =>
+      pinCoord
+        ? classifyDistance(
+            haversineMeters(
+              userCoord[1],
+              userCoord[0],
+              pinCoord[1],
+              pinCoord[0],
+            ),
+          )
+        : null,
+    [pinCoord, userCoord],
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -213,7 +333,7 @@ export default function ChooseOnMapModal({
             >
               <Camera
                 ref={cameraRef}
-                zoomLevel={10}
+                zoomLevel={11}
                 minZoomLevel={3}
                 maxZoomLevel={14}
                 pitch={0}
@@ -221,6 +341,176 @@ export default function ChooseOnMapModal({
                 animationMode="flyTo"
                 animationDuration={0}
               />
+              {/* C radyal degrade — B sınırından dışa doğru soluyor */}
+              {tierZones.C_gradient.map((stop, i) => (
+                <ShapeSource
+                  key={`tierCGrad-${i}`}
+                  id={`tierCGrad-${i}`}
+                  shape={stop.feature}
+                >
+                  <FillLayer
+                    id={`tierCGradFill-${i}`}
+                    style={{
+                      fillColor: TIER_COLORS.C,
+                      fillOpacity: stop.opacity,
+                      fillAntialias: true,
+                    }}
+                  />
+                </ShapeSource>
+              ))}
+              {/* A daire fill — kullanıcı çevresinde hafif yeşil tint */}
+              <ShapeSource id="tierACircle" shape={tierZones.A}>
+                <FillLayer
+                  id="tierAFill"
+                  style={{ fillColor: TIER_COLORS.A, fillOpacity: 0.08 }}
+                />
+              </ShapeSource>
+              {/* B sınır glow katmanları */}
+              <ShapeSource id="tierBBorder" shape={tierZones.B}>
+                <LineLayer
+                  id="tierBHalo"
+                  style={{
+                    lineColor: TIER_COLORS.B,
+                    lineWidth: 24,
+                    lineOpacity: 0.1,
+                    lineBlur: 14,
+                  }}
+                />
+                <LineLayer
+                  id="tierBGlow"
+                  style={{
+                    lineColor: TIER_COLORS.B,
+                    lineWidth: 8,
+                    lineOpacity: 0.32,
+                    lineBlur: 4,
+                  }}
+                />
+                <LineLayer
+                  id="tierBMain"
+                  style={{
+                    lineColor: TIER_COLORS.B,
+                    lineWidth: 1.5,
+                    lineOpacity: 0.9,
+                    lineDasharray: [8, 4],
+                  }}
+                />
+              </ShapeSource>
+              {/* A sınır glow katmanları */}
+              <ShapeSource id="tierABorder" shape={tierZones.A}>
+                <LineLayer
+                  id="tierAHalo"
+                  style={{
+                    lineColor: TIER_COLORS.A,
+                    lineWidth: 22,
+                    lineOpacity: 0.09,
+                    lineBlur: 14,
+                  }}
+                />
+                <LineLayer
+                  id="tierAGlow"
+                  style={{
+                    lineColor: TIER_COLORS.A,
+                    lineWidth: 7,
+                    lineOpacity: 0.28,
+                    lineBlur: 4,
+                  }}
+                />
+                <LineLayer
+                  id="tierAMain"
+                  style={{
+                    lineColor: TIER_COLORS.A,
+                    lineWidth: 1.5,
+                    lineOpacity: 0.92,
+                    lineDasharray: [8, 4],
+                  }}
+                />
+              </ShapeSource>
+              {/* Tier badge etiketleri */}
+              <MarkerView
+                coordinate={tierZones.A_label}
+                anchor={{ x: 0, y: 0.5 }}
+              >
+                <View style={styles.tierBadge}>
+                  <View
+                    style={[
+                      styles.tierBadgeDot,
+                      { backgroundColor: TIER_COLORS.A },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.tierBadgeLabel, { color: TIER_COLORS.A }]}
+                  >
+                    A
+                  </Text>
+                  <Text style={styles.tierBadgeXP}>100 XP</Text>
+                </View>
+              </MarkerView>
+              <MarkerView
+                coordinate={tierZones.B_label}
+                anchor={{ x: 0, y: 0.5 }}
+              >
+                <View
+                  style={[
+                    styles.tierBadge,
+                    // Rozetin kendisine de kendi renginden çok hafif bir parlama/gölge veriyoruz
+                    { shadowColor: TIER_COLORS.B },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.tierBadgeDot,
+                      {
+                        backgroundColor: TIER_COLORS.B,
+                        shadowColor: TIER_COLORS.B, // Noktanın kendi minik neon ışığı
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.tierBadgeLabel, { color: TIER_COLORS.B }]}
+                  >
+                    B
+                  </Text>
+                  <Text style={styles.tierBadgeXP}>150 XP</Text>
+                </View>
+              </MarkerView>
+              <MarkerView
+                coordinate={tierZones.C_label}
+                anchor={{ x: 0, y: 1 }}
+              >
+                <View style={styles.cTooltipWrapper} pointerEvents="none">
+                  <View style={styles.cTooltipGlowContainer}>
+                    <BlurView
+                      intensity={50}
+                      tint="dark"
+                      style={styles.cTooltipBody}
+                    >
+                      {/* Camın içindeki 3D derinlik yansıması */}
+                      <LinearGradient
+                        colors={[
+                          "rgba(255, 255, 255, 0.15)",
+                          "rgba(0, 0, 0, 0.3)",
+                        ]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.cTooltipInner}
+                      >
+                        <Text style={styles.cTooltipText}>5 km+ (200 XP)</Text>
+                      </LinearGradient>
+                    </BlurView>
+                  </View>
+                </View>
+                {/* <View style={styles.cTooltipWrapper} pointerEvents="none">
+                  <View style={styles.cTooltipBody}>
+                    <View style={styles.cTooltipInner}>
+                      <Text style={styles.cTooltipText}>5 km+ (200 XP)</Text>
+                    </View>
+                  </View>
+                  <View style={styles.cTooltipTail} />
+                  <View style={styles.cTooltipPinGlow}>
+                    <View style={styles.cTooltipPin} />
+                  </View>
+                </View> */}
+              </MarkerView>
               <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }}>
                 <View style={styles.userPulse}>
                   <View style={styles.userDotOuter}>
@@ -231,14 +521,36 @@ export default function ChooseOnMapModal({
               {pinCoord && (
                 <MarkerView coordinate={pinCoord} anchor={{ x: 0.5, y: 1 }}>
                   <View style={styles.pinWrapper} pointerEvents="none">
-                    <View style={styles.pinHead}>
+                    <View
+                      style={[
+                        styles.pinHead,
+                        {
+                          backgroundColor: pinTier
+                            ? TIER_COLORS[
+                                pinTier.tier as keyof typeof TIER_COLORS
+                              ]
+                            : "#ffffff",
+                        },
+                      ]}
+                    >
                       <Ionicons
                         name="location"
                         size={16}
                         color={Colors.background}
                       />
                     </View>
-                    <View style={styles.pinTail} />
+                    <View
+                      style={[
+                        styles.pinTail,
+                        {
+                          borderTopColor: pinTier
+                            ? TIER_COLORS[
+                                pinTier.tier as keyof typeof TIER_COLORS
+                              ]
+                            : "#ffffff",
+                        },
+                      ]}
+                    />
                   </View>
                 </MarkerView>
               )}
@@ -275,10 +587,35 @@ export default function ChooseOnMapModal({
                   <ActivityIndicator size="small" color={Colors.accent} />
                 ) : (
                   <>
-                    <View style={styles.chipDot} />
+                    <View
+                      style={[
+                        styles.chipDot,
+                        pinTier && {
+                          backgroundColor:
+                            TIER_COLORS[
+                              pinTier.tier as keyof typeof TIER_COLORS
+                            ],
+                        },
+                      ]}
+                    />
                     <Text style={styles.chipText} numberOfLines={1}>
                       {pinName.split(",")[0]}
                     </Text>
+                    {pinTier && (
+                      <Text
+                        style={[
+                          styles.chipTierText,
+                          {
+                            color:
+                              TIER_COLORS[
+                                pinTier.tier as keyof typeof TIER_COLORS
+                              ],
+                          },
+                        ]}
+                      >
+                        {pinTier.tier} · {pinTier.potentialXP} XP
+                      </Text>
+                    )}
                   </>
                 )}
               </View>
@@ -486,6 +823,151 @@ const styles = StyleSheet.create({
     borderTopColor: "#ffffff",
     marginTop: -1,
   },
+  tierBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    // Öncekinden biraz daha koyu, tok bir zemin (Cam değil, mat plastik/metal hissi)
+    backgroundColor: "rgba(14, 18, 28, 0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)", // Çok çok ince, elit bir sınır çizgisi
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    // Hiyerarşi B: Hafif bir havaya kaldırma gölgesi (Glow değil, sadece drop shadow)
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  tierBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    // Noktaya küçük bir neon etkisi ekliyoruz (Gözü yormayan)
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tierBadgeLabel: {
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 14, // Nokta ve harf uyumu için bir tık büyütüldü
+    letterSpacing: 1.2,
+    // Label'ın da kendi renginde çook hafif bir ışıması olsun
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
+    textShadowColor: "rgba(255, 255, 255, 0.3)", // Rengi ezeceği için kendi rengini değil beyaz kırılma veriyoruz
+  },
+  tierBadgeXP: {
+    fontFamily: "Rajdhani_600SemiBold", // 700 XP yazısı için çok kalın kalabilir, 600 daha şık durur
+    fontSize: 12,
+    color: "#8B95A5", // Sönük ama harita üstünde okunaklı bir "çelik grisi"
+    letterSpacing: 0.5,
+    marginLeft: 2, // Harf ile XP arasına minik bir nefes payı
+  },
+  cTooltipWrapper: {
+    alignItems: "center",
+  },
+  cTooltipGlowContainer: {
+    shadowColor: "#A855F7",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 10,
+    borderRadius: 16,
+  },
+  cTooltipBody: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    // İŞTE DİNAMİK BORDER: Sol üstte parlak mor, sağ altta neredeyse görünmez.
+    borderTopColor: "rgba(168, 85, 247, 0.9)",
+    borderLeftColor: "rgba(168, 85, 247, 0.7)",
+    borderRightColor: "rgba(168, 85, 247, 0.1)",
+    borderBottomColor: "rgba(168, 85, 247, 0.05)",
+    overflow: "hidden",
+  },
+  cTooltipInner: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    // Camın iç kısmındaki çok hafif beyaz yansıma çizgisi
+    borderTopColor: "rgba(255, 255, 255, 0.2)",
+    borderLeftColor: "rgba(255, 255, 255, 0.1)",
+    borderRightColor: "rgba(255, 255, 255, 0.02)",
+    borderBottomColor: "rgba(255, 255, 255, 0.02)",
+    borderRadius: 14.5,
+  },
+  cTooltipText: {
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 15,
+    letterSpacing: 0.6,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(168, 85, 247, 1)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  // cTooltipBody: {
+  //   backgroundColor: "rgba(18, 10, 36, 0.82)",
+  //   borderRadius: 14,
+  //   borderWidth: 1,
+  //   borderColor: "rgba(217, 180, 254, 0.28)",
+  //   shadowColor: "#D946EF",
+  //   shadowOffset: { width: 0, height: 0 },
+  //   shadowOpacity: 0.55,
+  //   shadowRadius: 14,
+  //   elevation: 10,
+  // },
+  // cTooltipInner: {
+  //   paddingHorizontal: 14,
+  //   paddingVertical: 8,
+  //   borderRadius: 14,
+  //   borderWidth: 1,
+  //   borderColor: "rgba(255,255,255,0.04)",
+  //   backgroundColor: "rgba(255,255,255,0.02)",
+  // },
+  // cTooltipText: {
+  //   fontFamily: "Rajdhani_700Bold",
+  //   fontSize: 15,
+  //   letterSpacing: 0.6,
+  //   color: "#EAC6FF",
+  //   textShadowColor: "rgba(217, 70, 239, 0.7)",
+  //   textShadowOffset: { width: 0, height: 0 },
+  //   textShadowRadius: 8,
+  // },
+  cTooltipTail: {
+    width: 0,
+    height: 0,
+    marginTop: -1,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderTopWidth: 9,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "rgba(18, 10, 36, 0.82)",
+  },
+  cTooltipPinGlow: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginTop: 4,
+    backgroundColor: "rgba(217, 70, 239, 0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#D946EF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  cTooltipPin: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#E9B8FF",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.6)",
+  },
   scaleBar: {
     position: "absolute",
     bottom: 16,
@@ -538,6 +1020,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     color: Colors.textPrimary,
     flexShrink: 1,
+  },
+  chipTierText: {
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 12,
+    letterSpacing: 1,
+    marginLeft: 2,
   },
   bottomSheet: {
     height: 300,
