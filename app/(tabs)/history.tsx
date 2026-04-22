@@ -250,29 +250,35 @@ export default function HistoryScreen() {
           <View style={styles.chartBars}>
             {weekTotals.map((xp, i) => {
               const isToday = i === todayIndex;
-              const heightPct = xp === 0 ? 6 : Math.max(12, (xp / maxBar) * 100);
+              // Map 0 to 6%, maxBar to 100%, and everything else proportionally.
+              // We also cap at 100% just in case.
+              const heightPct = xp === 0 ? 6 : Math.min(100, Math.max(12, (xp / maxBar) * 100));
               return (
                 <View key={i} style={styles.chartBarCol}>
-                  {xp > 0 && (
-                    <Text style={[styles.chartBarValue, isToday && { color: Colors.accent }]}>{xp}</Text>
-                  )}
-                  <View style={[styles.chartBarStack, { height: `${heightPct}%` }]}>
-                    {isToday ? (
-                      <Animated.View
-                        style={[
-                          styles.chartBar,
-                          styles.chartBarToday,
-                          { opacity: selfGlowOpacity, transform: [{ scaleY: selfGlowScale }] },
-                        ]}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.chartBar,
-                          xp === 0 && styles.chartBarEmpty,
-                        ]}
-                      />
+                  <View style={styles.chartBarValueContainer}>
+                    {xp > 0 && (
+                      <Text style={[styles.chartBarValue, isToday && { color: Colors.accent }]}>{xp}</Text>
                     )}
+                  </View>
+                  <View style={styles.chartBarStackWrapper}>
+                    <View style={[styles.chartBarStack, { height: `${heightPct}%` }]}>
+                      {isToday ? (
+                        <Animated.View
+                          style={[
+                            styles.chartBar,
+                            styles.chartBarToday,
+                            { opacity: selfGlowOpacity, transform: [{ scaleY: selfGlowScale }] },
+                          ]}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.chartBar,
+                            xp === 0 && styles.chartBarEmpty,
+                          ]}
+                        />
+                      )}
+                    </View>
                   </View>
                   <Text style={[styles.chartBarLabel, isToday && { color: Colors.accent }]}>{DAY_LABELS[i]}</Text>
                   {isToday && <View style={styles.todayDot} />}
@@ -357,7 +363,7 @@ const styles = StyleSheet.create({
   },
   chartBars: {
     flexDirection: 'row',
-    height: 130,
+    height: 150, // increased height slightly to give values breathing room
     alignItems: 'flex-end',
     marginTop: Spacing.md,
     gap: 6,
@@ -369,11 +375,22 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     position: 'relative',
   },
+  chartBarValueContainer: {
+    height: 16,
+    justifyContent: 'flex-end',
+    marginBottom: 4,
+  },
   chartBarValue: {
     fontFamily: 'Rajdhani_600SemiBold',
     fontSize: 10,
     color: Colors.textSecondary,
-    marginBottom: 2,
+    textAlign: 'center',
+  },
+  chartBarStackWrapper: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   chartBarStack: {
     width: '78%',

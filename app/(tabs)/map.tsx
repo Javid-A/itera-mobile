@@ -1208,18 +1208,22 @@ export default function MapScreen() {
       </Animated.View>
 
       {/* Recenter */}
-      <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
-        <Ionicons name="locate" size={22} color={Colors.textPrimary} />
-      </Pressable>
+      <View style={styles.recenterButtonWrapper} pointerEvents={isSheetExpanded ? "none" : "auto"}>
+        <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
+          <Ionicons name="locate" size={22} color={Colors.textPrimary} />
+        </Pressable>
+      </View>
 
       {/* FAB */}
-      <Pressable
-        style={styles.fab}
-        onPress={() => setCreateVisible(true)}
-        hitSlop={8}
-      >
-        <Ionicons name="add" size={26} color={Colors.background} />
-      </Pressable>
+      <View style={styles.fabWrapper} pointerEvents={isSheetExpanded ? "none" : "auto"}>
+        <Pressable
+          style={styles.fab}
+          onPress={() => setCreateVisible(true)}
+          hitSlop={8}
+        >
+          <Ionicons name="add" size={26} color={Colors.background} />
+        </Pressable>
+      </View>
 
       {/* Backdrop */}
       <Animated.View
@@ -1449,6 +1453,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.orange,
   },
+  recenterButtonWrapper: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    zIndex: 15,
+    elevation: 15,
+  },
   recenterButton: {
     position: "absolute",
     right: Spacing.md,
@@ -1461,6 +1472,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderBright,
     alignItems: "center",
     justifyContent: "center",
+  },
+  fabWrapper: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    zIndex: 15,
+    elevation: 15,
   },
   fab: {
     position: "absolute",
@@ -1476,8 +1494,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
-    elevation: 8,
-    zIndex: 25,
   },
   backdrop: {
     position: "absolute",
@@ -1486,6 +1502,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: SHEET_COLLAPSED_HEIGHT,
     backgroundColor: "#000",
+    zIndex: 20,
+    elevation: 20,
   },
   sheet: {
     position: "absolute",
@@ -1500,6 +1518,8 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: Colors.borderBright,
+    zIndex: 25,
+    elevation: 25,
   },
   sheetHeader: {
     paddingHorizontal: Spacing.md,
