@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Colors, Spacing, Typography } from "../../constants";
@@ -865,7 +866,8 @@ export default function MapScreen() {
     <View style={styles.map}>
       <MapView
         style={styles.map}
-        styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa"
+        // styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa"//old
+        styleURL="mapbox://styles/javid-a/cmoal7c4v006f01sec32x0zn9" // new, with building extrusions
         compassEnabled={false}
         logoEnabled={false}
         attributionEnabled={false}
@@ -1102,12 +1104,12 @@ export default function MapScreen() {
 
       {/* ── Top HUD: Level / XP bar ── */}
       <View style={styles.topHud} pointerEvents="box-none">
-        <View style={styles.hudCard}>
-          <View style={styles.levelChip}>
+        <BlurView intensity={45} tint="dark" style={styles.hudCard} experimentalBlurMethod="dimezisBlurView">
+          <BlurView intensity={30} tint="light" style={styles.levelChip} experimentalBlurMethod="dimezisBlurView">
             <Text style={[Typography.statMD, { color: Colors.accent }]}>
               {profile?.currentLevel ?? 1}
             </Text>
-          </View>
+          </BlurView>
           <View style={{ flex: 1 }}>
             <View style={styles.hudLabelRow}>
               <Text style={styles.hudLevelLabel}>
@@ -1129,33 +1131,40 @@ export default function MapScreen() {
             size={16}
             color={Colors.textSecondary}
           />
-        </View>
+        </BlurView>
 
         {(routines.length > 0 && completedRoutineIds.size === 0) || bgDenied ? (
           <View style={styles.hudPillRow}>
             {routines.length > 0 && completedRoutineIds.size === 0 && (
-              <View style={styles.hudPill}>
+              <BlurView intensity={45} tint="dark" style={styles.hudPill} experimentalBlurMethod="dimezisBlurView">
                 <Text style={styles.hudPillFlame}>🔥</Text>
                 <Text style={styles.hudPillText}>STREAK AT RISK</Text>
                 <View style={styles.hudPillBadge}>
                   <Text style={styles.hudPillBadgeText}>7D</Text>
                 </View>
-              </View>
+              </BlurView>
             )}
             {bgDenied && (
               <Pressable
-                style={[styles.hudPill, styles.hudPillWarning]}
+                style={{ borderRadius: 999, overflow: 'hidden' }}
                 onPress={handleBannerPress}
               >
-                <Ionicons
-                  name="warning-outline"
-                  size={13}
-                  color={Colors.orange}
-                />
-                <Text style={[styles.hudPillText, { color: Colors.orange }]}>
-                  AUTO-TRACKING OFF
-                </Text>
-                <Text style={styles.hudPillEnable}>FIX</Text>
+                <BlurView
+                  intensity={45}
+                  tint="dark"
+                  style={[styles.hudPill, styles.hudPillWarning]}
+                  experimentalBlurMethod="dimezisBlurView"
+                >
+                  <Ionicons
+                    name="warning-outline"
+                    size={13}
+                    color={Colors.orange}
+                  />
+                  <Text style={[styles.hudPillText, { color: Colors.orange }]}>
+                    AUTO-TRACKING OFF
+                  </Text>
+                  <Text style={styles.hudPillEnable}>FIX</Text>
+                </BlurView>
               </Pressable>
             )}
           </View>
@@ -1324,7 +1333,7 @@ const styles = StyleSheet.create({
   },
   topHud: {
     position: "absolute",
-    top: 40,
+    top: 58,
     left: Spacing.md,
     right: Spacing.md,
     zIndex: 10,
@@ -1332,13 +1341,14 @@ const styles = StyleSheet.create({
   hudCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(11, 14, 26, 0.92)",
+    backgroundColor: "rgba(11, 14, 26, 0.45)",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.borderBright,
+    borderColor: "rgba(255, 255, 255, 0.15)",
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
     gap: 12,
+    overflow: "hidden",
   },
   hudLevelLabel: {
     fontFamily: "Rajdhani_700Bold",
@@ -1355,16 +1365,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(20, 14, 8, 0.92)",
+    backgroundColor: "rgba(20, 14, 8, 0.4)",
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(249, 115, 22, 0.45)",
+    borderColor: "rgba(249, 115, 22, 0.35)",
     paddingHorizontal: 10,
     paddingVertical: 6,
+    overflow: "hidden",
   },
   hudPillWarning: {
-    backgroundColor: "rgba(11, 14, 26, 0.92)",
-    borderColor: "rgba(249, 115, 22, 0.5)",
+    backgroundColor: "rgba(11, 14, 26, 0.4)",
+    borderColor: "rgba(249, 115, 22, 0.35)",
   },
   hudPillFlame: {
     fontSize: 13,
@@ -1394,14 +1405,15 @@ const styles = StyleSheet.create({
     color: Colors.accent,
   },
   levelChip: {
-    width: 48,
-    height: 48,
+    width: 38,
+    height: 38,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(141, 232, 58, 0.12)",
     borderWidth: 1.5,
     borderColor: "rgba(141, 232, 58, 0.4)",
+    overflow: "hidden",
   },
   hudLabelRow: {
     flexDirection: "row",

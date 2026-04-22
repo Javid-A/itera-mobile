@@ -18,11 +18,14 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
+          "fetch",
+          "location",
           "fetch"
         ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Itera needs your location to detect when you arrive at mission zones.",
         "NSLocationWhenInUseUsageDescription": "Itera needs your location to show missions near you."
-      }
+      },
+      "bundleIdentifier": "com.anonymous.iteramobile"
     },
     "android": {
       "adaptiveIcon": {
