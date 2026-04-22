@@ -464,11 +464,7 @@ export default function MapScreen() {
     }
 
     prevActiveRoutineIdRef.current = newId;
-  }, [
-    activeRoutine?.id,
-    completedRoutineIds,
-    handleForegroundArrival,
-  ]);
+  }, [activeRoutine?.id, completedRoutineIds, handleForegroundArrival]);
 
   const mainGeofenceGeoJSON = useMemo(
     () =>
@@ -913,7 +909,7 @@ export default function MapScreen() {
           minZoomLevel={MAP_ZOOM_MIN}
           maxZoomLevel={MAP_ZOOM_MAX}
         />
-        <FillExtrusionLayer
+        {/* <FillExtrusionLayer
           id="building-extrusions-3d"
           sourceID="composite"
           sourceLayerID="building"
@@ -925,7 +921,7 @@ export default function MapScreen() {
             fillExtrusionOpacity: 0.85,
             fillExtrusionVerticalGradient: true,
           }}
-        />
+        /> */}
 
         <ShapeSource id="geofences" shape={mainGeofenceGeoJSON}>
           <LineLayer
@@ -1118,7 +1114,8 @@ export default function MapScreen() {
                 LEVEL {profile?.currentLevel ?? 1}
               </Text>
               <Text style={[Typography.statSM, { color: Colors.accent }]}>
-                {(profile?.currentXP ?? 0).toLocaleString()} / {xpForLevel.toLocaleString()} XP
+                {(profile?.currentXP ?? 0).toLocaleString()} /{" "}
+                {xpForLevel.toLocaleString()} XP
               </Text>
             </View>
             <View style={styles.xpTrack}>
@@ -1127,7 +1124,11 @@ export default function MapScreen() {
               />
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={Colors.textSecondary}
+          />
         </View>
 
         {(routines.length > 0 && completedRoutineIds.size === 0) || bgDenied ? (
@@ -1142,9 +1143,18 @@ export default function MapScreen() {
               </View>
             )}
             {bgDenied && (
-              <Pressable style={[styles.hudPill, styles.hudPillWarning]} onPress={handleBannerPress}>
-                <Ionicons name="warning-outline" size={13} color={Colors.orange} />
-                <Text style={[styles.hudPillText, { color: Colors.orange }]}>AUTO-TRACKING OFF</Text>
+              <Pressable
+                style={[styles.hudPill, styles.hudPillWarning]}
+                onPress={handleBannerPress}
+              >
+                <Ionicons
+                  name="warning-outline"
+                  size={13}
+                  color={Colors.orange}
+                />
+                <Text style={[styles.hudPillText, { color: Colors.orange }]}>
+                  AUTO-TRACKING OFF
+                </Text>
                 <Text style={styles.hudPillEnable}>FIX</Text>
               </Pressable>
             )}
@@ -1187,7 +1197,6 @@ export default function MapScreen() {
           <Text style={styles.xpToastText}>+{completionXP} XP</Text>
         </View>
       </Animated.View>
-
 
       {/* Recenter */}
       <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
@@ -1282,7 +1291,11 @@ export default function MapScreen() {
                   onPress={() => deleteRoutine(routine.id)}
                   hitSlop={8}
                 >
-                  <Ionicons name="trash-outline" size={16} color={Colors.textSecondary} />
+                  <Ionicons
+                    name="trash-outline"
+                    size={16}
+                    color={Colors.textSecondary}
+                  />
                 </Pressable>
               </Pressable>
             ))
@@ -1311,7 +1324,7 @@ const styles = StyleSheet.create({
   },
   topHud: {
     position: "absolute",
-    top: 58,
+    top: 40,
     left: Spacing.md,
     right: Spacing.md,
     zIndex: 10,
@@ -1381,8 +1394,8 @@ const styles = StyleSheet.create({
     color: Colors.accent,
   },
   levelChip: {
-    width: 38,
-    height: 38,
+    width: 48,
+    height: 48,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
