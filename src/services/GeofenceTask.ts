@@ -5,12 +5,24 @@ import { AppState } from 'react-native';
 import axios from 'axios';
 import apiClient from './apiClient';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export const GEOFENCE_TASK_NAME = 'itera-geofence-task';
 
 TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error('[GeofenceTask] Error:', error.message);
     return;
+  }
+
+  try {
+    const isAutoTrackingEnabled = await AsyncStorage.getItem('autoTrackingEnabled');
+    if (isAutoTrackingEnabled === 'false') {
+      console.log('[GeofenceTask] Auto-tracking is disabled in settings. Ignoring geofence event.');
+      return;
+    }
+  } catch (e) {
+    console.warn('[GeofenceTask] Failed to read autoTrackingEnabled setting', e);
   }
 
   const { eventType, region } = data as {

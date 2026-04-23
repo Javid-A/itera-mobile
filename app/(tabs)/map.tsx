@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   AppState,
+  BackHandler,
   PanResponder,
   Pressable,
   ScrollView,
@@ -509,6 +510,20 @@ export default function MapScreen() {
     },
     [sheetY, DRAG_RANGE],
   );
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (isSheetExpanded) {
+        snapSheet(false);
+        return true; // Prevent default back action
+      }
+      return false; // Allow default back action
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+    return () => backHandler.remove();
+  }, [isSheetExpanded, snapSheet]);
 
   const panResponder = useRef(
     PanResponder.create({

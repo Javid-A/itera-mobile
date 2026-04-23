@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ScreenContainer from '../../components/ScreenContainer';
 import BackgroundLocationPrompt from '../../components/BackgroundLocationPrompt';
 import LevelUpModal from '../../components/LevelUpModal';
@@ -45,12 +46,32 @@ export default function ProfileScreen() {
   const [stats, setStats] = useState<ProfileStats>({ currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0 });
   const [history, setHistory] = useState<CompletedMission[]>([]);
   const [bgGranted, setBgGranted] = useState(false);
+  const [isAutoTrackingOn, setIsAutoTrackingOn] = useState(false);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const appState = useRef(AppState.currentState);
 
   const checkBgPermission = useCallback(() => {
-    Location.getBackgroundPermissionsAsync().then((bg) => setBgGranted(bg.status === 'granted'));
+    Location.getBackgroundPermissionsAsync().then((bg) => {
+      const granted = bg.status === 'granted';
+      setBgGranted(granted);
+      // If OS permission was revoked outside the app, turn off the feature automatically
+      if (!granted) {
+        setIsAutoTrackingOn(false);
+        AsyncStorage.setItem('autoTrackingEnabled', 'false');
+      }
+    });
+  }, []);
+
+  const loadAutoTrackingState = useCallback(async () => {
+    try {
+      const value = await AsyncStorage.getItem('autoTrackingEnabled');
+      if (value !== null) {
+        setIsAutoTrackingOn(value === 'true');
+      }
+    } catch (e) {
+      console.error('Failed to load auto tracking state', e);
+    }
   }, []);
 
   const refresh = useCallback(() => {
@@ -63,7 +84,8 @@ export default function ProfileScreen() {
       .then(({ data }) => setHistory(data))
       .catch(() => {});
     checkBgPermission();
-  }, [checkBgPermission]);
+    loadAutoTrackingState();
+  }, [checkBgPermission, loadAutoTrackingState]);
 
   useFocusEffect(refresh);
 
@@ -132,14 +154,26 @@ export default function ProfileScreen() {
   const handleEnableAutoTracking = async () => {
     setShowBgPrompt(false);
     const granted = await requestBackgroundLocation();
-    if (granted) setBgGranted(true);
+    if (granted) {
+      setBgGranted(true);
+      setIsAutoTrackingOn(true);
+      await AsyncStorage.setItem('autoTrackingEnabled', 'true');
+    }
   };
 
-  const handleAutoTrackingToggle = () => {
-    if (bgGranted) {
-      openAppPermissions();
+  const handleAutoTrackingToggle = async () => {
+    if (isAutoTrackingOn) {
+      // Turn off logic purely at app level
+      setIsAutoTrackingOn(false);
+      await AsyncStorage.setItem('autoTrackingEnabled', 'false');
     } else {
-      setShowBgPrompt(true);
+      // Trying to turn on
+      if (bgGranted) {
+        setIsAutoTrackingOn(true);
+        await AsyncStorage.setItem('autoTrackingEnabled', 'true');
+      } else {
+        setShowBgPrompt(true);
+      }
     }
   };
 
@@ -334,20 +368,20 @@ export default function ProfileScreen() {
         <Text style={styles.sectionLabel}>SETTINGS</Text>
 
         <Pressable style={styles.settingsRow} onPress={handleAutoTrackingToggle}>
-          <View style={[styles.settingsIcon, bgGranted && { backgroundColor: Colors.accentSoft, borderColor: Colors.accent }]}>
-            <Ionicons name="star-outline" size={18} color={bgGranted ? Colors.accent : Colors.textSecondary} />
+          <View style={[styles.settingsIcon, isAutoTrackingOn && { backgroundColor: Colors.accentSoft, borderColor: Colors.accent }]}>
+            <Ionicons name="star-outline" size={18} color={isAutoTrackingOn ? Colors.accent : Colors.textSecondary} />
           </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
             <Text style={[Typography.bodyBold, { color: Colors.textPrimary }]}>Auto-Tracking</Text>
             <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
-              {bgGranted ? 'Missions complete automatically' : 'Tap to enable background location'}
+              {isAutoTrackingOn ? 'Missions complete automatically' : 'Tap to enable background location'}
             </Text>
           </View>
           <Switch
-            value={bgGranted}
+            value={isAutoTrackingOn}
             onValueChange={handleAutoTrackingToggle}
             trackColor={{ false: Colors.surface3, true: Colors.accent }}
-            thumbColor={bgGranted ? '#ffffff' : '#c9d2e6'}
+            thumbColor={isAutoTrackingOn ? '#ffffff' : '#c9d2e6'}
           />
         </Pressable>
 

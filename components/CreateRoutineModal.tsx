@@ -278,8 +278,14 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
 
   return (
     <>
-      <Modal visible={visible} animationType="slide" transparent>
+      <Modal 
+        visible={visible} 
+        animationType="slide" 
+        transparent 
+        onRequestClose={handleClose}
+      >
         <KeyboardAvoidingView style={styles.overlay} behavior="padding">
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
           <View style={styles.sheet}>
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -617,7 +623,7 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
       <ChooseOnMapModal
         visible={showMapModal}
         onClose={() => setShowMapModal(false)}
-        onConfirm={(loc) => selectLocation({ id: `map_${Date.now()}`, ...loc })}
+        onConfirm={(loc) => selectLocation(loc)}
         recentResults={locationResults}
       />
 
