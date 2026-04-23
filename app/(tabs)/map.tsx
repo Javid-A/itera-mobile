@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -1119,34 +1119,36 @@ export default function MapScreen() {
 
       {/* ── Top HUD: Level / XP bar ── */}
       <View style={styles.topHud} pointerEvents="box-none">
-        <BlurView intensity={45} tint="dark" style={styles.hudCard} experimentalBlurMethod="dimezisBlurView">
-          <BlurView intensity={30} tint="light" style={styles.levelChip} experimentalBlurMethod="dimezisBlurView">
-            <Text style={[Typography.statMD, { color: Colors.accent }]}>
-              {profile?.currentLevel ?? 1}
-            </Text>
+        <Pressable onPress={() => router.push("/profile")}>
+          <BlurView intensity={45} tint="dark" style={styles.hudCard} experimentalBlurMethod="dimezisBlurView">
+            <BlurView intensity={30} tint="light" style={styles.levelChip} experimentalBlurMethod="dimezisBlurView">
+              <Text style={[Typography.statMD, { color: Colors.accent }]}>
+                {profile?.currentLevel ?? 1}
+              </Text>
+            </BlurView>
+            <View style={{ flex: 1 }}>
+              <View style={styles.hudLabelRow}>
+                <Text style={styles.hudLevelLabel}>
+                  LEVEL {profile?.currentLevel ?? 1}
+                </Text>
+                <Text style={[Typography.statSM, { color: Colors.accent }]}>
+                  {(profile?.currentXP ?? 0).toLocaleString()} /{" "}
+                  {xpForLevel.toLocaleString()} XP
+                </Text>
+              </View>
+              <View style={styles.xpTrack}>
+                <View
+                  style={[styles.xpFill, { width: `${xpProgress * 100}%` }]}
+                />
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={Colors.textSecondary}
+            />
           </BlurView>
-          <View style={{ flex: 1 }}>
-            <View style={styles.hudLabelRow}>
-              <Text style={styles.hudLevelLabel}>
-                LEVEL {profile?.currentLevel ?? 1}
-              </Text>
-              <Text style={[Typography.statSM, { color: Colors.accent }]}>
-                {(profile?.currentXP ?? 0).toLocaleString()} /{" "}
-                {xpForLevel.toLocaleString()} XP
-              </Text>
-            </View>
-            <View style={styles.xpTrack}>
-              <View
-                style={[styles.xpFill, { width: `${xpProgress * 100}%` }]}
-              />
-            </View>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={16}
-            color={Colors.textSecondary}
-          />
-        </BlurView>
+        </Pressable>
 
         {(routines.length > 0 && completedRoutineIds.size === 0) || bgDenied ? (
           <View style={styles.hudPillRow}>

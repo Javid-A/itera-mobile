@@ -122,6 +122,13 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
     return { ...classifyDistance(distance), distanceMeters: distance };
   }, [anchorCoords, locationLat, locationLng]);
 
+  const initialLocationForMap = useMemo(() => {
+    if (locationLat && locationLng && locationName) {
+      return { lat: locationLat, lng: locationLng, name: locationName };
+    }
+    return null;
+  }, [locationLat, locationLng, locationName]);
+
   const resetForm = useCallback(() => {
     setMissionName('');
     setLocationName('');
@@ -361,8 +368,8 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
                   }}
                 />
                 {locationName ? (
-                  <Pressable style={styles.changePill} onPress={clearLocation} hitSlop={6}>
-                    <Text style={styles.changePillText}>CHANGE</Text>
+                  <Pressable style={styles.clearLocationBtn} onPress={clearLocation} hitSlop={8}>
+                    <Ionicons name="close" size={16} color={Colors.background} />
                   </Pressable>
                 ) : locationSearching ? (
                   <ActivityIndicator size="small" color={Colors.accent} />
@@ -625,6 +632,7 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
         onClose={() => setShowMapModal(false)}
         onConfirm={(loc) => selectLocation(loc)}
         recentResults={locationResults}
+        initialLocation={initialLocationForMap}
       />
 
       <BackgroundLocationPrompt
@@ -730,19 +738,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 15,
   },
-  changePill: {
-    backgroundColor: Colors.accentSoft,
-    borderWidth: 1,
-    borderColor: Colors.accent,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  changePillText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.2,
-    color: Colors.accent,
+  clearLocationBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   resultsList: {
     backgroundColor: Colors.surface,

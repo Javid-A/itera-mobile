@@ -129,6 +129,7 @@ type Props = {
   onClose: () => void;
   onConfirm: (location: { name: string; lat: number; lng: number }) => void;
   recentResults: LocationResult[];
+  initialLocation?: { name: string; lat: number; lng: number } | null;
 };
 
 export default function ChooseOnMapModal({
@@ -136,6 +137,7 @@ export default function ChooseOnMapModal({
   onClose,
   onConfirm,
   recentResults,
+  initialLocation,
 }: Props) {
   const cameraRef = useRef<any>(null);
   const [pinCoord, setPinCoord] = useState<[number, number] | null>(null);
@@ -146,6 +148,39 @@ export default function ChooseOnMapModal({
     28.9784, 41.0082,
   ]);
   const [scaleLabel, setScaleLabel] = useState("");
+
+  const initRef = useRef(false);
+
+  useEffect(() => {
+    if (!visible) {
+      initRef.current = false;
+      return;
+    }
+    if (visible && !initRef.current) {
+      initRef.current = true;
+      if (initialLocation) {
+        setPinCoord([initialLocation.lng, initialLocation.lat]);
+        setPinName(initialLocation.name);
+        
+        // Match ID from recent results if possible
+        const matchedId = recentResults.find(r => r.lat === initialLocation.lat && r.lng === initialLocation.lng)?.id;
+        setSelectedId(matchedId ?? null);
+        
+        // Small delay to ensure camera ref is ready
+        setTimeout(() => {
+          cameraRef.current?.setCamera({
+            centerCoordinate: [initialLocation.lng, initialLocation.lat],
+            zoomLevel: 14,
+            animationDuration: 600,
+          });
+        }, 100);
+      } else {
+        setPinCoord(null);
+        setPinName("");
+        setSelectedId(null);
+      }
+    }
+  }, [visible, initialLocation, recentResults]);
 
   const tierZones = useMemo(() => {
     const [lng, lat] = userCoord;
@@ -194,14 +229,18 @@ export default function ChooseOnMapModal({
           loc.coords.latitude,
         ];
         setUserCoord(coord);
-        cameraRef.current?.setCamera({
-          centerCoordinate: coord,
-          zoomLevel: 10,
-          animationDuration: 400,
-        });
+        
+        // Only fly to user coord if there is no initial pin location selected
+        if (!initialLocation && !pinCoord) {
+          cameraRef.current?.setCamera({
+            centerCoordinate: coord,
+            zoomLevel: 10,
+            animationDuration: 400,
+          });
+        }
       } catch {}
     })();
-  }, [visible]);
+  }, [visible, initialLocation]);
 
   const updateScale = useCallback((zoom: number, lat: number) => {
     const mPerPx =
@@ -278,9 +317,11 @@ export default function ChooseOnMapModal({
   };
 
   const handleClose = () => {
-    setPinCoord(null);
-    setPinName("");
-    setSelectedId(null);
+    if (!initialLocation) {
+      setPinCoord(null);
+      setPinName("");
+      setSelectedId(null);
+    }
     onClose();
   };
 
@@ -323,7 +364,7 @@ export default function ChooseOnMapModal({
           {MapboxAvailable ? (
             <MapView
               style={StyleSheet.absoluteFill}
-              styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa"
+              styleURL="mapbox://styles/mapbox/dark-v11"
               onPress={handleMapPress}
               attributionEnabled={false}
               logoEnabled={false}
@@ -333,13 +374,13 @@ export default function ChooseOnMapModal({
             >
               <Camera
                 ref={cameraRef}
-                zoomLevel={11}
+                defaultSettings={{
+                  centerCoordinate: initialLocation ? [initialLocation.lng, initialLocation.lat] : userCoord,
+                  zoomLevel: initialLocation ? 14 : 11,
+                  pitch: 0,
+                }}
                 minZoomLevel={3}
                 maxZoomLevel={14}
-                pitch={0}
-                centerCoordinate={userCoord}
-                animationMode="flyTo"
-                animationDuration={0}
               />
               {/* C radyal degrade — B sınırından dışa doğru soluyor */}
               {tierZones.C_gradient.map((stop, i) => (
@@ -624,93 +665,6 @@ export default function ChooseOnMapModal({
         </View>
 
         <View style={styles.bottomSheet}>
-          <Text style={styles.sectionLabel}>NEARBY SPOTS</Text>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {recentResults.length === 0 ? (
-              <View style={styles.emptyRow}>
-                <Ionicons
-                  name="search-outline"
-                  size={18}
-                  color={Colors.textSecondary}
-                />
-                <Text
-                  style={[
-                    Typography.body,
-                    { color: Colors.textSecondary, marginLeft: 10 },
-                  ]}
-                >
-                  Search a place first to see suggestions here
-                </Text>
-              </View>
-            ) : (
-              recentResults.map((item) => {
-                const isSelected =
-                  selectedId === item.id ||
-                  (!selectedId && pinName === item.name);
-                return (
-                  <Pressable
-                    key={item.id}
-                    style={[
-                      styles.spotRow,
-                      isSelected && styles.spotRowSelected,
-                    ]}
-                    onPress={() => handleSelectSpot(item)}
-                  >
-                    <View
-                      style={[
-                        styles.spotIcon,
-                        isSelected && styles.spotIconSelected,
-                      ]}
-                    >
-                      <Ionicons
-                        name="location"
-                        size={16}
-                        color={
-                          isSelected ? Colors.background : Colors.textSecondary
-                        }
-                      />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                      <Text
-                        style={[
-                          Typography.body,
-                          {
-                            color: isSelected
-                              ? Colors.textPrimary
-                              : Colors.textSecondary,
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {item.name.split(",")[0]}
-                      </Text>
-                      <Text
-                        style={[
-                          Typography.label,
-                          { color: Colors.textSecondary, marginTop: 2 },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {item.name.split(",").slice(1, 3).join(",").trim() ||
-                          "Tap to select"}
-                      </Text>
-                    </View>
-                    {isSelected && (
-                      <Ionicons
-                        name="checkmark"
-                        size={18}
-                        color={Colors.accent}
-                      />
-                    )}
-                  </Pressable>
-                );
-              })
-            )}
-          </ScrollView>
-
           <Pressable
             style={[
               styles.confirmButton,
@@ -1028,13 +982,12 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   bottomSheet: {
-    height: 300,
     backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.borderBright,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.lg,
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.xxl,
   },
   sectionLabel: {
     fontFamily: "Rajdhani_700Bold",
@@ -1081,7 +1034,6 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 16,
     backgroundColor: Colors.accent,
-    marginTop: Spacing.sm,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
