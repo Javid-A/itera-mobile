@@ -161,11 +161,13 @@ export default function ChooseOnMapModal({
       if (initialLocation) {
         setPinCoord([initialLocation.lng, initialLocation.lat]);
         setPinName(initialLocation.name);
-        
+
         // Match ID from recent results if possible
-        const matchedId = recentResults.find(r => r.lat === initialLocation.lat && r.lng === initialLocation.lng)?.id;
+        const matchedId = recentResults.find(
+          (r) => r.lat === initialLocation.lat && r.lng === initialLocation.lng,
+        )?.id;
         setSelectedId(matchedId ?? null);
-        
+
         // Small delay to ensure camera ref is ready
         setTimeout(() => {
           cameraRef.current?.setCamera({
@@ -189,7 +191,7 @@ export default function ChooseOnMapModal({
       A: createCircleGeoJSON(lng, lat, 1000),
       B: createCircleGeoJSON(lng, lat, 5000),
       B_ring: createAnnulusGeoJSON(lng, lat, 1000, 5000),
-      C_gradient: createGradientStops(lng, lat, 5000, 22000, 0.42, 14),
+      C_gradient: createGradientStops(lng, lat, 5000, 22000, 0.6, 14),
       // Etiketler kendi border'ının hemen DIŞINDA duruyor (radius'u görsel olarak işaretliyor)
       A_label: [lng + 1050 / (111320 * cosLat), lat] as [number, number],
       B_label: [lng + 5100 / (111320 * cosLat), lat] as [number, number],
@@ -229,7 +231,7 @@ export default function ChooseOnMapModal({
           loc.coords.latitude,
         ];
         setUserCoord(coord);
-        
+
         // Only fly to user coord if there is no initial pin location selected
         if (!initialLocation && !pinCoord) {
           cameraRef.current?.setCamera({
@@ -364,7 +366,8 @@ export default function ChooseOnMapModal({
           {MapboxAvailable ? (
             <MapView
               style={StyleSheet.absoluteFill}
-              styleURL="mapbox://styles/mapbox/dark-v11"
+              styleURL="mapbox://styles/javid-a/cmoaror1v001o01s3c6zcdfuy"
+              // styleURL="mapbox://styles/mapbox/dark-v11"
               onPress={handleMapPress}
               attributionEnabled={false}
               logoEnabled={false}
@@ -375,7 +378,9 @@ export default function ChooseOnMapModal({
               <Camera
                 ref={cameraRef}
                 defaultSettings={{
-                  centerCoordinate: initialLocation ? [initialLocation.lng, initialLocation.lat] : userCoord,
+                  centerCoordinate: initialLocation
+                    ? [initialLocation.lng, initialLocation.lat]
+                    : userCoord,
                   zoomLevel: initialLocation ? 14 : 11,
                   pitch: 0,
                 }}
@@ -403,7 +408,7 @@ export default function ChooseOnMapModal({
               <ShapeSource id="tierACircle" shape={tierZones.A}>
                 <FillLayer
                   id="tierAFill"
-                  style={{ fillColor: TIER_COLORS.A, fillOpacity: 0.08 }}
+                  style={{ fillColor: TIER_COLORS.A, fillOpacity: 0.12 }}
                 />
               </ShapeSource>
               {/* B sınır glow katmanları */}
@@ -413,7 +418,7 @@ export default function ChooseOnMapModal({
                   style={{
                     lineColor: TIER_COLORS.B,
                     lineWidth: 24,
-                    lineOpacity: 0.1,
+                    lineOpacity: 0.15,
                     lineBlur: 14,
                   }}
                 />
@@ -422,7 +427,7 @@ export default function ChooseOnMapModal({
                   style={{
                     lineColor: TIER_COLORS.B,
                     lineWidth: 8,
-                    lineOpacity: 0.32,
+                    lineOpacity: 0.45,
                     lineBlur: 4,
                   }}
                 />
@@ -431,7 +436,7 @@ export default function ChooseOnMapModal({
                   style={{
                     lineColor: TIER_COLORS.B,
                     lineWidth: 1.5,
-                    lineOpacity: 0.9,
+                    lineOpacity: 0.95,
                     lineDasharray: [8, 4],
                   }}
                 />
@@ -443,7 +448,7 @@ export default function ChooseOnMapModal({
                   style={{
                     lineColor: TIER_COLORS.A,
                     lineWidth: 22,
-                    lineOpacity: 0.09,
+                    lineOpacity: 0.12,
                     lineBlur: 14,
                   }}
                 />
@@ -452,7 +457,7 @@ export default function ChooseOnMapModal({
                   style={{
                     lineColor: TIER_COLORS.A,
                     lineWidth: 7,
-                    lineOpacity: 0.28,
+                    lineOpacity: 0.35,
                     lineBlur: 4,
                   }}
                 />
@@ -461,7 +466,7 @@ export default function ChooseOnMapModal({
                   style={{
                     lineColor: TIER_COLORS.A,
                     lineWidth: 1.5,
-                    lineOpacity: 0.92,
+                    lineOpacity: 0.95,
                     lineDasharray: [8, 4],
                   }}
                 />
@@ -471,19 +476,35 @@ export default function ChooseOnMapModal({
                 coordinate={tierZones.A_label}
                 anchor={{ x: 0, y: 0.5 }}
               >
-                <View style={styles.tierBadge}>
-                  <View
-                    style={[
-                      styles.tierBadgeDot,
-                      { backgroundColor: TIER_COLORS.A },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.tierBadgeLabel, { color: TIER_COLORS.A }]}
-                  >
-                    A
-                  </Text>
-                  <Text style={styles.tierBadgeXP}>100 XP</Text>
+                <View style={styles.badgeWrapper} pointerEvents="none">
+                  <View style={styles.tailLeftA} />
+                  <BlurView intensity={25} tint="dark" style={styles.tierABody}>
+                    <LinearGradient
+                      colors={[
+                        "rgba(166, 230, 53, 0.2)",
+                        "rgba(10, 18, 38, 0.8)",
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.tierInner}
+                    >
+                      <View
+                        style={[
+                          styles.tierBadgeDot,
+                          { backgroundColor: TIER_COLORS.A },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.tierBadgeLabel,
+                          { color: TIER_COLORS.A },
+                        ]}
+                      >
+                        A
+                      </Text>
+                      <Text style={styles.tierBadgeXP}>100 XP</Text>
+                    </LinearGradient>
+                  </BlurView>
                 </View>
               </MarkerView>
               <MarkerView
@@ -492,44 +513,71 @@ export default function ChooseOnMapModal({
               >
                 <View
                   style={[
-                    styles.tierBadge,
-                    // Rozetin kendisine de kendi renginden çok hafif bir parlama/gölge veriyoruz
-                    { shadowColor: TIER_COLORS.B },
+                    styles.badgeWrapper,
+                    {
+                      shadowColor: TIER_COLORS.B,
+                      shadowOpacity: 0.5,
+                      shadowRadius: 10,
+                      elevation: 4,
+                    },
                   ]}
+                  pointerEvents="none"
                 >
-                  <View
-                    style={[
-                      styles.tierBadgeDot,
-                      {
-                        backgroundColor: TIER_COLORS.B,
-                        shadowColor: TIER_COLORS.B, // Noktanın kendi minik neon ışığı
-                      },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.tierBadgeLabel, { color: TIER_COLORS.B }]}
-                  >
-                    B
-                  </Text>
-                  <Text style={styles.tierBadgeXP}>150 XP</Text>
+                  <View style={styles.tailLeftB} />
+                  <BlurView intensity={40} tint="dark" style={styles.tierBBody}>
+                    <LinearGradient
+                      colors={[
+                        "rgba(34, 211, 238, 0.3)",
+                        "rgba(10, 18, 38, 0.85)",
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.tierInner}
+                    >
+                      <View
+                        style={[
+                          styles.tierBadgeDot,
+                          {
+                            backgroundColor: TIER_COLORS.B,
+                            shadowColor: TIER_COLORS.B,
+                            shadowOpacity: 1,
+                            shadowRadius: 5,
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.tierBadgeLabel,
+                          {
+                            color: TIER_COLORS.B,
+                            textShadowColor: "rgba(34, 211, 238, 0.6)",
+                            textShadowRadius: 6,
+                          },
+                        ]}
+                      >
+                        B
+                      </Text>
+                      <Text style={styles.tierBadgeXP}>150 XP</Text>
+                    </LinearGradient>
+                  </BlurView>
                 </View>
               </MarkerView>
               <MarkerView
                 coordinate={tierZones.C_label}
-                anchor={{ x: 0, y: 1 }}
+                anchor={{ x: 0, y: 0.5 }}
               >
-                <View style={styles.cTooltipWrapper} pointerEvents="none">
+                <View style={styles.badgeWrapper} pointerEvents="none">
+                  <View style={styles.tailLeftC} />
                   <View style={styles.cTooltipGlowContainer}>
                     <BlurView
-                      intensity={50}
+                      intensity={60}
                       tint="dark"
                       style={styles.cTooltipBody}
                     >
-                      {/* Camın içindeki 3D derinlik yansıması */}
                       <LinearGradient
                         colors={[
-                          "rgba(255, 255, 255, 0.15)",
-                          "rgba(0, 0, 0, 0.3)",
+                          "rgba(168, 85, 247, 0.4)",
+                          "rgba(10, 18, 38, 0.9)",
                         ]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
@@ -540,17 +588,6 @@ export default function ChooseOnMapModal({
                     </BlurView>
                   </View>
                 </View>
-                {/* <View style={styles.cTooltipWrapper} pointerEvents="none">
-                  <View style={styles.cTooltipBody}>
-                    <View style={styles.cTooltipInner}>
-                      <Text style={styles.cTooltipText}>5 km+ (200 XP)</Text>
-                    </View>
-                  </View>
-                  <View style={styles.cTooltipTail} />
-                  <View style={styles.cTooltipPinGlow}>
-                    <View style={styles.cTooltipPin} />
-                  </View>
-                </View> */}
               </MarkerView>
               <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }}>
                 <View style={styles.userPulse}>
@@ -777,28 +814,70 @@ const styles = StyleSheet.create({
     borderTopColor: "#ffffff",
     marginTop: -1,
   },
-  tierBadge: {
+  badgeWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  tierABody: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(166, 230, 53, 0.2)",
+    overflow: "hidden",
+  },
+  tierBBody: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderTopColor: "rgba(34, 211, 238, 0.6)",
+    borderLeftColor: "rgba(34, 211, 238, 0.4)",
+    borderRightColor: "rgba(34, 211, 238, 0.1)",
+    borderBottomColor: "rgba(34, 211, 238, 0.1)",
+    overflow: "hidden",
+  },
+  tierInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    // Öncekinden biraz daha koyu, tok bir zemin (Cam değil, mat plastik/metal hissi)
-    backgroundColor: "rgba(14, 18, 28, 0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)", // Çok çok ince, elit bir sınır çizgisi
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
-    // Hiyerarşi B: Hafif bir havaya kaldırma gölgesi (Glow değil, sadece drop shadow)
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 4,
+  },
+  tailLeftA: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 4,
+    borderBottomWidth: 4,
+    borderRightWidth: 6,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    borderRightColor: "rgba(166, 230, 53, 0.3)",
+  },
+  tailLeftB: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 5,
+    borderBottomWidth: 5,
+    borderRightWidth: 7,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    borderRightColor: "rgba(34, 211, 238, 0.6)",
+  },
+  tailLeftC: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 6,
+    borderBottomWidth: 6,
+    borderRightWidth: 8,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    borderRightColor: "rgba(168, 85, 247, 0.8)",
+    shadowColor: "#A855F7",
+    shadowOffset: { width: -2, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
   },
   tierBadgeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    // Noktaya küçük bir neon etkisi ekliyoruz (Gözü yormayan)
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 4,
@@ -806,22 +885,18 @@ const styles = StyleSheet.create({
   },
   tierBadgeLabel: {
     fontFamily: "Rajdhani_700Bold",
-    fontSize: 14, // Nokta ve harf uyumu için bir tık büyütüldü
+    fontSize: 14,
     letterSpacing: 1.2,
-    // Label'ın da kendi renginde çook hafif bir ışıması olsun
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 3,
-    textShadowColor: "rgba(255, 255, 255, 0.3)", // Rengi ezeceği için kendi rengini değil beyaz kırılma veriyoruz
+    textShadowColor: "rgba(255, 255, 255, 0.3)",
   },
   tierBadgeXP: {
-    fontFamily: "Rajdhani_600SemiBold", // 700 XP yazısı için çok kalın kalabilir, 600 daha şık durur
+    fontFamily: "Rajdhani_600SemiBold",
     fontSize: 12,
-    color: "#8B95A5", // Sönük ama harita üstünde okunaklı bir "çelik grisi"
+    color: "#8B95A5",
     letterSpacing: 0.5,
-    marginLeft: 2, // Harf ile XP arasına minik bir nefes payı
-  },
-  cTooltipWrapper: {
-    alignItems: "center",
+    marginLeft: 2,
   },
   cTooltipGlowContainer: {
     shadowColor: "#A855F7",
@@ -834,7 +909,6 @@ const styles = StyleSheet.create({
   cTooltipBody: {
     borderRadius: 16,
     borderWidth: 1.5,
-    // İŞTE DİNAMİK BORDER: Sol üstte parlak mor, sağ altta neredeyse görünmez.
     borderTopColor: "rgba(168, 85, 247, 0.9)",
     borderLeftColor: "rgba(168, 85, 247, 0.7)",
     borderRightColor: "rgba(168, 85, 247, 0.1)",
@@ -845,7 +919,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderWidth: 1,
-    // Camın iç kısmındaki çok hafif beyaz yansıma çizgisi
     borderTopColor: "rgba(255, 255, 255, 0.2)",
     borderLeftColor: "rgba(255, 255, 255, 0.1)",
     borderRightColor: "rgba(255, 255, 255, 0.02)",
@@ -860,67 +933,6 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(168, 85, 247, 1)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 10,
-  },
-  // cTooltipBody: {
-  //   backgroundColor: "rgba(18, 10, 36, 0.82)",
-  //   borderRadius: 14,
-  //   borderWidth: 1,
-  //   borderColor: "rgba(217, 180, 254, 0.28)",
-  //   shadowColor: "#D946EF",
-  //   shadowOffset: { width: 0, height: 0 },
-  //   shadowOpacity: 0.55,
-  //   shadowRadius: 14,
-  //   elevation: 10,
-  // },
-  // cTooltipInner: {
-  //   paddingHorizontal: 14,
-  //   paddingVertical: 8,
-  //   borderRadius: 14,
-  //   borderWidth: 1,
-  //   borderColor: "rgba(255,255,255,0.04)",
-  //   backgroundColor: "rgba(255,255,255,0.02)",
-  // },
-  // cTooltipText: {
-  //   fontFamily: "Rajdhani_700Bold",
-  //   fontSize: 15,
-  //   letterSpacing: 0.6,
-  //   color: "#EAC6FF",
-  //   textShadowColor: "rgba(217, 70, 239, 0.7)",
-  //   textShadowOffset: { width: 0, height: 0 },
-  //   textShadowRadius: 8,
-  // },
-  cTooltipTail: {
-    width: 0,
-    height: 0,
-    marginTop: -1,
-    borderLeftWidth: 7,
-    borderRightWidth: 7,
-    borderTopWidth: 9,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "rgba(18, 10, 36, 0.82)",
-  },
-  cTooltipPinGlow: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginTop: 4,
-    backgroundColor: "rgba(217, 70, 239, 0.22)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#D946EF",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  cTooltipPin: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: "#E9B8FF",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.6)",
   },
   scaleBar: {
     position: "absolute",
