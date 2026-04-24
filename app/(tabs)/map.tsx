@@ -3,6 +3,7 @@ import {
   Animated,
   AppState,
   BackHandler,
+  Dimensions,
   PanResponder,
   Pressable,
   ScrollView,
@@ -12,11 +13,15 @@ import {
 } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Colors, Spacing, Typography } from "../../constants";
 import apiClient from "../../src/services/apiClient";
-import { requestBackgroundLocation } from "../../src/services/locationSettings";
+import {
+  requestBackgroundLocation,
+  requestForegroundLocation,
+} from "../../src/services/locationSettings";
 import MissionPin from "../../components/MissionPin";
 import CreateRoutineModal from "../../components/CreateRoutineModal";
 import CharacterSprite, {
@@ -53,6 +58,17 @@ try {
 const XP_PER_LEVEL = 1000;
 const CIRCLE_POINTS = 64;
 const MAP_PITCH = 65;
+
+// Horizon fog: at pitch 75° Mapbox's horizon sits around ~28% down the screen.
+// We mask an ~80px band centered on that line so LOD pop-in is hidden but the
+// playfield stays clean. Ratio is per-device fine; pixel band stays crisp.
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+const HORIZON_Y_RATIO = 0.15;
+const FOG_BAND_PX = 0;
+const FOG_TOP_PX = Math.max(
+  0,
+  SCREEN_HEIGHT * HORIZON_Y_RATIO - FOG_BAND_PX / 2,
+);
 const MAP_ZOOM_DEFAULT = 17.5;
 const MAP_ZOOM_MIN = 17.5;
 const MAP_ZOOM_MAX = 20.5;
@@ -520,7 +536,10 @@ export default function MapScreen() {
       return false; // Allow default back action
     };
 
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress,
+    );
 
     return () => backHandler.remove();
   }, [isSheetExpanded, snapSheet]);
@@ -589,11 +608,8 @@ export default function MapScreen() {
   }, [checkBg]);
 
   const recenter = useCallback(async () => {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status !== "granted") {
-      const req = await Location.requestForegroundPermissionsAsync();
-      if (req.status !== "granted") return;
-    }
+    const granted = await requestForegroundLocation();
+    if (!granted) return;
     const last = await Location.getLastKnownPositionAsync();
     const coords =
       last?.coords ?? (await Location.getCurrentPositionAsync({})).coords;
@@ -1084,6 +1100,20 @@ export default function MapScreen() {
         ))}
       </MapView>
 
+      {/* Horizon fog — tight band centered on the horizon line */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={[
+          "rgba(8, 10, 20, 0)",
+          "rgba(14, 18, 32, 0.85)",
+          "rgba(20, 26, 42, 0.9)",
+          "rgba(14, 18, 32, 0.55)",
+          "rgba(8, 10, 20, 0)",
+        ]}
+        locations={[0, 0.35, 0.5, 0.7, 1]}
+        style={styles.horizonFog}
+      />
+
       {/* Vignettes */}
       <Animated.View
         pointerEvents="none"
@@ -1120,8 +1150,18 @@ export default function MapScreen() {
       {/* ── Top HUD: Level / XP bar ── */}
       <View style={styles.topHud} pointerEvents="box-none">
         <Pressable onPress={() => router.push("/profile")}>
-          <BlurView intensity={45} tint="dark" style={styles.hudCard} experimentalBlurMethod="dimezisBlurView">
-            <BlurView intensity={30} tint="light" style={styles.levelChip} experimentalBlurMethod="dimezisBlurView">
+          <BlurView
+            intensity={45}
+            tint="dark"
+            style={styles.hudCard}
+            experimentalBlurMethod="dimezisBlurView"
+          >
+            <BlurView
+              intensity={30}
+              tint="light"
+              style={styles.levelChip}
+              experimentalBlurMethod="dimezisBlurView"
+            >
               <Text style={[Typography.statMD, { color: Colors.accent }]}>
                 {profile?.currentLevel ?? 1}
               </Text>
@@ -1153,7 +1193,12 @@ export default function MapScreen() {
         {(routines.length > 0 && completedRoutineIds.size === 0) || bgDenied ? (
           <View style={styles.hudPillRow}>
             {routines.length > 0 && completedRoutineIds.size === 0 && (
-              <BlurView intensity={45} tint="dark" style={styles.hudPill} experimentalBlurMethod="dimezisBlurView">
+              <BlurView
+                intensity={45}
+                tint="dark"
+                style={styles.hudPill}
+                experimentalBlurMethod="dimezisBlurView"
+              >
                 <Text style={styles.hudPillFlame}>🔥</Text>
                 <Text style={styles.hudPillText}>STREAK AT RISK</Text>
                 <View style={styles.hudPillBadge}>
@@ -1163,7 +1208,7 @@ export default function MapScreen() {
             )}
             {bgDenied && (
               <Pressable
-                style={{ borderRadius: 999, overflow: 'hidden' }}
+                style={{ borderRadius: 999, overflow: "hidden" }}
                 onPress={handleBannerPress}
               >
                 <BlurView
@@ -1225,14 +1270,20 @@ export default function MapScreen() {
       </Animated.View>
 
       {/* Recenter */}
-      <View style={styles.recenterButtonWrapper} pointerEvents={isSheetExpanded ? "none" : "auto"}>
+      <View
+        style={styles.recenterButtonWrapper}
+        pointerEvents={isSheetExpanded ? "none" : "auto"}
+      >
         <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
           <Ionicons name="locate" size={22} color={Colors.textPrimary} />
         </Pressable>
       </View>
 
       {/* FAB */}
-      <View style={styles.fabWrapper} pointerEvents={isSheetExpanded ? "none" : "auto"}>
+      <View
+        style={styles.fabWrapper}
+        pointerEvents={isSheetExpanded ? "none" : "auto"}
+      >
         <Pressable
           style={styles.fab}
           onPress={() => setCreateVisible(true)}
@@ -1608,6 +1659,14 @@ const styles = StyleSheet.create({
   deleteRoutineBtn: {
     marginLeft: Spacing.sm,
     padding: 4,
+  },
+  horizonFog: {
+    position: "absolute",
+    top: FOG_TOP_PX,
+    left: 0,
+    right: 0,
+    height: FOG_BAND_PX,
+    zIndex: 5,
   },
   vignetteBorder: {
     position: "absolute",

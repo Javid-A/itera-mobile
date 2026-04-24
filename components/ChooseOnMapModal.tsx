@@ -144,16 +144,16 @@ export default function ChooseOnMapModal({
   const [pinName, setPinName] = useState("");
   const [geocoding, setGeocoding] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [userCoord, setUserCoord] = useState<[number, number]>([
-    28.9784, 41.0082,
-  ]);
+  const [userCoord, setUserCoord] = useState<[number, number] | null>(null);
   const [scaleLabel, setScaleLabel] = useState("");
-
+  const BERLIN: [number, number] = [13.405, 52.52];
+  const TOKYO: [number, number] = [139.6917, 35.6895];
   const initRef = useRef(false);
 
   useEffect(() => {
     if (!visible) {
       initRef.current = false;
+      setUserCoord(null);
       return;
     }
     if (visible && !initRef.current) {
@@ -185,6 +185,7 @@ export default function ChooseOnMapModal({
   }, [visible, initialLocation, recentResults]);
 
   const tierZones = useMemo(() => {
+    if (!userCoord) return null;
     const [lng, lat] = userCoord;
     const cosLat = Math.cos((lat * Math.PI) / 180);
     return {
@@ -204,7 +205,7 @@ export default function ChooseOnMapModal({
 
   const pinTier = useMemo(
     () =>
-      pinCoord
+      pinCoord && userCoord
         ? classifyDistance(
             haversineMeters(
               userCoord[1],
@@ -363,7 +364,19 @@ export default function ChooseOnMapModal({
         </View>
 
         <View style={styles.mapContainer}>
-          {MapboxAvailable ? (
+          {!userCoord ? (
+            <View style={[StyleSheet.absoluteFill, styles.mapFallback]}>
+              <ActivityIndicator size="large" color={Colors.accent} />
+              <Text
+                style={[
+                  Typography.body,
+                  { color: Colors.textSecondary, marginTop: 12 },
+                ]}
+              >
+                Finding your location...
+              </Text>
+            </View>
+          ) : MapboxAvailable ? (
             <MapView
               style={StyleSheet.absoluteFill}
               styleURL="mapbox://styles/javid-a/cmoaror1v001o01s3c6zcdfuy"
@@ -380,215 +393,229 @@ export default function ChooseOnMapModal({
                 defaultSettings={{
                   centerCoordinate: initialLocation
                     ? [initialLocation.lng, initialLocation.lat]
-                    : userCoord,
+                    : (userCoord ?? TOKYO),
                   zoomLevel: initialLocation ? 14 : 11,
                   pitch: 0,
                 }}
                 minZoomLevel={3}
                 maxZoomLevel={14}
               />
-              {/* C radyal degrade — B sınırından dışa doğru soluyor */}
-              {tierZones.C_gradient.map((stop, i) => (
-                <ShapeSource
-                  key={`tierCGrad-${i}`}
-                  id={`tierCGrad-${i}`}
-                  shape={stop.feature}
-                >
-                  <FillLayer
-                    id={`tierCGradFill-${i}`}
-                    style={{
-                      fillColor: TIER_COLORS.C,
-                      fillOpacity: stop.opacity,
-                      fillAntialias: true,
-                    }}
-                  />
-                </ShapeSource>
-              ))}
-              {/* A daire fill — kullanıcı çevresinde hafif yeşil tint */}
-              <ShapeSource id="tierACircle" shape={tierZones.A}>
-                <FillLayer
-                  id="tierAFill"
-                  style={{ fillColor: TIER_COLORS.A, fillOpacity: 0.12 }}
-                />
-              </ShapeSource>
-              {/* B sınır glow katmanları */}
-              <ShapeSource id="tierBBorder" shape={tierZones.B}>
-                <LineLayer
-                  id="tierBHalo"
-                  style={{
-                    lineColor: TIER_COLORS.B,
-                    lineWidth: 24,
-                    lineOpacity: 0.15,
-                    lineBlur: 14,
-                  }}
-                />
-                <LineLayer
-                  id="tierBGlow"
-                  style={{
-                    lineColor: TIER_COLORS.B,
-                    lineWidth: 8,
-                    lineOpacity: 0.45,
-                    lineBlur: 4,
-                  }}
-                />
-                <LineLayer
-                  id="tierBMain"
-                  style={{
-                    lineColor: TIER_COLORS.B,
-                    lineWidth: 1.5,
-                    lineOpacity: 0.95,
-                    lineDasharray: [8, 4],
-                  }}
-                />
-              </ShapeSource>
-              {/* A sınır glow katmanları */}
-              <ShapeSource id="tierABorder" shape={tierZones.A}>
-                <LineLayer
-                  id="tierAHalo"
-                  style={{
-                    lineColor: TIER_COLORS.A,
-                    lineWidth: 22,
-                    lineOpacity: 0.12,
-                    lineBlur: 14,
-                  }}
-                />
-                <LineLayer
-                  id="tierAGlow"
-                  style={{
-                    lineColor: TIER_COLORS.A,
-                    lineWidth: 7,
-                    lineOpacity: 0.35,
-                    lineBlur: 4,
-                  }}
-                />
-                <LineLayer
-                  id="tierAMain"
-                  style={{
-                    lineColor: TIER_COLORS.A,
-                    lineWidth: 1.5,
-                    lineOpacity: 0.95,
-                    lineDasharray: [8, 4],
-                  }}
-                />
-              </ShapeSource>
-              {/* Tier badge etiketleri */}
-              <MarkerView
-                coordinate={tierZones.A_label}
-                anchor={{ x: 0, y: 0.5 }}
-              >
-                <View style={styles.badgeWrapper} pointerEvents="none">
-                  <View style={styles.tailLeftA} />
-                  <BlurView intensity={25} tint="dark" style={styles.tierABody}>
-                    <LinearGradient
-                      colors={[
-                        "rgba(166, 230, 53, 0.2)",
-                        "rgba(10, 18, 38, 0.8)",
-                      ]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.tierInner}
+              {tierZones && (
+                <>
+                  {/* C radyal degrade — B sınırından dışa doğru soluyor */}
+                  {tierZones.C_gradient.map((stop, i) => (
+                    <ShapeSource
+                      key={`tierCGrad-${i}`}
+                      id={`tierCGrad-${i}`}
+                      shape={stop.feature}
                     >
-                      <View
-                        style={[
-                          styles.tierBadgeDot,
-                          { backgroundColor: TIER_COLORS.A },
-                        ]}
+                      <FillLayer
+                        id={`tierCGradFill-${i}`}
+                        style={{
+                          fillColor: TIER_COLORS.C,
+                          fillOpacity: stop.opacity,
+                          fillAntialias: true,
+                        }}
                       />
-                      <Text
-                        style={[
-                          styles.tierBadgeLabel,
-                          { color: TIER_COLORS.A },
-                        ]}
+                    </ShapeSource>
+                  ))}
+                  {/* A daire fill — kullanıcı çevresinde hafif yeşil tint */}
+                  <ShapeSource id="tierACircle" shape={tierZones.A}>
+                    <FillLayer
+                      id="tierAFill"
+                      style={{ fillColor: TIER_COLORS.A, fillOpacity: 0.12 }}
+                    />
+                  </ShapeSource>
+                  {/* B sınır glow katmanları */}
+                  <ShapeSource id="tierBBorder" shape={tierZones.B}>
+                    <LineLayer
+                      id="tierBHalo"
+                      style={{
+                        lineColor: TIER_COLORS.B,
+                        lineWidth: 24,
+                        lineOpacity: 0.15,
+                        lineBlur: 14,
+                      }}
+                    />
+                    <LineLayer
+                      id="tierBGlow"
+                      style={{
+                        lineColor: TIER_COLORS.B,
+                        lineWidth: 8,
+                        lineOpacity: 0.45,
+                        lineBlur: 4,
+                      }}
+                    />
+                    <LineLayer
+                      id="tierBMain"
+                      style={{
+                        lineColor: TIER_COLORS.B,
+                        lineWidth: 1.5,
+                        lineOpacity: 0.95,
+                        lineDasharray: [8, 4],
+                      }}
+                    />
+                  </ShapeSource>
+                  {/* A sınır glow katmanları */}
+                  <ShapeSource id="tierABorder" shape={tierZones.A}>
+                    <LineLayer
+                      id="tierAHalo"
+                      style={{
+                        lineColor: TIER_COLORS.A,
+                        lineWidth: 22,
+                        lineOpacity: 0.12,
+                        lineBlur: 14,
+                      }}
+                    />
+                    <LineLayer
+                      id="tierAGlow"
+                      style={{
+                        lineColor: TIER_COLORS.A,
+                        lineWidth: 7,
+                        lineOpacity: 0.35,
+                        lineBlur: 4,
+                      }}
+                    />
+                    <LineLayer
+                      id="tierAMain"
+                      style={{
+                        lineColor: TIER_COLORS.A,
+                        lineWidth: 1.5,
+                        lineOpacity: 0.95,
+                        lineDasharray: [8, 4],
+                      }}
+                    />
+                  </ShapeSource>
+                  {/* Tier badge etiketleri */}
+                  <MarkerView
+                    coordinate={tierZones.A_label}
+                    anchor={{ x: 0, y: 0.5 }}
+                  >
+                    <View style={styles.badgeWrapper} pointerEvents="none">
+                      <View style={styles.tailLeftA} />
+                      <BlurView
+                        intensity={25}
+                        tint="dark"
+                        style={styles.tierABody}
                       >
-                        A
-                      </Text>
-                      <Text style={styles.tierBadgeXP}>100 XP</Text>
-                    </LinearGradient>
-                  </BlurView>
-                </View>
-              </MarkerView>
-              <MarkerView
-                coordinate={tierZones.B_label}
-                anchor={{ x: 0, y: 0.5 }}
-              >
-                <View
-                  style={[
-                    styles.badgeWrapper,
-                    {
-                      shadowColor: TIER_COLORS.B,
-                      shadowOpacity: 0.5,
-                      shadowRadius: 10,
-                      elevation: 4,
-                    },
-                  ]}
-                  pointerEvents="none"
-                >
-                  <View style={styles.tailLeftB} />
-                  <BlurView intensity={40} tint="dark" style={styles.tierBBody}>
-                    <LinearGradient
-                      colors={[
-                        "rgba(34, 211, 238, 0.3)",
-                        "rgba(10, 18, 38, 0.85)",
+                        <LinearGradient
+                          colors={[
+                            "rgba(166, 230, 53, 0.2)",
+                            "rgba(10, 18, 38, 0.8)",
+                          ]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.tierInner}
+                        >
+                          <View
+                            style={[
+                              styles.tierBadgeDot,
+                              { backgroundColor: TIER_COLORS.A },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.tierBadgeLabel,
+                              { color: TIER_COLORS.A },
+                            ]}
+                          >
+                            A
+                          </Text>
+                          <Text style={styles.tierBadgeXP}>100 XP</Text>
+                        </LinearGradient>
+                      </BlurView>
+                    </View>
+                  </MarkerView>
+                  <MarkerView
+                    coordinate={tierZones.B_label}
+                    anchor={{ x: 0, y: 0.5 }}
+                  >
+                    <View
+                      style={[
+                        styles.badgeWrapper,
+                        {
+                          shadowColor: TIER_COLORS.B,
+                          shadowOpacity: 0.5,
+                          shadowRadius: 10,
+                          elevation: 4,
+                        },
                       ]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.tierInner}
+                      pointerEvents="none"
                     >
-                      <View
-                        style={[
-                          styles.tierBadgeDot,
-                          {
-                            backgroundColor: TIER_COLORS.B,
-                            shadowColor: TIER_COLORS.B,
-                            shadowOpacity: 1,
-                            shadowRadius: 5,
-                          },
-                        ]}
-                      />
-                      <Text
-                        style={[
-                          styles.tierBadgeLabel,
-                          {
-                            color: TIER_COLORS.B,
-                            textShadowColor: "rgba(34, 211, 238, 0.6)",
-                            textShadowRadius: 6,
-                          },
-                        ]}
+                      <View style={styles.tailLeftB} />
+                      <BlurView
+                        intensity={40}
+                        tint="dark"
+                        style={styles.tierBBody}
                       >
-                        B
-                      </Text>
-                      <Text style={styles.tierBadgeXP}>150 XP</Text>
-                    </LinearGradient>
-                  </BlurView>
-                </View>
-              </MarkerView>
-              <MarkerView
-                coordinate={tierZones.C_label}
-                anchor={{ x: 0, y: 0.5 }}
-              >
-                <View style={styles.badgeWrapper} pointerEvents="none">
-                  <View style={styles.tailLeftC} />
-                  <View style={styles.cTooltipGlowContainer}>
-                    <BlurView
-                      intensity={60}
-                      tint="dark"
-                      style={styles.cTooltipBody}
-                    >
-                      <LinearGradient
-                        colors={[
-                          "rgba(168, 85, 247, 0.4)",
-                          "rgba(10, 18, 38, 0.9)",
-                        ]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.cTooltipInner}
-                      >
-                        <Text style={styles.cTooltipText}>5 km+ (200 XP)</Text>
-                      </LinearGradient>
-                    </BlurView>
-                  </View>
-                </View>
-              </MarkerView>
+                        <LinearGradient
+                          colors={[
+                            "rgba(34, 211, 238, 0.3)",
+                            "rgba(10, 18, 38, 0.85)",
+                          ]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.tierInner}
+                        >
+                          <View
+                            style={[
+                              styles.tierBadgeDot,
+                              {
+                                backgroundColor: TIER_COLORS.B,
+                                shadowColor: TIER_COLORS.B,
+                                shadowOpacity: 1,
+                                shadowRadius: 5,
+                              },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.tierBadgeLabel,
+                              {
+                                color: TIER_COLORS.B,
+                                textShadowColor: "rgba(34, 211, 238, 0.6)",
+                                textShadowRadius: 6,
+                              },
+                            ]}
+                          >
+                            B
+                          </Text>
+                          <Text style={styles.tierBadgeXP}>150 XP</Text>
+                        </LinearGradient>
+                      </BlurView>
+                    </View>
+                  </MarkerView>
+                  <MarkerView
+                    coordinate={tierZones.C_label}
+                    anchor={{ x: 0, y: 0.5 }}
+                  >
+                    <View style={styles.badgeWrapper} pointerEvents="none">
+                      <View style={styles.tailLeftC} />
+                      <View style={styles.cTooltipGlowContainer}>
+                        <BlurView
+                          intensity={60}
+                          tint="dark"
+                          style={styles.cTooltipBody}
+                        >
+                          <LinearGradient
+                            colors={[
+                              "rgba(168, 85, 247, 0.4)",
+                              "rgba(10, 18, 38, 0.9)",
+                            ]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.cTooltipInner}
+                          >
+                            <Text style={styles.cTooltipText}>
+                              5 km+ (200 XP)
+                            </Text>
+                          </LinearGradient>
+                        </BlurView>
+                      </View>
+                    </View>
+                  </MarkerView>
+                </>
+              )}
               <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }}>
                 <View style={styles.userPulse}>
                   <View style={styles.userDotOuter}>

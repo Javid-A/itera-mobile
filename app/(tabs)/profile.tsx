@@ -12,7 +12,7 @@ import XPCountUp from '../../components/XPCountUp';
 import { Colors, Spacing, Typography } from '../../constants';
 import { useAuth } from '../../src/context/AuthContext';
 import apiClient from '../../src/services/apiClient';
-import { openAppPermissions, requestBackgroundLocation } from '../../src/services/locationSettings';
+import { requestBackgroundLocation } from '../../src/services/locationSettings';
 import type { CompletedMission } from '../../src/types/CompletedMission';
 
 const XP_PER_LEVEL = 1000;

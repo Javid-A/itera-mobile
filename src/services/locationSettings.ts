@@ -33,17 +33,28 @@ export async function openAppPermissions(): Promise<void> {
  * Requests background location. If the OS shows the native prompt, great.
  * If Android blocks it (previously denied), opens settings directly.
  */
+export async function requestForegroundLocation(): Promise<boolean> {
+  const fg = await Location.getForegroundPermissionsAsync();
+  if (fg.status === 'granted') return true;
+  const req = await Location.requestForegroundPermissionsAsync();
+  if (req.status === 'granted') return true;
+  await openAppPermissions();
+  return false;
+}
+
 export async function requestBackgroundLocation(): Promise<boolean> {
   const fg = await Location.getForegroundPermissionsAsync();
   if (fg.status !== 'granted') {
     const req = await Location.requestForegroundPermissionsAsync();
-    if (req.status !== 'granted') return false;
+    if (req.status !== 'granted') {
+      await openAppPermissions();
+      return false;
+    }
   }
 
   const bg = await Location.requestBackgroundPermissionsAsync();
   if (bg.status === 'granted') return true;
 
-  // Android blocked the prompt — open settings directly
   await openAppPermissions();
   return false;
 }
