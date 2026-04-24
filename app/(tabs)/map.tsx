@@ -101,6 +101,8 @@ const HEADING_SEGMENT_MIN_M = 0.8;
 const WALK_WINDOW_MS = 3500;
 const WALK_WINDOW_MIN_M = 1.8;
 const WALK_NET_MIN_M = 1.5;
+// Consecutive identical direction readings required before committing a new direction.
+const DIR_CONFIRM_THRESHOLD = 2;
 const CHARACTER_DISPLAY_SIZE = 88;
 const CHARACTER_MAX_SCALE = 1.25;
 
@@ -231,6 +233,8 @@ export default function MapScreen() {
   const characterDirectionRef = useRef<Direction>("s");
   const cameraRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
+  const dirCandidateRef = useRef<Direction | null>(null);
+  const dirCandidateCountRef = useRef(0);
 
   const bgDeniedRef = useRef(bgDenied);
   const isCompletingRef = useRef(false);
@@ -692,8 +696,16 @@ export default function MapScreen() {
             if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
             setIsWalking(false);
             positionHistory.current = [];
+            dirCandidateRef.current = null;
+            dirCandidateCountRef.current = 0;
             return;
           }
+
+          // Accumulate history BEFORE the distance gate so slow walkers
+          // still build up data for direction tracking.
+          const hist = positionHistory.current;
+          hist.push({ lng: coords.longitude, lat: coords.latitude, t: timestamp });
+          while (hist.length > POSITION_HISTORY_MAX) hist.shift();
 
           if (moved < MIN_MOVE_METERS) {
             if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
@@ -704,11 +716,12 @@ export default function MapScreen() {
             return;
           }
 
-          // Exponential low-pass smoothing toward the new raw fix.
-          const smoothedLng =
-            last.lng + SMOOTH_ALPHA * (coords.longitude - last.lng);
-          const smoothedLat =
-            last.lat + SMOOTH_ALPHA * (coords.latitude - last.lat);
+          // Time-normalized exponential low-pass: weight alpha by elapsed time so
+          // irregular GPS intervals don't produce inconsistent position jumps.
+          const dtSec = Math.min((timestamp - last.t) / 1000, 2);
+          const alpha = 1 - Math.pow(1 - SMOOTH_ALPHA, dtSec);
+          const smoothedLng = last.lng + alpha * (coords.longitude - last.lng);
+          const smoothedLat = last.lat + alpha * (coords.latitude - last.lat);
           const smoothed: [number, number] = [smoothedLng, smoothedLat];
 
           setUserCoords(smoothed);
@@ -721,14 +734,6 @@ export default function MapScreen() {
             lat: smoothedLat,
             t: timestamp,
           };
-
-          const hist = positionHistory.current;
-          hist.push({
-            lng: coords.longitude,
-            lat: coords.latitude,
-            t: timestamp,
-          });
-          while (hist.length > POSITION_HISTORY_MAX) hist.shift();
 
           const cutoff = timestamp - WALK_WINDOW_MS;
           let windowDist = 0;
@@ -758,8 +763,7 @@ export default function MapScreen() {
               );
             }
           }
-          // If speed is unreported (< 0) fall back to distance thresholds alone;
-          // if reported, require it above the stationary cutoff.
+
           const speedIndicatesWalk =
             reportedSpeed < 0 || reportedSpeed >= STATIONARY_SPEED_MS;
           setIsWalking(
@@ -768,7 +772,37 @@ export default function MapScreen() {
               speedIndicatesWalk,
           );
 
-          if (hist.length >= 3) {
+          // Commit a direction candidate only after DIR_CONFIRM_THRESHOLD consecutive
+          // identical readings to suppress jitter from noisy GPS heading samples.
+          const tryCommitDirection = (candidate: Direction) => {
+            if (candidate === characterDirectionRef.current) {
+              dirCandidateRef.current = null;
+              dirCandidateCountRef.current = 0;
+              return;
+            }
+            if (candidate === dirCandidateRef.current) {
+              dirCandidateCountRef.current++;
+            } else {
+              dirCandidateRef.current = candidate;
+              dirCandidateCountRef.current = 1;
+            }
+            if (dirCandidateCountRef.current >= DIR_CONFIRM_THRESHOLD) {
+              characterDirectionRef.current = candidate;
+              setCharacterDirection(candidate);
+              dirCandidateRef.current = null;
+              dirCandidateCountRef.current = 0;
+            }
+          };
+
+          // Primary direction source: GPS-chip heading (GPS + magnetometer fusion).
+          // More accurate than bearing derived from position history, especially at
+          // low walking speeds. Falls back to circular-mean history bearing when the
+          // chip reports no valid heading (heading < 0).
+          if (coords.heading != null && coords.heading >= 0 && speedIndicatesWalk) {
+            lastAbsBearing.current = coords.heading;
+            const rel = (coords.heading - cameraHeadingRef.current + 360) % 360;
+            tryCommitDirection(bearingToDirection(rel));
+          } else if (hist.length >= 3) {
             let sumSin = 0;
             let sumCos = 0;
             let totalDist = 0;
@@ -800,13 +834,8 @@ export default function MapScreen() {
                 const bearingAbs =
                   ((Math.atan2(sumSin, sumCos) * 180) / Math.PI + 360) % 360;
                 lastAbsBearing.current = bearingAbs;
-
                 const rel = (bearingAbs - cameraHeadingRef.current + 360) % 360;
-                const nextDir = bearingToDirection(rel);
-                if (nextDir !== characterDirectionRef.current) {
-                  characterDirectionRef.current = nextDir;
-                  setCharacterDirection(nextDir);
-                }
+                tryCommitDirection(bearingToDirection(rel));
               }
             }
           }
