@@ -37,14 +37,14 @@ export default function MissionPin({ iconType, completed = false, tier }: Props)
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
-          toValue: -5,
-          duration: 900,
+          toValue: -6,
+          duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 900,
+          duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -65,29 +65,27 @@ export default function MissionPin({ iconType, completed = false, tier }: Props)
     outputRange: [baseAccent, GREEN],
   });
 
-  const shadowOpacity = colorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.6, 0.7],
-  });
-
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY: floatAnim }] }]}>
       <Animated.View
         style={[
-          styles.diamond,
+          styles.pinHead,
           {
             backgroundColor: accentColor,
             shadowColor: completed ? GREEN : baseAccent,
-            shadowOpacity,
           },
         ]}
       >
-        <View style={styles.iconInner}>
-          <Ionicons name={iconName} size={12} color={Colors.textPrimary} />
-        </View>
+        <Ionicons name={iconName} size={14} color={Colors.background} />
       </Animated.View>
-      <Animated.View style={[styles.stem, { backgroundColor: accentColor }]} />
-      <Animated.View style={[styles.glow, { backgroundColor: accentColor }]} />
+      <Animated.View
+        style={[
+          styles.pinTail,
+          {
+            borderTopColor: accentColor,
+          },
+        ]}
+      />
     </Animated.View>
   );
 }
@@ -95,33 +93,28 @@ export default function MissionPin({ iconType, completed = false, tier }: Props)
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    width: 30,
-    height: 42,
+    width: 32,
+    height: 44,
   },
-  diamond: {
-    width: 22,
-    height: 22,
-    transform: [{ rotate: '45deg' }],
+  pinHead: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 4,
     shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
     elevation: 6,
   },
-  stem: {
-    width: 2,
-    height: 10,
+  pinTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
     marginTop: -2,
-  },
-  iconInner: {
-    transform: [{ rotate: '-45deg' }],
-  },
-  glow: {
-    width: 10,
-    height: 3,
-    borderRadius: 6,
-    opacity: 0.3,
-    marginTop: 2,
   },
 });

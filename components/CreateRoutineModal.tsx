@@ -262,6 +262,8 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
         iconType: selectedType.iconType,
         anchorLatitude: anchorCoords.lat,
         anchorLongitude: anchorCoords.lng,
+        tier: tierPreview?.tier ?? null,
+        potentialXP: tierPreview?.potentialXP ?? null,
       });
 
       resetForm();

@@ -111,9 +111,13 @@ export default function CharacterSprite({
 
   // 2 bumps per cycle; amplitude scales with displaySize so bob stays visible at any zoom
   const bobAmplitude = displaySize * 0.018;
-  const bobY = isWalking
-    ? Math.sin((frame / WALK_FRAMES) * Math.PI * 4) * bobAmplitude
-    : 0;
+  const bobPhase = isWalking
+    ? Math.sin((frame / WALK_FRAMES) * Math.PI * 4)
+    : Math.sin((frame / IDLE_FRAMES) * Math.PI * 2);
+  const bobY = isWalking ? bobPhase * bobAmplitude : 0;
+
+  // Shadow shrinks when character rises, grows when it steps down; idle gets a slow breath
+  const shadowScale = isWalking ? 1 + bobPhase * 0.08 : 1 + bobPhase * 0.05;
 
   const spriteTransform: any[] = [{ translateY: bobY }];
   if (mirrored) spriteTransform.push({ scaleX: -1 });
@@ -132,6 +136,7 @@ export default function CharacterSprite({
           alignSelf: "center",
           width: 0,
           height: 0,
+          transform: [{ scale: shadowScale }],
         }}
       >
         {[

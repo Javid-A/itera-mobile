@@ -11,7 +11,13 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Colors, Spacing, Typography } from "../constants";
-import { classifyDistance, haversineMeters } from "../src/config/tierConfig";
+import {
+  TIER_VISUAL,
+  cTierThresholdLabel,
+  classifyDistance,
+  haversineMeters,
+  xpForTier,
+} from "../src/config/tierConfig";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -189,17 +195,29 @@ export default function ChooseOnMapModal({
     const [lng, lat] = userCoord;
     const cosLat = Math.cos((lat * Math.PI) / 180);
     return {
-      A: createCircleGeoJSON(lng, lat, 1000),
-      B: createCircleGeoJSON(lng, lat, 5000),
-      B_ring: createAnnulusGeoJSON(lng, lat, 1000, 5000),
-      C_gradient: createGradientStops(lng, lat, 5000, 22000, 0.6, 14),
+      A: createCircleGeoJSON(lng, lat, TIER_VISUAL.aRadiusMeters),
+      B: createCircleGeoJSON(lng, lat, TIER_VISUAL.bRadiusMeters),
+      C_gradient: createGradientStops(
+        lng,
+        lat,
+        TIER_VISUAL.bRadiusMeters,
+        TIER_VISUAL.cGradientOuterMeters,
+        0.6,
+        14,
+      ),
       // Etiketler kendi border'ının hemen DIŞINDA duruyor (radius'u görsel olarak işaretliyor)
-      A_label: [lng + 1050 / (111320 * cosLat), lat] as [number, number],
-      B_label: [lng + 5100 / (111320 * cosLat), lat] as [number, number],
-      C_label: [lng + 7500 / (111320 * cosLat), lat - 1800 / 111320] as [
-        number,
-        number,
-      ],
+      A_label: [
+        lng + TIER_VISUAL.aLabelEastMeters / (111320 * cosLat),
+        lat,
+      ] as [number, number],
+      B_label: [
+        lng + TIER_VISUAL.bLabelEastMeters / (111320 * cosLat),
+        lat,
+      ] as [number, number],
+      C_label: [
+        lng + TIER_VISUAL.cLabelEastMeters / (111320 * cosLat),
+        lat - TIER_VISUAL.cLabelSouthMeters / 111320,
+      ] as [number, number],
     };
   }, [userCoord]);
 
@@ -521,7 +539,7 @@ export default function ChooseOnMapModal({
                           >
                             A
                           </Text>
-                          <Text style={styles.tierBadgeXP}>100 XP</Text>
+                          <Text style={styles.tierBadgeXP}>{xpForTier("A")} XP</Text>
                         </LinearGradient>
                       </BlurView>
                     </View>
@@ -580,7 +598,7 @@ export default function ChooseOnMapModal({
                           >
                             B
                           </Text>
-                          <Text style={styles.tierBadgeXP}>150 XP</Text>
+                          <Text style={styles.tierBadgeXP}>{xpForTier("B")} XP</Text>
                         </LinearGradient>
                       </BlurView>
                     </View>
@@ -607,7 +625,7 @@ export default function ChooseOnMapModal({
                             style={styles.cTooltipInner}
                           >
                             <Text style={styles.cTooltipText}>
-                              5 km+ (200 XP)
+                              {cTierThresholdLabel()} ({xpForTier("C")} XP)
                             </Text>
                           </LinearGradient>
                         </BlurView>

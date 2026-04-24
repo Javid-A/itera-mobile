@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Colors, Spacing, Typography } from "../../constants";
 import apiClient from "../../src/services/apiClient";
+import { classifyDistance } from "../../src/config/tierConfig";
 import {
   requestBackgroundLocation,
   requestForegroundLocation,
@@ -56,6 +57,11 @@ try {
 }
 
 const XP_PER_LEVEL = 1000;
+const TIER_COLORS: Record<string, string> = {
+  A: "#a6e635",
+  B: "#22D3EE",
+  C: "#A855F7",
+};
 const CIRCLE_POINTS = 64;
 const MAP_PITCH = 65;
 
@@ -704,7 +710,11 @@ export default function MapScreen() {
           // Accumulate history BEFORE the distance gate so slow walkers
           // still build up data for direction tracking.
           const hist = positionHistory.current;
-          hist.push({ lng: coords.longitude, lat: coords.latitude, t: timestamp });
+          hist.push({
+            lng: coords.longitude,
+            lat: coords.latitude,
+            t: timestamp,
+          });
           while (hist.length > POSITION_HISTORY_MAX) hist.shift();
 
           if (moved < MIN_MOVE_METERS) {
@@ -798,7 +808,11 @@ export default function MapScreen() {
           // More accurate than bearing derived from position history, especially at
           // low walking speeds. Falls back to circular-mean history bearing when the
           // chip reports no valid heading (heading < 0).
-          if (coords.heading != null && coords.heading >= 0 && speedIndicatesWalk) {
+          if (
+            coords.heading != null &&
+            coords.heading >= 0 &&
+            speedIndicatesWalk
+          ) {
             lastAbsBearing.current = coords.heading;
             const rel = (coords.heading - cameraHeadingRef.current + 360) % 360;
             tryCommitDirection(bearingToDirection(rel));
@@ -857,7 +871,17 @@ export default function MapScreen() {
   const refreshRoutines = useCallback(() => {
     apiClient
       .get("/routines")
-      .then(({ data }) => setRoutines(data))
+      .then(({ data }) => {
+        const mappedRoutines = (data as Routine[]).map((r) => {
+          const tierInfo = classifyDistance(r.anchorDistanceMeters);
+          return {
+            ...r,
+            tier: tierInfo.tier,
+            potentialXP: tierInfo.potentialXP,
+          };
+        });
+        setRoutines(mappedRoutines);
+      })
       .catch(() => {});
   }, []);
 
@@ -926,13 +950,14 @@ export default function MapScreen() {
     <View style={styles.map}>
       <MapView
         style={styles.map}
-        // styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa"//old
-        styleURL="mapbox://styles/javid-a/cmoal7c4v006f01sec32x0zn9" // new, with building extrusions
+        // styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa" //day
+        styleURL="mapbox://styles/javid-a/cmoal7c4v006f01sec32x0zn9" // dusk
+        // styleurl="mapbox://styles/javid-a/cmocu50oc000e01r653oydk4q" // night - copy
         compassEnabled={false}
         logoEnabled={false}
         attributionEnabled={false}
         scaleBarEnabled={false}
-        pitchEnabled={true}
+        pitchEnabled={false}
         rotateEnabled={true}
         onCameraChanged={(state: any) => {
           const heading = state.properties.heading ?? 0;
@@ -1370,8 +1395,24 @@ export default function MapScreen() {
                 style={[styles.missionRow, i > 0 && styles.missionRowBorder]}
                 onPress={() => flyToMission(routine)}
               >
-                <View style={styles.missionIconWrap}>
-                  <View style={styles.missionIconDot} />
+                <View
+                  style={[
+                    styles.missionIconWrap,
+                    {
+                      backgroundColor: `${TIER_COLORS[routine.tier] ?? Colors.accent}1F`,
+                      borderColor: `${TIER_COLORS[routine.tier] ?? Colors.accent}66`,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.missionIconDot,
+                      {
+                        backgroundColor: TIER_COLORS[routine.tier] ?? Colors.accent,
+                        shadowColor: TIER_COLORS[routine.tier] ?? Colors.accent,
+                      },
+                    ]}
+                  />
                 </View>
                 <View style={styles.missionInfo}>
                   <Text
@@ -1393,7 +1434,12 @@ export default function MapScreen() {
                     {routine.locationName}
                   </Text>
                 </View>
-                <Text style={[Typography.statSM, { color: Colors.accent }]}>
+                <Text
+                  style={[
+                    Typography.statSM,
+                    { color: TIER_COLORS[routine.tier] ?? Colors.accent },
+                  ]}
+                >
                   +{routine.potentialXP} XP
                 </Text>
                 <Pressable
@@ -1665,12 +1711,10 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: "rgba(141, 232, 58, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
     borderWidth: 1,
-    borderColor: "rgba(141, 232, 58, 0.4)",
   },
   missionIconDot: {
     width: 10,
