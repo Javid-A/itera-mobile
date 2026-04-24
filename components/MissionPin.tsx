@@ -15,11 +15,19 @@ const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 const GREEN = '#22C55E';
 
-const TIER_ACCENT: Record<MissionTier, string> = {
+const TIER_ACCENT_ORIGINAL: Record<MissionTier, string> = {
   A: Colors.accent,
   B: '#22D3EE',
   C: '#A855F7',
 };
+
+const TIER_ACCENT_TEST: Record<MissionTier, string> = {
+  A: '#4de697',
+  B: '#3577d6',
+  C: '#685acb',
+};
+
+const TIER_ACCENT = TIER_ACCENT_TEST;
 
 interface Props {
   iconType: string;
@@ -37,14 +45,14 @@ export default function MissionPin({ iconType, completed = false, tier }: Props)
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
-          toValue: -6,
-          duration: 1200,
+          toValue: -5,
+          duration: 900,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 1200,
+          duration: 900,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -69,23 +77,19 @@ export default function MissionPin({ iconType, completed = false, tier }: Props)
     <Animated.View style={[styles.container, { transform: [{ translateY: floatAnim }] }]}>
       <Animated.View
         style={[
-          styles.pinHead,
+          styles.diamond,
           {
             backgroundColor: accentColor,
             shadowColor: completed ? GREEN : baseAccent,
           },
         ]}
       >
-        <Ionicons name={iconName} size={14} color={Colors.background} />
+        <View style={styles.iconInner}>
+          <Ionicons name={iconName} size={12} color={Colors.textPrimary} />
+        </View>
       </Animated.View>
-      <Animated.View
-        style={[
-          styles.pinTail,
-          {
-            borderTopColor: accentColor,
-          },
-        ]}
-      />
+      <Animated.View style={[styles.stem, { backgroundColor: accentColor }]} />
+      <Animated.View style={[styles.glow, { backgroundColor: accentColor }]} />
     </Animated.View>
   );
 }
@@ -93,28 +97,34 @@ export default function MissionPin({ iconType, completed = false, tier }: Props)
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    width: 32,
-    height: 44,
+    width: 30,
+    height: 42,
   },
-  pinHead: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  diamond: {
+    width: 22,
+    height: 22,
+    transform: [{ rotate: '45deg' }],
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 4,
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
     elevation: 6,
   },
-  pinTail: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 10,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
+  stem: {
+    width: 2,
+    height: 10,
     marginTop: -2,
+  },
+  iconInner: {
+    transform: [{ rotate: '-45deg' }],
+  },
+  glow: {
+    width: 10,
+    height: 3,
+    borderRadius: 6,
+    opacity: 0.3,
+    marginTop: 2,
   },
 });

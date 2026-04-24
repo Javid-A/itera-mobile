@@ -57,11 +57,19 @@ try {
 }
 
 const XP_PER_LEVEL = 1000;
-const TIER_COLORS: Record<string, string> = {
+const TIER_COLORS_ORIGINAL: Record<string, string> = {
   A: "#a6e635",
   B: "#22D3EE",
   C: "#A855F7",
 };
+
+const TIER_COLORS_TEST: Record<string, string> = {
+  A: "#4de697",
+  B: "#3577d6",
+  C: "#685acb",
+};
+
+const TIER_COLORS = TIER_COLORS_TEST;
 const CIRCLE_POINTS = 64;
 const MAP_PITCH = 65;
 
@@ -951,8 +959,9 @@ export default function MapScreen() {
       <MapView
         style={styles.map}
         // styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa" //day
-        styleURL="mapbox://styles/javid-a/cmoal7c4v006f01sec32x0zn9" // dusk
-        // styleurl="mapbox://styles/javid-a/cmocu50oc000e01r653oydk4q" // night - copy
+        // styleURL="mapbox://styles/javid-a/cmoal7c4v006f01sec32x0zn9" // dusk
+        // styleURL="mapbox://styles/javid-a/cmocu50oc000e01r653oydk4q" // night - copy
+        styleURL="mapbox://styles/javid-a/cmod7nmgy001301r6dqrp2luq" // night
         compassEnabled={false}
         logoEnabled={false}
         attributionEnabled={false}
@@ -1367,7 +1376,7 @@ export default function MapScreen() {
             </Text>
             <View style={styles.countPill}>
               <Text style={[Typography.label, { color: Colors.accent }]}>
-                {routines.length} ACTIVE
+                {routines.filter((r) => !completedRoutineIds.has(r.id)).length} ACTIVE
               </Text>
             </View>
           </View>
@@ -1377,7 +1386,7 @@ export default function MapScreen() {
           scrollEnabled={isSheetExpanded}
           showsVerticalScrollIndicator={false}
         >
-          {routines.length === 0 ? (
+          {routines.filter((r) => !completedRoutineIds.has(r.id)).length === 0 ? (
             <View style={styles.emptySheet}>
               <Text
                 style={[
@@ -1389,7 +1398,7 @@ export default function MapScreen() {
               </Text>
             </View>
           ) : (
-            routines.map((routine, i) => (
+            routines.filter((r) => !completedRoutineIds.has(r.id)).map((routine, i) => (
               <Pressable
                 key={routine.id}
                 style={[styles.missionRow, i > 0 && styles.missionRowBorder]}
@@ -1408,7 +1417,8 @@ export default function MapScreen() {
                     style={[
                       styles.missionIconDot,
                       {
-                        backgroundColor: TIER_COLORS[routine.tier] ?? Colors.accent,
+                        backgroundColor:
+                          TIER_COLORS[routine.tier] ?? Colors.accent,
                         shadowColor: TIER_COLORS[routine.tier] ?? Colors.accent,
                       },
                     ]}

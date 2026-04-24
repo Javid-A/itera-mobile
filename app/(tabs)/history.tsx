@@ -7,8 +7,21 @@ import RouteMapModal from '../../components/RouteMapModal';
 import { Colors, Spacing, Typography } from '../../constants';
 import apiClient from '../../src/services/apiClient';
 import type { CompletedMission } from '../../src/types/CompletedMission';
+import type { Routine } from '../../src/types/Routine';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+export interface DayMission {
+  id: string;
+  missionName: string;
+  locationName: string;
+  latitude: number;
+  longitude: number;
+  status: 'completed' | 'pending' | 'missed';
+  completedAt?: string;
+  earnedXP?: number;
+  potentialXP?: number;
+}
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -17,12 +30,16 @@ function startOfDay(d: Date): Date {
 }
 
 function isoDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Local-date key (not UTC) so "today" matches completedAt's local day — otherwise
+  // users in +TZ zones bucket completions into the wrong day and everything looks pending.
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function startOfWeek(d: Date): Date {
   const x = startOfDay(d);
-  // Monday-first; getDay() returns 0=Sun..6=Sat
   const day = (x.getDay() + 6) % 7;
   x.setDate(x.getDate() - day);
   return x;
@@ -35,52 +52,47 @@ function formatTime(iso: string): string {
   });
 }
 
-function formatDuration(min: number): string {
-  if (min < 60) return `${min}m`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m.toString().padStart(2, '0')}m`;
-}
-
 interface MissionRowData {
   id: string;
   name: string;
   location: string;
   time: string;
-  duration: string;
   xp: number;
-  status: 'completed' | 'missed';
-}
-
-function toMissionRow(m: CompletedMission): MissionRowData {
-  return {
-    id: m.id,
-    name: m.missionName,
-    location: m.missionName,
-    time: formatTime(m.completedAt),
-    duration: formatDuration(48),
-    xp: m.earnedXP,
-    status: 'completed',
-  };
+  status: 'completed' | 'pending' | 'missed';
 }
 
 function MissionCard({ row }: { row: MissionRowData }) {
   const missed = row.status === 'missed';
+  const pending = row.status === 'pending';
   return (
-    <View style={[styles.missionCard, missed && styles.missionCardMissed]}>
-      <View style={styles.missionAccent} />
+    <View
+      style={[
+        styles.missionCard,
+        missed && styles.missionCardMissed,
+        pending && styles.missionCardPending,
+      ]}
+    >
+      <View
+        style={[
+          styles.missionAccent,
+          missed && { backgroundColor: Colors.danger },
+          pending && { backgroundColor: Colors.orange },
+        ]}
+      />
       <View
         style={[
           styles.missionIcon,
           missed
             ? { borderColor: 'rgba(239, 68, 68, 0.6)', backgroundColor: 'rgba(239, 68, 68, 0.12)' }
+            : pending
+            ? { borderColor: 'rgba(249, 115, 22, 0.6)', backgroundColor: 'rgba(249, 115, 22, 0.12)' }
             : { borderColor: 'rgba(166, 230, 53, 0.55)', backgroundColor: Colors.accentSoft },
         ]}
       >
         <Ionicons
-          name={missed ? 'alert-circle-outline' : 'checkmark'}
+          name={missed ? 'alert-circle-outline' : pending ? 'time-outline' : 'checkmark'}
           size={20}
-          color={missed ? Colors.danger : Colors.accent}
+          color={missed ? Colors.danger : pending ? Colors.orange : Colors.accent}
         />
       </View>
       <View style={{ flex: 1 }}>
@@ -88,12 +100,20 @@ function MissionCard({ row }: { row: MissionRowData }) {
           {row.name}
         </Text>
         <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]} numberOfLines={1}>
-          {missed ? `${row.location} · Not completed` : `${row.location} · ${row.time} · ${row.duration}`}
+          {missed
+            ? `${row.location} · Not completed`
+            : pending
+            ? row.location
+            : `${row.location} · ${row.time}`}
         </Text>
       </View>
       {missed ? (
         <View style={styles.missedPill}>
           <Text style={styles.missedPillText}>MISSED</Text>
+        </View>
+      ) : pending ? (
+        <View style={styles.pendingPill}>
+          <Text style={styles.pendingPillText}>PENDING</Text>
         </View>
       ) : (
         <View style={{ alignItems: 'flex-end' }}>
@@ -110,6 +130,7 @@ interface DaySection {
   label: string;
   date: Date;
   rows: MissionRowData[];
+  dayMissions: DayMission[];
   done: number;
   total: number;
 }
@@ -117,13 +138,18 @@ interface DaySection {
 export default function HistoryScreen() {
   const router = useRouter();
   const [history, setHistory] = useState<CompletedMission[]>([]);
-  const [routeMapDate, setRouteMapDate] = useState<Date | null>(null);
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routeMapSection, setRouteMapSection] = useState<{ date: Date; dayMissions: DayMission[] } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       apiClient
         .get<CompletedMission[]>('/missions/history')
         .then(({ data }) => setHistory(data))
+        .catch(() => {});
+      apiClient
+        .get<Routine[]>('/routines')
+        .then(({ data }) => setRoutines(data))
         .catch(() => {});
     }, []),
   );
@@ -139,38 +165,79 @@ export default function HistoryScreen() {
       if (diff >= 0 && diff < 7) totals[diff] += m.earnedXP;
     }
 
-    const groupByDate = (date: Date): MissionRowData[] => {
+    const buildSection = (date: Date, label: string, isToday: boolean): DaySection => {
       const key = isoDateKey(date);
-      return history.filter((m) => isoDateKey(new Date(m.completedAt)) === key).map(toMissionRow);
+      const completedOnDay = history.filter(
+        (m) => isoDateKey(new Date(m.completedAt)) === key,
+      );
+      const completedRoutineIds = new Set(completedOnDay.map((m) => m.routineId));
+
+      const completedRows: MissionRowData[] = completedOnDay.map((m) => ({
+        id: m.id,
+        name: m.missionName,
+        location: m.missionName,
+        time: formatTime(m.completedAt),
+        xp: m.earnedXP,
+        status: 'completed',
+      }));
+
+      const incompleteRows: MissionRowData[] = routines
+        .filter((r) => !completedRoutineIds.has(r.id))
+        .map((r) => ({
+          id: r.id,
+          name: r.missionName,
+          location: r.locationName,
+          time: '',
+          xp: r.potentialXP,
+          status: isToday ? 'pending' : 'missed',
+        }));
+
+      const rows: MissionRowData[] = [...completedRows, ...incompleteRows];
+
+      const completedDayMissions: DayMission[] = completedOnDay.map((m) => ({
+        id: m.id,
+        missionName: m.missionName,
+        locationName: m.missionName,
+        latitude: m.latitude,
+        longitude: m.longitude,
+        status: 'completed',
+        completedAt: m.completedAt,
+        earnedXP: m.earnedXP,
+      }));
+
+      const incompleteDayMissions: DayMission[] = routines
+        .filter((r) => !completedRoutineIds.has(r.id))
+        .map((r) => ({
+          id: r.id,
+          missionName: r.missionName,
+          locationName: r.locationName,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          status: isToday ? 'pending' : 'missed',
+          potentialXP: r.potentialXP,
+        }));
+
+      return {
+        key,
+        label,
+        date,
+        rows,
+        dayMissions: [...completedDayMissions, ...incompleteDayMissions],
+        done: completedRows.length,
+        total: rows.length,
+      };
     };
 
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
 
-    const todayRows = groupByDate(today);
-    const yesterdayRows = groupByDate(yesterday);
-
     return {
       weekTotals: totals,
       weekTotalXP: totals.reduce((a, b) => a + b, 0),
-      todaySection: {
-        key: isoDateKey(today),
-        label: 'TODAY',
-        date: today,
-        rows: todayRows,
-        done: todayRows.length,
-        total: Math.max(todayRows.length, 3),
-      } as DaySection,
-      yesterdaySection: {
-        key: isoDateKey(yesterday),
-        label: 'YESTERDAY',
-        date: yesterday,
-        rows: yesterdayRows,
-        done: yesterdayRows.length,
-        total: Math.max(yesterdayRows.length, 3),
-      } as DaySection,
+      todaySection: buildSection(today, 'TODAY', true),
+      yesterdaySection: buildSection(yesterday, 'YESTERDAY', false),
     };
-  }, [history]);
+  }, [history, routines]);
 
   const todayIndex = (new Date().getDay() + 6) % 7;
   const maxBar = Math.max(...weekTotals, 1);
@@ -196,13 +263,30 @@ export default function HistoryScreen() {
         <View style={styles.sectionHeader}>
           <View style={styles.sectionLabelRow}>
             <Text style={styles.sectionLabel}>{section.label}</Text>
-            <View style={styles.progressPill}>
-              <Text style={styles.progressPillText}>
+            <View
+              style={[
+                styles.progressPill,
+                section.done === section.total && section.total > 0
+                  ? styles.progressPillDone
+                  : undefined,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.progressPillText,
+                  section.done === section.total && section.total > 0
+                    ? { color: Colors.accent }
+                    : undefined,
+                ]}
+              >
                 {section.done}/{section.total}
               </Text>
             </View>
           </View>
-          <Pressable style={styles.routeMapButton} onPress={() => setRouteMapDate(section.date)}>
+          <Pressable
+            style={styles.routeMapButton}
+            onPress={() => setRouteMapSection({ date: section.date, dayMissions: section.dayMissions })}
+          >
             <Ionicons name="git-network-outline" size={14} color={Colors.accent} />
             <Text style={styles.routeMapButtonText}>ROUTE MAP</Text>
           </Pressable>
@@ -250,8 +334,6 @@ export default function HistoryScreen() {
           <View style={styles.chartBars}>
             {weekTotals.map((xp, i) => {
               const isToday = i === todayIndex;
-              // Map 0 to 6%, maxBar to 100%, and everything else proportionally.
-              // We also cap at 100% just in case.
               const heightPct = xp === 0 ? 6 : Math.min(100, Math.max(12, (xp / maxBar) * 100));
               return (
                 <View key={i} style={styles.chartBarCol}>
@@ -271,12 +353,7 @@ export default function HistoryScreen() {
                           ]}
                         />
                       ) : (
-                        <View
-                          style={[
-                            styles.chartBar,
-                            xp === 0 && styles.chartBarEmpty,
-                          ]}
-                        />
+                        <View style={[styles.chartBar, xp === 0 && styles.chartBarEmpty]} />
                       )}
                     </View>
                   </View>
@@ -291,7 +368,7 @@ export default function HistoryScreen() {
         {renderSection(todaySection)}
         {renderSection(yesterdaySection)}
 
-        {history.length === 0 && (
+        {history.length === 0 && routines.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="map-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
             <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center' }]}>
@@ -305,14 +382,10 @@ export default function HistoryScreen() {
       </ScrollView>
 
       <RouteMapModal
-        visible={routeMapDate !== null}
-        date={routeMapDate}
-        missions={
-          routeMapDate
-            ? history.filter((m) => isoDateKey(new Date(m.completedAt)) === isoDateKey(routeMapDate))
-            : []
-        }
-        onClose={() => setRouteMapDate(null)}
+        visible={routeMapSection !== null}
+        date={routeMapSection?.date ?? null}
+        missions={routeMapSection?.dayMissions ?? []}
+        onClose={() => setRouteMapSection(null)}
       />
     </ScreenContainer>
   );
@@ -363,7 +436,7 @@ const styles = StyleSheet.create({
   },
   chartBars: {
     flexDirection: 'row',
-    height: 150, // increased height slightly to give values breathing room
+    height: 150,
     alignItems: 'flex-end',
     marginTop: Spacing.md,
     gap: 6,
@@ -452,6 +525,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
+  progressPillDone: {
+    backgroundColor: Colors.accentSoft,
+    borderColor: 'rgba(166, 230, 53, 0.55)',
+  },
   progressPillText: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
@@ -494,6 +571,9 @@ const styles = StyleSheet.create({
   missionCardMissed: {
     borderColor: 'rgba(239, 68, 68, 0.35)',
   },
+  missionCardPending: {
+    borderColor: 'rgba(249, 115, 22, 0.35)',
+  },
   missionAccent: {
     position: 'absolute',
     left: 0,
@@ -523,6 +603,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1,
     color: Colors.danger,
+  },
+  pendingPill: {
+    backgroundColor: 'rgba(249, 115, 22, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(249, 115, 22, 0.5)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  pendingPillText: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 1,
+    color: Colors.orange,
   },
   empty: {
     alignItems: 'center',

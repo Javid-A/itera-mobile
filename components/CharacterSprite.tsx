@@ -132,10 +132,11 @@ export default function CharacterSprite({
       <View
         style={{
           position: "absolute",
-          bottom: displaySize * 0.19,
+          bottom: displaySize * 0.27,
           alignSelf: "center",
           width: 0,
           height: 0,
+          zIndex: 0,
           transform: [{ scale: shadowScale }],
         }}
       >
@@ -164,6 +165,7 @@ export default function CharacterSprite({
           width: displaySize,
           height: displaySize,
           overflow: "hidden",
+          zIndex: 1,
           transform: spriteTransform,
         }}
       >

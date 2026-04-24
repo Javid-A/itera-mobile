@@ -276,7 +276,7 @@ export default function ChooseOnMapModal({
           : km >= 10
             ? Math.round(km / 10) * 10
             : Math.round(km * 2) / 2;
-      setScaleLabel(`${nice} km`);
+      // setScaleLabel(`${nice} km`);
     } else {
       const nice =
         meters >= 100
@@ -397,8 +397,8 @@ export default function ChooseOnMapModal({
           ) : MapboxAvailable ? (
             <MapView
               style={StyleSheet.absoluteFill}
-              styleURL="mapbox://styles/javid-a/cmoaror1v001o01s3c6zcdfuy"
-              // styleURL="mapbox://styles/mapbox/dark-v11"
+              // styleURL="mapbox://styles/javid-a/cmoaror1v001o01s3c6zcdfuy"
+              styleURL="mapbox://styles/mapbox/dark-v11"
               onPress={handleMapPress}
               attributionEnabled={false}
               logoEnabled={false}
@@ -539,7 +539,9 @@ export default function ChooseOnMapModal({
                           >
                             A
                           </Text>
-                          <Text style={styles.tierBadgeXP}>{xpForTier("A")} XP</Text>
+                          <Text style={styles.tierBadgeXP}>
+                            {xpForTier("A")} XP
+                          </Text>
                         </LinearGradient>
                       </BlurView>
                     </View>
@@ -598,7 +600,9 @@ export default function ChooseOnMapModal({
                           >
                             B
                           </Text>
-                          <Text style={styles.tierBadgeXP}>{xpForTier("B")} XP</Text>
+                          <Text style={styles.tierBadgeXP}>
+                            {xpForTier("B")} XP
+                          </Text>
                         </LinearGradient>
                       </BlurView>
                     </View>
