@@ -37,13 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (username: string, password: string) => {
-    const { data } = await apiClient.post('/auth/login', { username, password });
+    const timeZone = resolveDeviceTimeZone();
+    const { data } = await apiClient.post('/auth/login', { username, password, timeZone });
     await saveAuthData(data.token, data.userId, data.username);
     setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
   };
 
   const register = async (username: string, password: string) => {
-    const { data } = await apiClient.post('/auth/register', { username, password });
+    const timeZone = resolveDeviceTimeZone();
+    const { data } = await apiClient.post('/auth/register', { username, password, timeZone });
     await saveAuthData(data.token, data.userId, data.username);
     setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
   };
@@ -64,4 +66,15 @@ export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+// Captured at registration so the server can draw day boundaries in the user's TZ — never the
+// device clock at request time, which the user can spoof. Server accepts unknown ids and falls
+// back to UTC, so a missing/garbled value here is non-fatal.
+function resolveDeviceTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
 }

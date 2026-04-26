@@ -1,4 +1,4 @@
-import type { MissionTier } from '../types/Routine';
+import type { MissionTier } from '../types/Mission';
 
 // Must mirror the backend's `XpTiers` section in appsettings.json.
 // Kept in code so the Create-mission UI can show a live preview before the

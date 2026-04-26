@@ -13,7 +13,16 @@ import { Colors, Spacing, Typography } from '../../constants';
 import { useAuth } from '../../src/context/AuthContext';
 import apiClient from '../../src/services/apiClient';
 import { requestBackgroundLocation } from '../../src/services/locationSettings';
-import type { CompletedMission } from '../../src/types/CompletedMission';
+
+interface HistoryItem {
+  id: string;
+  missionId: string;
+  missionName: string;
+  earnedXP: number;
+  completedAt: string;
+  latitude: number;
+  longitude: number;
+}
 
 const XP_PER_LEVEL = 1000;
 
@@ -44,7 +53,7 @@ function isoDateKey(d: Date): string {
 export default function ProfileScreen() {
   const { username, logout } = useAuth();
   const [stats, setStats] = useState<ProfileStats>({ currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0 });
-  const [history, setHistory] = useState<CompletedMission[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [bgGranted, setBgGranted] = useState(false);
   const [isAutoTrackingOn, setIsAutoTrackingOn] = useState(false);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
@@ -80,7 +89,7 @@ export default function ProfileScreen() {
       .then(({ data }) => setStats(data))
       .catch(() => {});
     apiClient
-      .get<CompletedMission[]>('/missions/history')
+      .get<HistoryItem[]>('/missions/history')
       .then(({ data }) => setHistory(data))
       .catch(() => {});
     checkBgPermission();
@@ -112,8 +121,10 @@ export default function ProfileScreen() {
       cursor.setDate(cursor.getDate() - 1);
     }
 
-    // Unique routineIds — proxy for locations
-    const uniqueRoutines = new Set(history.map((m) => m.routineId));
+    // Unique mission ids — proxy for locations. With single-day missions every completion
+    // has its own id, so this counts total completions until we surface a stable location id
+    // on the history payload.
+    const uniqueRoutines = new Set(history.map((m) => m.missionId));
 
     // Week dots (Mon..Sun)
     const today = startOfDay(new Date());

@@ -24,13 +24,12 @@ import {
   requestForegroundLocation,
 } from "../../src/services/locationSettings";
 import MissionPin from "../../components/MissionPin";
-import CreateRoutineModal from "../../components/CreateRoutineModal";
+import CreateMissionModal from "../../components/CreateMissionModal";
 import CharacterSprite, {
   bearingToDirection,
   type Direction,
 } from "../../components/CharacterSprite";
-import type { Routine } from "../../src/types/Routine";
-import type { CompletedMission } from "../../src/types/CompletedMission";
+import type { Mission } from "../../src/types/Mission";
 
 let MapboxAvailable = false;
 let Mapbox: any;
@@ -147,8 +146,8 @@ interface Profile {
   totalMissions: number;
 }
 
-function buildGeofenceGeoJSON(routines: Routine[], radiusScale = 1) {
-  const features = routines.map((r) => {
+function buildGeofenceGeoJSON(missions: Mission[], radiusScale = 1) {
+  const features = missions.map((r) => {
     const scaledRadius = r.radiusMeters * radiusScale;
     const latRad = (r.latitude * Math.PI) / 180;
     const deltaLng = scaledRadius / (111320 * Math.cos(latRad));
@@ -204,9 +203,10 @@ function haversineMeters(
 }
 
 export default function MapScreen() {
-  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [bgDenied, setBgDenied] = useState(false);
+  const [dayTick, setDayTick] = useState(0);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [displayedCoords, setDisplayedCoords] = useState<
@@ -220,10 +220,10 @@ export default function MapScreen() {
   const characterScaleRef = useRef(1);
 
   // ─── Completion animation state ────────────────────────────────────────
-  const [completedRoutineIds, setCompletedRoutineIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [completingRoutineId, setCompletingRoutineId] = useState<string | null>(
+  // Completion is the source of truth on each Mission row (status / completedAt) — fetched
+  // from /missions/today. We mutate the missions array in place after a successful arrival
+  // instead of maintaining a parallel Set.
+  const [completingMissionId, setCompletingMissionId] = useState<string | null>(
     null,
   );
   const [completionXP, setCompletionXP] = useState(0);
@@ -247,15 +247,18 @@ export default function MapScreen() {
   const characterDirectionRef = useRef<Direction>("s");
   const cameraRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
+  const watchSubRef = useRef<Location.LocationSubscription | null>(null);
+  const watchStartingRef = useRef(false);
+  const startWatchingRef = useRef<() => Promise<void>>(async () => {});
+  const refreshMissionsRef = useRef<() => void>(() => {});
   const dirCandidateRef = useRef<Direction | null>(null);
   const dirCandidateCountRef = useRef(0);
 
   const bgDeniedRef = useRef(bgDenied);
   const isCompletingRef = useRef(false);
-  const prevActiveRoutineIdRef = useRef<string | null>(null);
+  const prevActiveMissionIdRef = useRef<string | null>(null);
   const userCoordsRef = useRef<[number, number] | null>(null);
-  const routinesRef = useRef<Routine[]>([]);
-  const completedRoutineIdsRef = useRef<Set<string>>(new Set());
+  const missionsRef = useRef<Mission[]>([]);
 
   useEffect(() => {
     bgDeniedRef.current = bgDenied;
@@ -296,12 +299,8 @@ export default function MapScreen() {
   }, [userCoords]);
 
   useEffect(() => {
-    routinesRef.current = routines;
-  }, [routines]);
-
-  useEffect(() => {
-    completedRoutineIdsRef.current = completedRoutineIds;
-  }, [completedRoutineIds]);
+    missionsRef.current = missions;
+  }, [missions]);
 
   useEffect(() => {
     const id = completionRadiusAnim.addListener(({ value }) => {
@@ -312,24 +311,36 @@ export default function MapScreen() {
 
   const vignetteAnim = useRef(new Animated.Value(0)).current;
 
-  const activeRoutine = useMemo(() => {
+  // Flips the local mission row to "completed" so pins/sheet update without waiting for a
+  // refetch; the server is already the source of truth for the booked completion.
+  const markMissionCompleted = useCallback((id: string) => {
+    setMissions((prev) =>
+      prev.map((m) =>
+        m.id === id
+          ? { ...m, status: 'completed', completedAt: m.completedAt ?? new Date().toISOString() }
+          : m,
+      ),
+    );
+  }, []);
+
+  const activeMission = useMemo(() => {
     if (!userCoords) return null;
     return (
-      routines.find(
-        (r) =>
-          !completedRoutineIds.has(r.id) &&
+      missions.find(
+        (m) =>
+          m.status !== 'completed' &&
           haversineMeters(
             userCoords[1],
             userCoords[0],
-            r.latitude,
-            r.longitude,
-          ) < r.radiusMeters,
+            m.latitude,
+            m.longitude,
+          ) < m.radiusMeters,
       ) ?? null
     );
-  }, [userCoords, routines, completedRoutineIds]);
+  }, [userCoords, missions]);
 
   useEffect(() => {
-    if (!activeRoutine || activeRoutine.id === completingRoutineId) {
+    if (!activeMission || activeMission.id === completingMissionId) {
       vignetteAnim.stopAnimation();
       Animated.timing(vignetteAnim, {
         toValue: 0,
@@ -363,14 +374,14 @@ export default function MapScreen() {
         useNativeDriver: true,
       }).start();
     };
-  }, [activeRoutine?.id, completingRoutineId, vignetteAnim]);
+  }, [activeMission?.id, completingMissionId, vignetteAnim]);
 
   const handleForegroundArrival = useCallback(
-    async (routine: Routine, coords: [number, number]) => {
+    async (mission: Mission, coords: [number, number]) => {
       if (isCompletingRef.current) return;
       isCompletingRef.current = true;
 
-      setCompletingRoutineId(routine.id);
+      setCompletingMissionId(mission.id);
       setCompletionIsGreen(false);
       completionRadiusAnim.setValue(1);
 
@@ -384,7 +395,7 @@ export default function MapScreen() {
         }),
         apiClient
           .post("/missions/arrive", {
-            routineId: routine.id,
+            missionId: mission.id,
             latitude: coords[1],
             longitude: coords[0],
           })
@@ -405,8 +416,8 @@ export default function MapScreen() {
       // collapsed and the pin to flip to "completed" — otherwise the ring
       // springs back and the mission only appears done after a reload.
       if (!apiResult || apiResult.cooldownActive) {
-        setCompletedRoutineIds((prev) => new Set([...prev, routine.id]));
-        setCompletingRoutineId(null);
+        markMissionCompleted(mission.id);
+        setCompletingMissionId(null);
         isCompletingRef.current = false;
         apiClient
           .get<Profile>("/profile")
@@ -469,8 +480,8 @@ export default function MapScreen() {
         ]).start(() => resolve());
       });
 
-      setCompletedRoutineIds((prev) => new Set([...prev, routine.id]));
-      setCompletingRoutineId(null);
+      markMissionCompleted(mission.id);
+      setCompletingMissionId(null);
       isCompletingRef.current = false;
 
       // Refresh profile after arrival so HUD XP/level updates
@@ -483,41 +494,44 @@ export default function MapScreen() {
   );
 
   useEffect(() => {
-    const newId = activeRoutine?.id ?? null;
-    const prevId = prevActiveRoutineIdRef.current;
+    const newId = activeMission?.id ?? null;
+    const prevId = prevActiveMissionIdRef.current;
 
+    const target = newId
+      ? missionsRef.current.find((m) => m.id === newId)
+      : null;
     if (
       newId !== null &&
       newId !== prevId &&
-      !completedRoutineIds.has(newId) &&
+      target &&
+      target.status !== 'completed' &&
       !isCompletingRef.current
     ) {
       const coords = userCoordsRef.current;
-      const routine = routinesRef.current.find((r) => r.id === newId);
-      if (routine && coords) {
-        handleForegroundArrival(routine, coords);
+      if (coords) {
+        handleForegroundArrival(target, coords);
       }
     }
 
-    prevActiveRoutineIdRef.current = newId;
-  }, [activeRoutine?.id, completedRoutineIds, handleForegroundArrival]);
+    prevActiveMissionIdRef.current = newId;
+  }, [activeMission?.id, missions, handleForegroundArrival]);
 
   const mainGeofenceGeoJSON = useMemo(
     () =>
       buildGeofenceGeoJSON(
-        routines.filter(
-          (r) => r.id !== completingRoutineId && !completedRoutineIds.has(r.id),
+        missions.filter(
+          (m) => m.id !== completingMissionId && m.status !== 'completed',
         ),
       ),
-    [routines, completingRoutineId, completedRoutineIds],
+    [missions, completingMissionId],
   );
 
   const completionGeoJSON = useMemo(() => {
-    if (!completingRoutineId) return null;
-    const r = routines.find((rt) => rt.id === completingRoutineId);
-    if (!r) return null;
-    return buildGeofenceGeoJSON([r], completionScale);
-  }, [completingRoutineId, routines, completionScale]);
+    if (!completingMissionId) return null;
+    const m = missions.find((mt) => mt.id === completingMissionId);
+    if (!m) return null;
+    return buildGeofenceGeoJSON([m], completionScale);
+  }, [completingMissionId, missions, completionScale]);
 
   // ─── Sheet ───────────────────────────────────────────────────────────────
   const DRAG_RANGE = SHEET_EXPANDED_HEIGHT - SHEET_COLLAPSED_HEIGHT;
@@ -592,9 +606,9 @@ export default function MapScreen() {
   ).current;
 
   const flyToMission = useCallback(
-    (routine: Routine) => {
+    (mission: Mission) => {
       cameraRef.current?.setCamera({
-        centerCoordinate: [routine.longitude, routine.latitude],
+        centerCoordinate: [mission.longitude, mission.latitude],
         zoomLevel: MAP_ZOOM_DEFAULT,
         pitch: MAP_PITCH,
         animationDuration: 600,
@@ -615,52 +629,65 @@ export default function MapScreen() {
     );
   }, []);
 
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (next) => {
-      if (appState.current.match(/inactive|background/) && next === "active") {
-        checkBg();
-      }
-      appState.current = next;
-    });
-    return () => sub.remove();
-  }, [checkBg]);
-
   const recenter = useCallback(async () => {
     const granted = await requestForegroundLocation();
     if (!granted) return;
-    const last = await Location.getLastKnownPositionAsync();
-    const coords =
-      last?.coords ?? (await Location.getCurrentPositionAsync({})).coords;
-    cameraRef.current?.setCamera({
-      centerCoordinate: [coords.longitude, coords.latitude],
-      zoomLevel: MAP_ZOOM_DEFAULT,
-      pitch: MAP_PITCH,
-      animationDuration: 500,
-    });
+    try {
+      const last = await Location.getLastKnownPositionAsync();
+      const coords =
+        last?.coords ?? (await Location.getCurrentPositionAsync({})).coords;
+      const next: [number, number] = [coords.longitude, coords.latitude];
+      cameraRef.current?.setCamera({
+        centerCoordinate: next,
+        zoomLevel: MAP_ZOOM_DEFAULT,
+        pitch: MAP_PITCH,
+        animationDuration: 500,
+      });
+      // Background'dan dönüşte stale subscription/anchor kalmış olabilir —
+      // smoothing eski noktadan tween yapmasın diye anchor'ı sıfırla, karakteri
+      // anında fresh konuma snap'le ve watcher'ı temiz olarak yeniden başlat.
+      lastAccepted.current = null;
+      positionHistory.current = [];
+      displayedCoordsRef.current = next;
+      setDisplayedCoords(next);
+      setUserCoords(next);
+      watchSubRef.current?.remove();
+      watchSubRef.current = null;
+      startWatchingRef.current();
+    } catch {
+      // GPS servisi kapalı
+    }
   }, []);
 
   useEffect(() => {
     (async () => {
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") return;
-      const last = await Location.getLastKnownPositionAsync();
-      if (last) {
-        cameraRef.current?.setCamera({
-          centerCoordinate: [last.coords.longitude, last.coords.latitude],
-          zoomLevel: MAP_ZOOM_DEFAULT,
-          pitch: MAP_PITCH,
-          animationDuration: 500,
-        });
+      try {
+        const last = await Location.getLastKnownPositionAsync();
+        if (last) {
+          cameraRef.current?.setCamera({
+            centerCoordinate: [last.coords.longitude, last.coords.latitude],
+            zoomLevel: MAP_ZOOM_DEFAULT,
+            pitch: MAP_PITCH,
+            animationDuration: 500,
+          });
+        }
+      } catch {
+        // GPS servisi kapalı
       }
     })();
   }, []);
 
-  useEffect(() => {
-    let sub: Location.LocationSubscription | null = null;
-    (async () => {
+  const startWatching = useCallback(async () => {
+    if (watchSubRef.current || watchStartingRef.current) return;
+    watchStartingRef.current = true;
+    try {
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") return;
-      sub = await Location.watchPositionAsync(
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) return;
+      watchSubRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
           timeInterval: 1000,
@@ -869,61 +896,101 @@ export default function MapScreen() {
           );
         },
       );
-    })();
-    return () => {
-      sub?.remove();
-      if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
-    };
+    } catch {
+      // GPS servisi kapalı veya izin yok — sessizce geç
+    } finally {
+      watchStartingRef.current = false;
+    }
   }, []);
 
-  const refreshRoutines = useCallback(() => {
+  useEffect(() => {
+    startWatchingRef.current = startWatching;
+  }, [startWatching]);
+
+  useEffect(() => {
+    startWatching();
+    return () => {
+      watchSubRef.current?.remove();
+      watchSubRef.current = null;
+      if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
+    };
+  }, [startWatching]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (appState.current.match(/inactive|background/) && next === "active") {
+        checkBg();
+        // iOS suspend sırasında subscription zombi kalabiliyor — temizle ki
+        // startWatching() gerçekten yeni bir watchPositionAsync açsın.
+        watchSubRef.current?.remove();
+        watchSubRef.current = null;
+        lastAccepted.current = null;
+        positionHistory.current = [];
+        startWatching();
+        // Background'dan dönerken gün değişmiş olabilir veya geofence task
+        // arka planda mission tamamlamış olabilir — Set'i sunucudan tazele.
+        refreshMissionsRef.current();
+      }
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, [checkBg, startWatching]);
+
+  const refreshMissions = useCallback(() => {
     apiClient
-      .get("/routines")
+      .get<Mission[]>("/missions/today")
       .then(({ data }) => {
-        const mappedRoutines = (data as Routine[]).map((r) => {
-          const tierInfo = classifyDistance(r.anchorDistanceMeters);
+        const mappedMissions = data.map((m) => {
+          const tierInfo = classifyDistance(m.anchorDistanceMeters);
           return {
-            ...r,
+            ...m,
             tier: tierInfo.tier,
             potentialXP: tierInfo.potentialXP,
           };
         });
-        setRoutines(mappedRoutines);
+        setMissions(mappedMissions);
       })
       .catch(() => {});
   }, []);
 
-  const deleteRoutine = useCallback(
+  const deleteMission = useCallback(
     (id: string) => {
-      setRoutines((prev) => prev.filter((r) => r.id !== id));
-      apiClient.delete(`/routines/${id}`).catch(() => refreshRoutines());
+      setMissions((prev) => prev.filter((m) => m.id !== id));
+      apiClient.delete(`/missions/${id}`).catch(() => refreshMissions());
     },
-    [refreshRoutines],
+    [refreshMissions],
   );
+
+  useEffect(() => {
+    refreshMissionsRef.current = refreshMissions;
+  }, [refreshMissions]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshRoutines();
+      refreshMissions();
       apiClient
         .get<Profile>("/profile")
         .then(({ data }) => setProfile(data))
         .catch(() => {});
       checkBg();
-      apiClient
-        .get<CompletedMission[]>("/missions/history")
-        .then(({ data }) => {
-          const cooldownMs = 24 * 60 * 60 * 1000;
-          const cutoff = Date.now() - cooldownMs;
-          const recentIds = data
-            .filter((m) => new Date(m.completedAt).getTime() > cutoff)
-            .map((m) => m.routineId);
-          if (recentIds.length > 0) {
-            setCompletedRoutineIds(new Set(recentIds));
-          }
-        })
-        .catch(() => {});
-    }, [checkBg, refreshRoutines]),
+    }, [checkBg, refreshMissions]),
   );
+
+  // App'in açık kaldığı sırada gece yarısı geçerse: yeni günün missionları
+  // (artık server tarafından user TZ'sinde belirleniyor) çekilsin, dünün
+  // missionları otomatik düşsün. dayTick yalnızca bir sonraki midnight için
+  // timer'ı yeniden kurmaya yarar.
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 100);
+    const msUntilMidnight = nextMidnight.getTime() - now.getTime();
+    const timer = setTimeout(() => {
+      refreshMissions();
+      setDayTick((v) => v + 1);
+    }, msUntilMidnight);
+    return () => clearTimeout(timer);
+  }, [dayTick, refreshMissions]);
 
   const handleBannerPress = async () => {
     const granted = await requestBackgroundLocation();
@@ -958,10 +1025,10 @@ export default function MapScreen() {
     <View style={styles.map}>
       <MapView
         style={styles.map}
-        // styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa" //day
+        styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa" //day
         // styleURL="mapbox://styles/javid-a/cmoal7c4v006f01sec32x0zn9" // dusk
         // styleURL="mapbox://styles/javid-a/cmocu50oc000e01r653oydk4q" // night - copy
-        styleURL="mapbox://styles/javid-a/cmod7nmgy001301r6dqrp2luq" // night
+        // styleURL="mapbox://styles/javid-a/cmod7nmgy001301r6dqrp2luq" // night
         compassEnabled={false}
         logoEnabled={false}
         attributionEnabled={false}
@@ -1067,7 +1134,7 @@ export default function MapScreen() {
           />
         </ShapeSource>
 
-        {completingRoutineId && completionGeoJSON && (
+        {completingMissionId && completionGeoJSON && (
           <ShapeSource id="completion-ring" shape={completionGeoJSON}>
             <LineLayer
               id="completion-ring-glow"
@@ -1148,16 +1215,16 @@ export default function MapScreen() {
             </View>
           </MarkerView>
         )}
-        {routines.map((routine) => (
+        {missions.map((mission) => (
           <MarkerView
-            key={routine.id}
-            coordinate={[routine.longitude, routine.latitude]}
+            key={mission.id}
+            coordinate={[mission.longitude, mission.latitude]}
             anchor={{ x: 0.5, y: 1 }}
           >
             <MissionPin
-              iconType={routine.iconType}
-              completed={completedRoutineIds.has(routine.id)}
-              tier={routine.tier}
+              iconType={mission.iconType}
+              completed={mission.status === 'completed'}
+              tier={mission.tier}
             />
           </MarkerView>
         ))}
@@ -1253,9 +1320,9 @@ export default function MapScreen() {
           </BlurView>
         </Pressable>
 
-        {(routines.length > 0 && completedRoutineIds.size === 0) || bgDenied ? (
+        {(missions.length > 0 && missions.every((m) => m.status !== 'completed')) || bgDenied ? (
           <View style={styles.hudPillRow}>
-            {routines.length > 0 && completedRoutineIds.size === 0 && (
+            {missions.length > 0 && missions.every((m) => m.status !== 'completed') && (
               <BlurView
                 intensity={45}
                 tint="dark"
@@ -1297,7 +1364,7 @@ export default function MapScreen() {
       </View>
 
       {/* Active mission badge */}
-      {activeRoutine && !completingRoutineId && (
+      {activeMission && !completingMissionId && (
         <Animated.View
           pointerEvents="none"
           style={[styles.missionBadge, { opacity: vignetteAnim }]}
@@ -1310,7 +1377,7 @@ export default function MapScreen() {
             ]}
             numberOfLines={1}
           >
-            {activeRoutine.missionName.toUpperCase()}
+            {activeMission.missionName.toUpperCase()}
           </Text>
         </Animated.View>
       )}
@@ -1376,7 +1443,8 @@ export default function MapScreen() {
             </Text>
             <View style={styles.countPill}>
               <Text style={[Typography.label, { color: Colors.accent }]}>
-                {routines.filter((r) => !completedRoutineIds.has(r.id)).length} ACTIVE
+                {missions.filter((m) => m.status !== 'completed').length}{" "}
+                ACTIVE
               </Text>
             </View>
           </View>
@@ -1386,7 +1454,7 @@ export default function MapScreen() {
           scrollEnabled={isSheetExpanded}
           showsVerticalScrollIndicator={false}
         >
-          {routines.filter((r) => !completedRoutineIds.has(r.id)).length === 0 ? (
+          {missions.filter((m) => m.status !== 'completed').length === 0 ? (
             <View style={styles.emptySheet}>
               <Text
                 style={[
@@ -1398,81 +1466,84 @@ export default function MapScreen() {
               </Text>
             </View>
           ) : (
-            routines.filter((r) => !completedRoutineIds.has(r.id)).map((routine, i) => (
-              <Pressable
-                key={routine.id}
-                style={[styles.missionRow, i > 0 && styles.missionRowBorder]}
-                onPress={() => flyToMission(routine)}
-              >
-                <View
-                  style={[
-                    styles.missionIconWrap,
-                    {
-                      backgroundColor: `${TIER_COLORS[routine.tier] ?? Colors.accent}1F`,
-                      borderColor: `${TIER_COLORS[routine.tier] ?? Colors.accent}66`,
-                    },
-                  ]}
+            missions
+              .filter((m) => m.status !== 'completed')
+              .map((mission, i) => (
+                <Pressable
+                  key={mission.id}
+                  style={[styles.missionRow, i > 0 && styles.missionRowBorder]}
+                  onPress={() => flyToMission(mission)}
                 >
                   <View
                     style={[
-                      styles.missionIconDot,
+                      styles.missionIconWrap,
                       {
-                        backgroundColor:
-                          TIER_COLORS[routine.tier] ?? Colors.accent,
-                        shadowColor: TIER_COLORS[routine.tier] ?? Colors.accent,
+                        backgroundColor: `${TIER_COLORS[mission.tier] ?? Colors.accent}1F`,
+                        borderColor: `${TIER_COLORS[mission.tier] ?? Colors.accent}66`,
                       },
                     ]}
-                  />
-                </View>
-                <View style={styles.missionInfo}>
+                  >
+                    <View
+                      style={[
+                        styles.missionIconDot,
+                        {
+                          backgroundColor:
+                            TIER_COLORS[mission.tier] ?? Colors.accent,
+                          shadowColor:
+                            TIER_COLORS[mission.tier] ?? Colors.accent,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.missionInfo}>
+                    <Text
+                      style={[
+                        Typography.bodyMedium,
+                        { color: Colors.textPrimary },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {mission.missionName}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.caption,
+                        { color: Colors.textSecondary },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {mission.locationName}
+                    </Text>
+                  </View>
                   <Text
                     style={[
-                      Typography.bodyMedium,
-                      { color: Colors.textPrimary },
+                      Typography.statSM,
+                      { color: TIER_COLORS[mission.tier] ?? Colors.accent },
                     ]}
-                    numberOfLines={1}
                   >
-                    {routine.missionName}
+                    +{mission.potentialXP} XP
                   </Text>
-                  <Text
-                    style={[
-                      Typography.caption,
-                      { color: Colors.textSecondary },
-                    ]}
-                    numberOfLines={1}
+                  <Pressable
+                    style={styles.deleteMissionBtn}
+                    onPress={() => deleteMission(mission.id)}
+                    hitSlop={8}
                   >
-                    {routine.locationName}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    Typography.statSM,
-                    { color: TIER_COLORS[routine.tier] ?? Colors.accent },
-                  ]}
-                >
-                  +{routine.potentialXP} XP
-                </Text>
-                <Pressable
-                  style={styles.deleteRoutineBtn}
-                  onPress={() => deleteRoutine(routine.id)}
-                  hitSlop={8}
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={16}
-                    color={Colors.textSecondary}
-                  />
+                    <Ionicons
+                      name="trash-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                  </Pressable>
                 </Pressable>
-              </Pressable>
-            ))
+              ))
           )}
         </ScrollView>
       </Animated.View>
 
-      <CreateRoutineModal
+      <CreateMissionModal
         visible={createVisible}
         onClose={() => setCreateVisible(false)}
-        onCreated={refreshRoutines}
+        onCreated={refreshMissions}
       />
     </View>
   );
@@ -1739,7 +1810,7 @@ const styles = StyleSheet.create({
   missionInfo: {
     flex: 1,
   },
-  deleteRoutineBtn: {
+  deleteMissionBtn: {
     marginLeft: Spacing.sm,
     padding: 4,
   },

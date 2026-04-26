@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing, Typography } from '../constants';
 import apiClient from '../src/services/apiClient';
 import { LocationService } from '../src/services/LocationService';
-import type { Routine } from '../src/types/Routine';
+import type { Mission } from '../src/types/Mission';
 import { classifyDistance, haversineMeters, TIER_CONFIG } from '../src/config/tierConfig';
 import BackgroundLocationPrompt from './BackgroundLocationPrompt';
 import ChooseOnMapModal from './ChooseOnMapModal';
@@ -55,7 +55,7 @@ type Props = {
   onCreated?: () => void;
 };
 
-export default function CreateRoutineModal({ visible, onClose, onCreated }: Props) {
+export default function CreateMissionModal({ visible, onClose, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [missionName, setMissionName] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -223,15 +223,15 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
 
   const syncGeofences = async () => {
     try {
-      const { data } = await apiClient.get<Routine[]>('/routines');
+      const { data } = await apiClient.get<Mission[]>('/missions/today');
       const granted = await LocationService.requestPermissions();
       if (granted && data.length > 0) {
         await LocationService.registerGeofences(
-          data.map((r) => ({
-            id: r.id,
-            latitude: r.latitude,
-            longitude: r.longitude,
-            radius: r.radiusMeters,
+          data.map((m) => ({
+            id: m.id,
+            latitude: m.latitude,
+            longitude: m.longitude,
+            radius: m.radiusMeters,
           })),
         );
       }
@@ -253,7 +253,7 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
 
     setLoading(true);
     try {
-      await apiClient.post('/routines', {
+      await apiClient.post('/missions', {
         missionName: missionName.trim(),
         locationName: locationName.trim() || 'Unknown Location',
         latitude,
@@ -273,13 +273,13 @@ export default function CreateRoutineModal({ visible, onClose, onCreated }: Prop
 
       const bg = await Location.getBackgroundPermissionsAsync();
       if (bg.status !== 'granted') {
-        const raw = await AsyncStorage.getItem('itera_routine_count');
+        const raw = await AsyncStorage.getItem('itera_mission_count');
         const count = (raw ? parseInt(raw, 10) : 0) + 1;
-        await AsyncStorage.setItem('itera_routine_count', String(count));
+        await AsyncStorage.setItem('itera_mission_count', String(count));
         if (count === 1 || count === 3 || count === 7) setShowBgPrompt(true);
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.error ?? 'Failed to create routine.');
+      Alert.alert('Error', e?.response?.data?.error ?? 'Failed to create mission.');
     } finally {
       setLoading(false);
     }

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants';
-import type { MissionTier } from '../src/types/Routine';
+import type { MissionTier } from '../src/types/Mission';
 
 const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
   briefcase: 'briefcase',

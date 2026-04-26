@@ -12,7 +12,11 @@ interface Props {
   onSkip: () => void;
 }
 
-export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: Props) {
+// Video player'ı sadece modal görünür haldeyken mount eden iç bileşen.
+// useVideoPlayer her render'da çalıştığı için, ana bileşene konursa
+// activity recreate olurken (background→foreground) "current activity is
+// no longer available" hatası fırlatır.
+function PromptContent({ onEnable, onSkip }: { onEnable: () => void; onSkip: () => void }) {
   const player = useVideoPlayer(bgVideoSource, (p) => {
     p.loop = true;
     p.muted = true;
@@ -23,65 +27,70 @@ export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: 
   useEffect(() => {
     player.muted = true;
     player.volume = 0;
-    if (visible) {
-      player.play();
-    } else {
+    player.play();
+    return () => {
       player.pause();
-    }
-  }, [visible, player]);
+    };
+  }, [player]);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onSkip}>
-      <Pressable style={styles.overlay} onPress={onSkip}>
-        <Pressable style={styles.content} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.titleRow}>
-            <Text style={[Typography.displayLG, { color: Colors.textPrimary, fontSize: 28 }]}>
-              ALMOST THERE
-            </Text>
-            <Pressable style={styles.closeButton} onPress={onSkip} hitSlop={12}>
-              <Ionicons name="close" size={20} color={Colors.textSecondary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.videoContainer}>
-            <VideoView
-              player={player}
-              style={styles.video}
-              nativeControls={false}
-              contentFit="cover"
-            />
-            <View style={styles.previewTooltip}>
-              <Text style={styles.previewTooltipTitle}>Mission Complete!</Text>
-              <Text style={styles.previewTooltipXP}>+100 XP</Text>
-            </View>
-            <View style={styles.previewXpChip}>
-              <Text style={styles.previewXpChipText}>+100 XP</Text>
-            </View>
-          </View>
-
-          <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md }]}>
-            To complete missions automatically when you arrive, Itera needs location access{' '}
-            <Text style={{ color: Colors.textPrimary, fontFamily: 'Inter_700Bold' }}>all the time</Text>.
+    <Pressable style={styles.overlay} onPress={onSkip}>
+      <Pressable style={styles.content} onPress={(e) => e.stopPropagation()}>
+        <View style={styles.titleRow}>
+          <Text style={[Typography.displayLG, { color: Colors.textPrimary, fontSize: 28 }]}>
+            ALMOST THERE
           </Text>
+          <Pressable style={styles.closeButton} onPress={onSkip} hitSlop={12}>
+            <Ionicons name="close" size={20} color={Colors.textSecondary} />
+          </Pressable>
+        </View>
 
-          <Text style={[Typography.caption, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm }]}>
-            Without this, you'll need to open the app at each location to check in manually.
+        <View style={styles.videoContainer}>
+          <VideoView
+            player={player}
+            style={styles.video}
+            nativeControls={false}
+            contentFit="cover"
+          />
+          <View style={styles.previewTooltip}>
+            <Text style={styles.previewTooltipTitle}>Mission Complete!</Text>
+            <Text style={styles.previewTooltipXP}>+100 XP</Text>
+          </View>
+          <View style={styles.previewXpChip}>
+            <Text style={styles.previewXpChipText}>+100 XP</Text>
+          </View>
+        </View>
+
+        <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md }]}>
+          To complete missions automatically when you arrive, Itera needs location access{' '}
+          <Text style={{ color: Colors.textPrimary, fontFamily: 'Inter_700Bold' }}>all the time</Text>.
+        </Text>
+
+        <Text style={[Typography.caption, { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm }]}>
+          Without this, you'll need to open the app at each location to check in manually.
+        </Text>
+
+        <Pressable style={styles.enableButton} onPress={onEnable}>
+          <Ionicons name="shield-checkmark" size={18} color={Colors.background} />
+          <Text style={[Typography.cta, { color: Colors.background, marginLeft: Spacing.sm }]}>
+            ENABLE AUTO-TRACKING
           </Text>
+        </Pressable>
 
-          <Pressable style={styles.enableButton} onPress={onEnable}>
-            <Ionicons name="shield-checkmark" size={18} color={Colors.background} />
-            <Text style={[Typography.cta, { color: Colors.background, marginLeft: Spacing.sm }]}>
-              ENABLE AUTO-TRACKING
-            </Text>
-          </Pressable>
-
-          <Pressable style={styles.skipButton} onPress={onSkip}>
-            <Text style={[Typography.bodyMedium, { color: Colors.textSecondary }]}>
-              I'll do it manually
-            </Text>
-          </Pressable>
+        <Pressable style={styles.skipButton} onPress={onSkip}>
+          <Text style={[Typography.bodyMedium, { color: Colors.textSecondary }]}>
+            I'll do it manually
+          </Text>
         </Pressable>
       </Pressable>
+    </Pressable>
+  );
+}
+
+export default function BackgroundLocationPrompt({ visible, onEnable, onSkip }: Props) {
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onSkip}>
+      {visible ? <PromptContent onEnable={onEnable} onSkip={onSkip} /> : null}
     </Modal>
   );
 }

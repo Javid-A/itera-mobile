@@ -40,8 +40,8 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
     return;
   }
 
-  const routineId = region.identifier;
-  if (!routineId) return;
+  const missionId = region.identifier;
+  if (!missionId) return;
 
   let latitude = region.latitude;
   let longitude = region.longitude;
@@ -55,13 +55,13 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
 
   try {
     const { data: result } = await apiClient.post('/missions/arrive', {
-      routineId,
+      missionId,
       latitude,
       longitude,
     });
 
     if (result.cooldownActive) {
-      console.log(`[GeofenceTask] Cooldown active for: ${routineId}`);
+      console.log(`[GeofenceTask] Already completed: ${missionId}`);
       return;
     }
 
@@ -82,7 +82,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   } catch (e) {
     if (axios.isAxiosError(e) && e.response?.status === 400) {
       const msg = (e.response.data as { error?: string } | undefined)?.error ?? 'validation failed';
-      console.warn(`[GeofenceTask] Arrival rejected (${routineId}): ${msg}`);
+      console.warn(`[GeofenceTask] Arrival rejected (${missionId}): ${msg}`);
       return;
     }
     console.error('[GeofenceTask] Failed to process arrival:', e);

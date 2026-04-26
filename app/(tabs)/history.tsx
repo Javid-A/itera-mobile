@@ -6,8 +6,6 @@ import ScreenContainer from '../../components/ScreenContainer';
 import RouteMapModal from '../../components/RouteMapModal';
 import { Colors, Spacing, Typography } from '../../constants';
 import apiClient from '../../src/services/apiClient';
-import type { CompletedMission } from '../../src/types/CompletedMission';
-import type { Routine } from '../../src/types/Routine';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -23,26 +21,50 @@ export interface DayMission {
   potentialXP?: number;
 }
 
-function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+interface DayCompletedItem {
+  id: string;
+  missionId: string;
+  missionName: string;
+  earnedXP: number;
+  completedAt: string;
+  latitude: number;
+  longitude: number;
 }
 
-function isoDateKey(d: Date): string {
-  // Local-date key (not UTC) so "today" matches completedAt's local day — otherwise
-  // users in +TZ zones bucket completions into the wrong day and everything looks pending.
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+interface DayPendingItem {
+  missionId: string;
+  missionName: string;
+  locationName: string;
+  potentialXP: number;
+  latitude: number;
+  longitude: number;
 }
 
-function startOfWeek(d: Date): Date {
-  const x = startOfDay(d);
-  const day = (x.getDay() + 6) % 7;
-  x.setDate(x.getDate() - day);
-  return x;
+interface DaySummary {
+  date: string; // ISO yyyy-mm-dd in user's TZ, source of truth from server
+  completed: DayCompletedItem[];
+  pending: DayPendingItem[];
+  doneCount: number;
+  totalCount: number;
+}
+
+interface WeekDaySummary {
+  date: string;
+  totalXP: number;
+}
+
+interface DaySummaryResponse {
+  timeZone: string;
+  today: DaySummary;
+  yesterday: DaySummary;
+  week: WeekDaySummary[];
+}
+
+// Server returns "yyyy-MM-dd" — parse as local-calendar date so passing it to RouteMapModal /
+// label formatters renders the same day the server intended, regardless of device TZ.
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
 function formatTime(iso: string): string {
@@ -50,6 +72,21 @@ function formatTime(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+// Section label is derived from the date itself, not hardcoded — so when the app sits open
+// across midnight and refetches, "TODAY" and "YESTERDAY" shift correctly, and any future
+// section (e.g. a deeper history view) gets a sensible label automatically.
+function formatSectionLabel(sectionDate: string, todayDate: string): string {
+  if (sectionDate === todayDate) return 'TODAY';
+  const today = parseLocalDate(todayDate);
+  const target = parseLocalDate(sectionDate);
+  const dayMs = 86400000;
+  const diffDays = Math.round((today.getTime() - target.getTime()) / dayMs);
+  if (diffDays === 1) return 'YESTERDAY';
+  return target
+    .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit' })
+    .toUpperCase();
 }
 
 interface MissionRowData {
@@ -137,42 +174,35 @@ interface DaySection {
 
 export default function HistoryScreen() {
   const router = useRouter();
-  const [history, setHistory] = useState<CompletedMission[]>([]);
-  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [summary, setSummary] = useState<DaySummaryResponse | null>(null);
   const [routeMapSection, setRouteMapSection] = useState<{ date: Date; dayMissions: DayMission[] } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       apiClient
-        .get<CompletedMission[]>('/missions/history')
-        .then(({ data }) => setHistory(data))
-        .catch(() => {});
-      apiClient
-        .get<Routine[]>('/routines')
-        .then(({ data }) => setRoutines(data))
+        .get<DaySummaryResponse>('/missions/day-summary')
+        .then(({ data }) => setSummary(data))
         .catch(() => {});
     }, []),
   );
 
-  const { weekTotals, weekTotalXP, todaySection, yesterdaySection } = useMemo(() => {
-    const today = startOfDay(new Date());
-    const weekStart = startOfWeek(today);
-    const totals = new Array(7).fill(0);
-
-    for (const m of history) {
-      const d = startOfDay(new Date(m.completedAt));
-      const diff = Math.floor((d.getTime() - weekStart.getTime()) / 86400000);
-      if (diff >= 0 && diff < 7) totals[diff] += m.earnedXP;
+  const { weekTotals, weekTotalXP, todaySection, yesterdaySection, todayIndex } = useMemo(() => {
+    if (!summary) {
+      return {
+        weekTotals: new Array(7).fill(0) as number[],
+        weekTotalXP: 0,
+        todaySection: null as DaySection | null,
+        yesterdaySection: null as DaySection | null,
+        todayIndex: 0,
+      };
     }
 
-    const buildSection = (date: Date, label: string, isToday: boolean): DaySection => {
-      const key = isoDateKey(date);
-      const completedOnDay = history.filter(
-        (m) => isoDateKey(new Date(m.completedAt)) === key,
-      );
-      const completedRoutineIds = new Set(completedOnDay.map((m) => m.routineId));
+    const totals = summary.week.map((d) => d.totalXP);
+    const totalXP = totals.reduce((a, b) => a + b, 0);
+    const tIdx = summary.week.findIndex((d) => d.date === summary.today.date);
 
-      const completedRows: MissionRowData[] = completedOnDay.map((m) => ({
+    const buildSection = (day: DaySummary, isToday: boolean): DaySection => {
+      const completedRows: MissionRowData[] = day.completed.map((m) => ({
         id: m.id,
         name: m.missionName,
         location: m.missionName,
@@ -181,20 +211,18 @@ export default function HistoryScreen() {
         status: 'completed',
       }));
 
-      const incompleteRows: MissionRowData[] = routines
-        .filter((r) => !completedRoutineIds.has(r.id))
-        .map((r) => ({
-          id: r.id,
-          name: r.missionName,
-          location: r.locationName,
-          time: '',
-          xp: r.potentialXP,
-          status: isToday ? 'pending' : 'missed',
-        }));
+      const pendingRows: MissionRowData[] = day.pending.map((p) => ({
+        id: p.missionId,
+        name: p.missionName,
+        location: p.locationName,
+        time: '',
+        xp: p.potentialXP,
+        status: isToday ? 'pending' : 'missed',
+      }));
 
-      const rows: MissionRowData[] = [...completedRows, ...incompleteRows];
+      const rows: MissionRowData[] = [...completedRows, ...pendingRows];
 
-      const completedDayMissions: DayMission[] = completedOnDay.map((m) => ({
+      const completedDayMissions: DayMission[] = day.completed.map((m) => ({
         id: m.id,
         missionName: m.missionName,
         locationName: m.missionName,
@@ -205,41 +233,36 @@ export default function HistoryScreen() {
         earnedXP: m.earnedXP,
       }));
 
-      const incompleteDayMissions: DayMission[] = routines
-        .filter((r) => !completedRoutineIds.has(r.id))
-        .map((r) => ({
-          id: r.id,
-          missionName: r.missionName,
-          locationName: r.locationName,
-          latitude: r.latitude,
-          longitude: r.longitude,
-          status: isToday ? 'pending' : 'missed',
-          potentialXP: r.potentialXP,
-        }));
+      const pendingDayMissions: DayMission[] = day.pending.map((p) => ({
+        id: p.missionId,
+        missionName: p.missionName,
+        locationName: p.locationName,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        status: isToday ? 'pending' : 'missed',
+        potentialXP: p.potentialXP,
+      }));
 
       return {
-        key,
-        label,
-        date,
+        key: day.date,
+        label: formatSectionLabel(day.date, summary.today.date),
+        date: parseLocalDate(day.date),
         rows,
-        dayMissions: [...completedDayMissions, ...incompleteDayMissions],
-        done: completedRows.length,
-        total: rows.length,
+        dayMissions: [...completedDayMissions, ...pendingDayMissions],
+        done: day.doneCount,
+        total: day.totalCount,
       };
     };
 
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
     return {
       weekTotals: totals,
-      weekTotalXP: totals.reduce((a, b) => a + b, 0),
-      todaySection: buildSection(today, 'TODAY', true),
-      yesterdaySection: buildSection(yesterday, 'YESTERDAY', false),
+      weekTotalXP: totalXP,
+      todaySection: buildSection(summary.today, true),
+      yesterdaySection: buildSection(summary.yesterday, false),
+      todayIndex: tIdx >= 0 ? tIdx : 0,
     };
-  }, [history, routines]);
+  }, [summary]);
 
-  const todayIndex = (new Date().getDay() + 6) % 7;
   const maxBar = Math.max(...weekTotals, 1);
 
   const pulse = useRef(new Animated.Value(0)).current;
@@ -256,8 +279,11 @@ export default function HistoryScreen() {
   const selfGlowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
   const selfGlowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
 
-  const renderSection = (section: DaySection) => {
-    if (section.rows.length === 0 && section.label === 'YESTERDAY') return null;
+  const renderSection = (section: DaySection | null, isToday: boolean) => {
+    if (!section) return null;
+    // Past-day sections collapse when empty so we don't show empty "YESTERDAY" cards.
+    // Today always renders so the user sees the empty-state copy.
+    if (!isToday && section.rows.length === 0) return null;
     return (
       <View style={{ marginTop: Spacing.lg }}>
         <View style={styles.sectionHeader}>
@@ -365,10 +391,10 @@ export default function HistoryScreen() {
           </View>
         </View>
 
-        {renderSection(todaySection)}
-        {renderSection(yesterdaySection)}
+        {renderSection(todaySection, true)}
+        {renderSection(yesterdaySection, false)}
 
-        {history.length === 0 && routines.length === 0 && (
+        {summary !== null && todaySection?.total === 0 && yesterdaySection?.total === 0 && (
           <View style={styles.empty}>
             <Ionicons name="map-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
             <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center' }]}>
