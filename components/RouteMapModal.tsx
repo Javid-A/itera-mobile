@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -50,34 +50,66 @@ function formatTime(iso: string): string {
 
 type CameraSettings =
   | {
-      kind: "center";
+      kind: "point";
       centerCoordinate: [number, number];
       zoomLevel: number;
-      pitch: number;
+      spreadM: number;
     }
   | {
       kind: "bounds";
-      bounds: {
-        ne: [number, number];
-        sw: [number, number];
-        paddingLeft: number;
-        paddingRight: number;
-        paddingTop: number;
-        paddingBottom: number;
-      };
-      pitch: number;
+      ne: [number, number];
+      sw: [number, number];
+      spreadM: number;
     };
 
+const SINGLE_MISSION_ZOOM = 15;
+const FOCUS_ZOOM = 17;
+// Drone-effect ramp: duration and pitch interpolate against the day's spread.
+// Tight cluster (~250m) → slow, pitched flyTo. Cross-city spread (~5km+) →
+// snappy, flat. Driven by haversine spread, not the overview zoom — bounds
+// fitting no longer produces a single zoom number we can read.
+const FOCUS_FLY_MS_FAR = 850;
+const FOCUS_FLY_MS_CLOSE = 2100;
+const FOCUS_PITCH_MAX = 55;
+const SPREAD_TIGHT_M = 250;
+const SPREAD_LOOSE_M = 5000;
+// Pin glyph is 30px and the legend/route chips overlay the corners — keep this
+// much padding around the bbox so nothing renders under them.
+const BOUNDS_PADDING = 40;
+
+function isValidCoord(m: DayMission): boolean {
+  return m.latitude !== 0 && m.longitude !== 0;
+}
+
+function haversineMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 function calcCameraSettings(missions: DayMission[]): CameraSettings | null {
-  const valid = missions.filter((m) => m.latitude !== 0 || m.longitude !== 0);
+  // AND, not OR: a mission with one zero coord is uninitialized junk that would
+  // otherwise drag the bbox to lat=0/lng=0 and break either the fit or the pin
+  // render. (Today's pending missions sometimes arrive partially populated.)
+  const valid = missions.filter(isValidCoord);
   if (valid.length === 0) return null;
 
   if (valid.length === 1) {
     return {
-      kind: "center",
+      kind: "point",
       centerCoordinate: [valid[0].longitude, valid[0].latitude],
-      zoomLevel: 16,
-      pitch: 45,
+      zoomLevel: SINGLE_MISSION_ZOOM,
+      spreadM: 0,
     };
   }
 
@@ -88,29 +120,11 @@ function calcCameraSettings(missions: DayMission[]): CameraSettings | null {
   const minLat = Math.min(...lats);
   const maxLat = Math.max(...lats);
 
-  // All markers effectively at the same point — bounds would zoom in too far, fall back to center+zoom.
-  const lngSpan = maxLng - minLng;
-  const latSpan = maxLat - minLat;
-  if (lngSpan < 0.0005 && latSpan < 0.0005) {
-    return {
-      kind: "center",
-      centerCoordinate: [(minLng + maxLng) / 2, (minLat + maxLat) / 2],
-      zoomLevel: 16,
-      pitch: 45,
-    };
-  }
-
   return {
     kind: "bounds",
-    bounds: {
-      ne: [maxLng, maxLat],
-      sw: [minLng, minLat],
-      paddingLeft: 40,
-      paddingRight: 40,
-      paddingTop: 60,
-      paddingBottom: 60,
-    },
-    pitch: 0,
+    ne: [maxLng, maxLat],
+    sw: [minLng, minLat],
+    spreadM: haversineMeters(minLat, minLng, maxLat, maxLng),
   };
 }
 
@@ -131,28 +145,81 @@ export default function RouteMapModal({
   const missed = missions.filter((m) => m.status === "missed").length;
   const total = missions.length;
   const xp = missions.reduce((sum, m) => sum + (m.earnedXP ?? 0), 0);
-  const camera = calcCameraSettings(missions);
+  // Memoize so a row tap (state change) doesn't recreate the camera object and
+  // re-fire the overview effect, which would yank the camera back from focus.
+  const camera = useMemo(() => calcCameraSettings(missions), [missions]);
   const cameraRef = useRef<any>(null);
+  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(
+    null,
+  );
+  const prevSelectedRef = useRef<string | null>(null);
 
   // defaultSettings only applies on mount; when the modal is reopened for a
-  // different day we must push fresh bounds/center imperatively.
+  // different day we must push fresh camera state imperatively. Also resets
+  // the focus selection so reopening always starts from the overview.
   useEffect(() => {
-    if (!visible || !camera || !cameraRef.current) return;
-    if (camera.kind === "bounds") {
-      cameraRef.current.setCamera({
-        bounds: camera.bounds,
-        pitch: camera.pitch,
-        animationDuration: 0,
-      });
-    } else {
+    if (!visible) {
+      setSelectedMissionId(null);
+      prevSelectedRef.current = null;
+      return;
+    }
+    if (!camera || !cameraRef.current) return;
+    if (camera.kind === "point") {
       cameraRef.current.setCamera({
         centerCoordinate: camera.centerCoordinate,
         zoomLevel: camera.zoomLevel,
-        pitch: camera.pitch,
+        pitch: 0,
         animationDuration: 0,
       });
+    } else {
+      // fitBounds picks the right zoom from viewport size — avoids the
+      // diagonal-vs-width heuristic that overshot zoom on tightly clustered
+      // (e.g. same-neighborhood) days.
+      cameraRef.current.fitBounds(
+        camera.ne,
+        camera.sw,
+        [BOUNDS_PADDING, BOUNDS_PADDING, BOUNDS_PADDING, BOUNDS_PADDING],
+        0,
+      );
     }
-  }, [visible, date, missions.length, camera]);
+    setSelectedMissionId(null);
+    prevSelectedRef.current = null;
+  }, [visible, date, camera]);
+
+  const focusMission = (m: DayMission) => {
+    if (!cameraRef.current) return;
+    if (!isValidCoord(m)) return;
+    if (prevSelectedRef.current === m.id) return;
+
+    // Closeness: 1 when missions cluster within a few blocks (tight spread),
+    // 0 when spread across the city. Drives both pitch and duration so tight
+    // routes get the drone treatment and far-flung routes stay snappy.
+    const spreadM = camera?.spreadM ?? 0;
+    const closeness =
+      1 -
+      Math.min(
+        Math.max(
+          (spreadM - SPREAD_TIGHT_M) / (SPREAD_LOOSE_M - SPREAD_TIGHT_M),
+          0,
+        ),
+        1,
+      );
+    const focusPitch = Math.round(closeness * FOCUS_PITCH_MAX);
+    const flyMs = Math.round(
+      FOCUS_FLY_MS_FAR + (FOCUS_FLY_MS_CLOSE - FOCUS_FLY_MS_FAR) * closeness,
+    );
+
+    cameraRef.current.setCamera({
+      centerCoordinate: [m.longitude, m.latitude],
+      zoomLevel: FOCUS_ZOOM,
+      pitch: focusPitch,
+      animationDuration: flyMs,
+      animationMode: "flyTo",
+    });
+
+    prevSelectedRef.current = m.id;
+    setSelectedMissionId(m.id);
+  };
 
   return (
     <Modal
@@ -259,39 +326,54 @@ export default function RouteMapModal({
                 <Camera
                   ref={cameraRef}
                   defaultSettings={
-                    camera.kind === "bounds"
-                      ? { bounds: camera.bounds, pitch: camera.pitch }
-                      : {
+                    camera.kind === "point"
+                      ? {
                           centerCoordinate: camera.centerCoordinate,
                           zoomLevel: camera.zoomLevel,
-                          pitch: camera.pitch,
+                          pitch: 0,
+                        }
+                      : {
+                          bounds: {
+                            ne: camera.ne,
+                            sw: camera.sw,
+                            paddingLeft: BOUNDS_PADDING,
+                            paddingRight: BOUNDS_PADDING,
+                            paddingTop: BOUNDS_PADDING,
+                            paddingBottom: BOUNDS_PADDING,
+                          },
                         }
                   }
                 />
-                {missions.map((m, i) => (
-                  <MarkerView
-                    key={m.id}
-                    coordinate={[m.longitude, m.latitude]}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                  >
-                    <View
-                      style={[
-                        styles.numberedPin,
-                        { borderColor: PIN_COLORS[m.status] },
-                        m.status !== "completed" && styles.numberedPinDim,
-                      ]}
+                {missions.map((m, i) => {
+                  // Skip pins for uninitialized coords — otherwise they render
+                  // at (0,0) off the African coast, polluting nothing visually
+                  // but still being a wasted MarkerView.
+                  if (!isValidCoord(m)) return null;
+                  return (
+                    <MarkerView
+                      key={m.id}
+                      coordinate={[m.longitude, m.latitude]}
+                      anchor={{ x: 0.5, y: 0.5 }}
                     >
-                      <Text
+                      <View
                         style={[
-                          styles.numberedPinText,
-                          { color: PIN_COLORS[m.status] },
+                          styles.numberedPin,
+                          { borderColor: PIN_COLORS[m.status] },
+                          m.status !== "completed" && styles.numberedPinDim,
                         ]}
                       >
-                        {i + 1}
-                      </Text>
-                    </View>
-                  </MarkerView>
-                ))}
+                        <Text
+                          style={[
+                            styles.numberedPinText,
+                            { color: PIN_COLORS[m.status] },
+                          ]}
+                        >
+                          {i + 1}
+                        </Text>
+                      </View>
+                    </MarkerView>
+                  );
+                })}
               </MapView>
             ) : (
               <View style={styles.mapPlaceholder} />
@@ -349,12 +431,14 @@ export default function RouteMapModal({
           >
             <View style={{ gap: Spacing.sm, paddingTop: Spacing.sm }}>
               {missions.map((m, i) => (
-                <View
+                <Pressable
                   key={m.id}
+                  onPress={() => focusMission(m)}
                   style={[
                     styles.row,
                     m.status === "missed" && styles.rowMissed,
                     m.status === "pending" && styles.rowPending,
+                    selectedMissionId === m.id && styles.rowSelected,
                   ]}
                 >
                   <View
@@ -410,7 +494,7 @@ export default function RouteMapModal({
                       <Text style={styles.missedPillText}>MISSED</Text>
                     </View>
                   )}
-                </View>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
@@ -589,6 +673,10 @@ const styles = StyleSheet.create({
   },
   rowPending: {
     borderColor: "rgba(249, 115, 22, 0.3)",
+  },
+  rowSelected: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentSoft,
   },
   rowNumber: {
     width: 30,

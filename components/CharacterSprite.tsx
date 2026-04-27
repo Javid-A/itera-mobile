@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { Image, View } from "react-native";
 
-const FRAME_SIZE = 128;
-
 const IDLE_FRAMES = 67;
 const IDLE_COLS = 8;
 const IDLE_ROWS = 9;
+// Idle frames are 256x384 (portrait 2:3); walk frames are 384x384
+const IDLE_CELL_ASPECT = 256 / 384;
 
 const WALK_FRAMES = 15;
 const WALK_COLS = 5;
 const WALK_ROWS = 3;
+
+// Source pixel sizes per cell. Rendering the Image at these dimensions keeps
+// the source bitmap 1:1 with the layer, so the outer pinch-zoom scale samples
+// from full-resolution pixels in a single bilinear pass instead of stacking
+// over an already-downsampled intermediate layer.
+const SOURCE_CELL_H = 384;
+const IDLE_SOURCE_CELL_W = 256;
+const WALK_SOURCE_CELL_W = 384;
 
 // Blender 30 FPS: idle exported every 3 frames → 10 FPS; walk every 2 frames → 15 FPS
 const IDLE_FRAME_DURATION = (1000 / 30) * 3;
@@ -106,8 +114,17 @@ export default function CharacterSprite({
 
   const col = frame % cols;
   const row = Math.floor(frame / cols);
-  const imgWidth = cols * displaySize;
-  const imgHeight = rows * displaySize;
+  // Idle sprites are portrait (2:3); walk sprites are square. Match height to
+  // displaySize and derive width from the cell aspect so idle stays un-squished.
+  const displayCellH = displaySize;
+  const displayCellW = isWalking ? displaySize : displaySize * IDLE_CELL_ASPECT;
+  // Render the sprite sheet at native source resolution and shrink with a
+  // single transform, so the GPU samples source pixels directly.
+  const sourceCellW = isWalking ? WALK_SOURCE_CELL_W : IDLE_SOURCE_CELL_W;
+  const sourceCellH = SOURCE_CELL_H;
+  const innerScale = displayCellH / sourceCellH;
+  const imgWidth = cols * sourceCellW;
+  const imgHeight = rows * sourceCellH;
 
   // 2 bumps per cycle; amplitude scales with displaySize so bob stays visible at any zoom
   const bobAmplitude = displaySize * 0.018;
@@ -159,28 +176,44 @@ export default function CharacterSprite({
           />
         ))}
       </View>
-      {/* Sprite: bob + mirror applied here only so shadow stays grounded */}
+      {/* Sprite: bob + mirror applied here only so shadow stays grounded.
+          Outer wrapper occupies the display-space cell so layout/anchor stays
+          identical; inner View renders the sheet at source resolution and
+          shrinks to fit via a single scale transform (centered by flexbox so
+          scale-from-center collapses cleanly into the wrapper bounds). */}
       <View
         style={{
-          width: displaySize,
-          height: displaySize,
+          width: displayCellW,
+          height: displayCellH,
+          alignSelf: "center",
           overflow: "hidden",
+          justifyContent: "center",
+          alignItems: "center",
           zIndex: 1,
           transform: spriteTransform,
         }}
       >
-        <Image
-          source={sprite}
+        <View
           style={{
-            width: imgWidth,
-            height: imgHeight,
-            transform: [
-              { translateX: -col * displaySize },
-              { translateY: -row * displaySize },
-            ],
+            width: sourceCellW,
+            height: sourceCellH,
+            overflow: "hidden",
+            transform: [{ scale: innerScale }],
           }}
-          resizeMode="stretch"
-        />
+        >
+          <Image
+            source={sprite}
+            style={{
+              width: imgWidth,
+              height: imgHeight,
+              transform: [
+                { translateX: -col * sourceCellW },
+                { translateY: -row * sourceCellH },
+              ],
+            }}
+            resizeMode="stretch"
+          />
+        </View>
       </View>
     </View>
   );

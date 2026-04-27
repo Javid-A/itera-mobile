@@ -29,7 +29,11 @@ function PromptContent({ onEnable, onSkip }: { onEnable: () => void; onSkip: () 
     player.volume = 0;
     player.play();
     return () => {
-      player.pause();
+      // useVideoPlayer, unmount'ta player'ı kendisi release ediyor.
+      // Bu cleanup ondan sonra çalışırsa pause() "already released" atar.
+      try {
+        player.pause();
+      } catch {}
     };
   }, [player]);
 

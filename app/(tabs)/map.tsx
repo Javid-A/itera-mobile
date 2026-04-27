@@ -117,7 +117,7 @@ const WALK_NET_MIN_M = 1.5;
 // Consecutive identical direction readings required before committing a new direction.
 const DIR_CONFIRM_THRESHOLD = 2;
 const CHARACTER_DISPLAY_SIZE = 88;
-const CHARACTER_MAX_SCALE = 1.25;
+const CHARACTER_MAX_SCALE = 1.75;
 
 // GPS smoothing: exponential low-pass on accepted fixes; speed gate freezes jitter.
 const SMOOTH_ALPHA = 0.35;
@@ -216,8 +216,12 @@ export default function MapScreen() {
   const [isWalking, setIsWalking] = useState(false);
   const [createVisible, setCreateVisible] = useState(false);
   const [characterDirection, setCharacterDirection] = useState<Direction>("s");
-  const [characterScale, setCharacterScale] = useState(1);
-  const characterScaleRef = useRef(1);
+  // Drive zoom-based scale via native transform to avoid setState re-renders
+  // every camera frame during pinch. Translate compensates so the foot point
+  // stays anchored at the layout-bottom of the 88px box (scale grows from
+  // center by default, so we shift up by half the growth to pin the bottom).
+  const characterScaleAnim = useRef(new Animated.Value(1)).current;
+  const characterTranslateAnim = useRef(new Animated.Value(0)).current;
 
   // ─── Completion animation state ────────────────────────────────────────
   // Completion is the source of truth on each Mission row (status / completedAt) — fetched
@@ -253,6 +257,9 @@ export default function MapScreen() {
   const refreshMissionsRef = useRef<() => void>(() => {});
   const dirCandidateRef = useRef<Direction | null>(null);
   const dirCandidateCountRef = useRef(0);
+  // Walk hysteresis: +1 per walk-evidence sample, -1 per idle-evidence sample.
+  // Need 2 consecutive walk samples to flip on; a single idle sample flips off.
+  const walkCandidateRef = useRef(0);
 
   const bgDeniedRef = useRef(bgDenied);
   const isCompletingRef = useRef(false);
@@ -317,7 +324,11 @@ export default function MapScreen() {
     setMissions((prev) =>
       prev.map((m) =>
         m.id === id
-          ? { ...m, status: 'completed', completedAt: m.completedAt ?? new Date().toISOString() }
+          ? {
+              ...m,
+              status: "completed",
+              completedAt: m.completedAt ?? new Date().toISOString(),
+            }
           : m,
       ),
     );
@@ -328,7 +339,7 @@ export default function MapScreen() {
     return (
       missions.find(
         (m) =>
-          m.status !== 'completed' &&
+          m.status !== "completed" &&
           haversineMeters(
             userCoords[1],
             userCoords[0],
@@ -504,7 +515,7 @@ export default function MapScreen() {
       newId !== null &&
       newId !== prevId &&
       target &&
-      target.status !== 'completed' &&
+      target.status !== "completed" &&
       !isCompletingRef.current
     ) {
       const coords = userCoordsRef.current;
@@ -520,7 +531,7 @@ export default function MapScreen() {
     () =>
       buildGeofenceGeoJSON(
         missions.filter(
-          (m) => m.id !== completingMissionId && m.status !== 'completed',
+          (m) => m.id !== completingMissionId && m.status !== "completed",
         ),
       ),
     [missions, completingMissionId],
@@ -739,6 +750,7 @@ export default function MapScreen() {
             positionHistory.current = [];
             dirCandidateRef.current = null;
             dirCandidateCountRef.current = 0;
+            walkCandidateRef.current = 0;
             return;
           }
 
@@ -757,6 +769,7 @@ export default function MapScreen() {
             stationaryTimer.current = setTimeout(() => {
               setIsWalking(false);
               positionHistory.current = [];
+              walkCandidateRef.current = 0;
             }, STATIONARY_TIMEOUT_MS);
             return;
           }
@@ -811,11 +824,24 @@ export default function MapScreen() {
 
           const speedIndicatesWalk =
             reportedSpeed < 0 || reportedSpeed >= STATIONARY_SPEED_MS;
-          setIsWalking(
-            windowDist >= WALK_WINDOW_MIN_M &&
-              netDisplacement >= WALK_NET_MIN_M &&
-              speedIndicatesWalk,
-          );
+
+          // Scale walk thresholds by GPS accuracy so noisy fixes can't fake walking.
+          // accuracy=5m → floor (1.8/1.5); accuracy=20m → 10m/8m required.
+          const accuracyFloor = coords.accuracy ?? GPS_ACCURACY_MAX;
+          const windowMin = Math.max(WALK_WINDOW_MIN_M, accuracyFloor * 0.5);
+          const netMin = Math.max(WALK_NET_MIN_M, accuracyFloor * 0.4);
+
+          const wantWalk =
+            windowDist >= windowMin &&
+            netDisplacement >= netMin &&
+            speedIndicatesWalk;
+
+          walkCandidateRef.current = wantWalk
+            ? Math.min(walkCandidateRef.current + 1, 3)
+            : Math.max(walkCandidateRef.current - 1, -3);
+
+          if (walkCandidateRef.current >= 2) setIsWalking(true);
+          else if (walkCandidateRef.current <= -1) setIsWalking(false);
 
           // Commit a direction candidate only after DIR_CONFIRM_THRESHOLD consecutive
           // identical readings to suppress jitter from noisy GPS heading samples.
@@ -1048,17 +1074,17 @@ export default function MapScreen() {
             }
           }
           // Scale character with zoom: 1.0x at MAP_ZOOM_MIN → MAX at MAP_ZOOM_MAX.
+          // Pushed through Animated.Value → native transform; no React render.
           const zoom = state.properties.zoom ?? MAP_ZOOM_MIN;
           const zoomT = Math.max(
             0,
             Math.min(1, (zoom - MAP_ZOOM_MIN) / (MAP_ZOOM_MAX - MAP_ZOOM_MIN)),
           );
-          const nextScale =
-            Math.round((1 + zoomT * (CHARACTER_MAX_SCALE - 1)) * 100) / 100;
-          if (nextScale !== characterScaleRef.current) {
-            characterScaleRef.current = nextScale;
-            setCharacterScale(nextScale);
-          }
+          const nextScale = 1 + zoomT * (CHARACTER_MAX_SCALE - 1);
+          characterScaleAnim.setValue(nextScale);
+          characterTranslateAnim.setValue(
+            (-CHARACTER_DISPLAY_SIZE * (nextScale - 1)) / 2,
+          );
         }}
       >
         <Camera
@@ -1205,13 +1231,20 @@ export default function MapScreen() {
             allowOverlap
           >
             <View collapsable={false} pointerEvents="none">
-              <CharacterSprite
-                isWalking={isWalking}
-                direction={characterDirection}
-                displaySize={Math.round(
-                  CHARACTER_DISPLAY_SIZE * characterScale,
-                )}
-              />
+              <Animated.View
+                style={{
+                  transform: [
+                    { translateY: characterTranslateAnim },
+                    { scale: characterScaleAnim },
+                  ],
+                }}
+              >
+                <CharacterSprite
+                  isWalking={isWalking}
+                  direction={characterDirection}
+                  displaySize={CHARACTER_DISPLAY_SIZE}
+                />
+              </Animated.View>
             </View>
           </MarkerView>
         )}
@@ -1223,7 +1256,7 @@ export default function MapScreen() {
           >
             <MissionPin
               iconType={mission.iconType}
-              completed={mission.status === 'completed'}
+              completed={mission.status === "completed"}
               tier={mission.tier}
             />
           </MarkerView>
@@ -1320,22 +1353,25 @@ export default function MapScreen() {
           </BlurView>
         </Pressable>
 
-        {(missions.length > 0 && missions.every((m) => m.status !== 'completed')) || bgDenied ? (
+        {(missions.length > 0 &&
+          missions.every((m) => m.status !== "completed")) ||
+        bgDenied ? (
           <View style={styles.hudPillRow}>
-            {missions.length > 0 && missions.every((m) => m.status !== 'completed') && (
-              <BlurView
-                intensity={45}
-                tint="dark"
-                style={styles.hudPill}
-                experimentalBlurMethod="dimezisBlurView"
-              >
-                <Text style={styles.hudPillFlame}>🔥</Text>
-                <Text style={styles.hudPillText}>STREAK AT RISK</Text>
-                <View style={styles.hudPillBadge}>
-                  <Text style={styles.hudPillBadgeText}>7D</Text>
-                </View>
-              </BlurView>
-            )}
+            {missions.length > 0 &&
+              missions.every((m) => m.status !== "completed") && (
+                <BlurView
+                  intensity={45}
+                  tint="dark"
+                  style={styles.hudPill}
+                  experimentalBlurMethod="dimezisBlurView"
+                >
+                  <Text style={styles.hudPillFlame}>🔥</Text>
+                  <Text style={styles.hudPillText}>STREAK AT RISK</Text>
+                  <View style={styles.hudPillBadge}>
+                    <Text style={styles.hudPillBadgeText}>7D</Text>
+                  </View>
+                </BlurView>
+              )}
             {bgDenied && (
               <Pressable
                 style={{ borderRadius: 999, overflow: "hidden" }}
@@ -1443,8 +1479,7 @@ export default function MapScreen() {
             </Text>
             <View style={styles.countPill}>
               <Text style={[Typography.label, { color: Colors.accent }]}>
-                {missions.filter((m) => m.status !== 'completed').length}{" "}
-                ACTIVE
+                {missions.filter((m) => m.status !== "completed").length} ACTIVE
               </Text>
             </View>
           </View>
@@ -1454,7 +1489,7 @@ export default function MapScreen() {
           scrollEnabled={isSheetExpanded}
           showsVerticalScrollIndicator={false}
         >
-          {missions.filter((m) => m.status !== 'completed').length === 0 ? (
+          {missions.filter((m) => m.status !== "completed").length === 0 ? (
             <View style={styles.emptySheet}>
               <Text
                 style={[
@@ -1467,7 +1502,7 @@ export default function MapScreen() {
             </View>
           ) : (
             missions
-              .filter((m) => m.status !== 'completed')
+              .filter((m) => m.status !== "completed")
               .map((mission, i) => (
                 <Pressable
                   key={mission.id}

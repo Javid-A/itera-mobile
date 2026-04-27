@@ -397,8 +397,8 @@ export default function ChooseOnMapModal({
           ) : MapboxAvailable ? (
             <MapView
               style={StyleSheet.absoluteFill}
-              styleURL="mapbox://styles/javid-a/cmoaror1v001o01s3c6zcdfuy"
-              // styleURL="mapbox://styles/mapbox/dark-v11"
+              // styleURL="mapbox://styles/javid-a/cmoaror1v001o01s3c6zcdfuy"
+              styleURL="mapbox://styles/mapbox/dark-v11"
               onPress={handleMapPress}
               attributionEnabled={false}
               logoEnabled={false}
@@ -416,7 +416,7 @@ export default function ChooseOnMapModal({
                   pitch: 0,
                 }}
                 minZoomLevel={3}
-                maxZoomLevel={14}
+                maxZoomLevel={16}
               />
               {tierZones && (
                 <>
