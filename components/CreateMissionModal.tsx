@@ -13,13 +13,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing, Typography } from '../constants';
 import apiClient from '../src/services/apiClient';
 import { LocationService } from '../src/services/LocationService';
 import type { Mission } from '../src/types/Mission';
 import { classifyDistance, haversineMeters, TIER_CONFIG } from '../src/config/tierConfig';
-import BackgroundLocationPrompt from './BackgroundLocationPrompt';
 import ChooseOnMapModal from './ChooseOnMapModal';
 import XPCountUp from './XPCountUp';
 
@@ -76,7 +74,6 @@ export default function CreateMissionModal({ visible, onClose, onCreated }: Prop
   const [showMapModal, setShowMapModal] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [radiusMeters, setRadiusMeters] = useState(100);
-  const [showBgPrompt, setShowBgPrompt] = useState(false);
   const [anchorCoords, setAnchorCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [anchorError, setAnchorError] = useState<string | null>(null);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -270,14 +267,6 @@ export default function CreateMissionModal({ visible, onClose, onCreated }: Prop
       onClose();
       await syncGeofences();
       onCreated?.();
-
-      const bg = await Location.getBackgroundPermissionsAsync();
-      if (bg.status !== 'granted') {
-        const raw = await AsyncStorage.getItem('itera_mission_count');
-        const count = (raw ? parseInt(raw, 10) : 0) + 1;
-        await AsyncStorage.setItem('itera_mission_count', String(count));
-        if (count === 1 || count === 3 || count === 7) setShowBgPrompt(true);
-      }
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.error ?? 'Failed to create mission.');
     } finally {
@@ -635,12 +624,6 @@ export default function CreateMissionModal({ visible, onClose, onCreated }: Prop
         onConfirm={(loc) => selectLocation(loc)}
         recentResults={locationResults}
         initialLocation={initialLocationForMap}
-      />
-
-      <BackgroundLocationPrompt
-        visible={showBgPrompt}
-        onEnable={() => setShowBgPrompt(false)}
-        onSkip={() => setShowBgPrompt(false)}
       />
     </>
   );
