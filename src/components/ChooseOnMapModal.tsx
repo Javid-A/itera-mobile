@@ -9,12 +9,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { Colors, Spacing, Typography } from "../constants";
-import {
-  TIER_COLORS,
-  classifyDistance,
-  haversineMeters,
-} from "../config/tierConfig";
+import { Spacing, Typography } from "../constants";
+import { useTheme, useTierColors } from "../context/ThemeContext";
+import type { ColorScheme } from "../constants/colors";
+import { classifyDistance, haversineMeters } from "../config/tierConfig";
 import {
   MapboxAvailable,
   MapView,
@@ -41,6 +39,199 @@ type Props = {
 
 const TOKYO: [number, number] = [139.6917, 35.6895];
 
+function makeStyles(C: ColorScheme, isDark: boolean) {
+  // Mapbox style attribute is set on <MapView>; chip and fallback colors here
+  // need to read the same way over both light and dark map tiles.
+  const chipBg = isDark ? "rgba(10, 18, 38, 0.92)" : "rgba(255, 255, 255, 0.92)";
+  const userPulseBg = isDark
+    ? "rgba(166, 230, 53, 0.12)"
+    : "rgba(22, 194, 106, 0.18)";
+  const userDotOuterBg = isDark
+    ? "rgba(166, 230, 53, 0.35)"
+    : "rgba(22, 194, 106, 0.45)";
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: Spacing.lg,
+      paddingTop: 56,
+      paddingBottom: Spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: C.borderBright,
+    },
+    backButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    mapContainer: {
+      flex: 1,
+      position: "relative",
+    },
+    mapFallback: {
+      backgroundColor: isDark ? "#0a1226" : C.surface2,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    userPulse: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: userPulseBg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    userDotOuter: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: userDotOuterBg,
+      borderWidth: 2,
+      borderColor: C.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    userDotInner: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: C.accent,
+    },
+    pinWrapper: {
+      alignItems: "center",
+    },
+    pinHead: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "#ffffff",
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.35,
+      shadowRadius: 5,
+      elevation: 6,
+    },
+    pinTail: {
+      width: 0,
+      height: 0,
+      borderLeftWidth: 7,
+      borderRightWidth: 7,
+      borderTopWidth: 11,
+      borderLeftColor: "transparent",
+      borderRightColor: "transparent",
+      borderTopColor: "#ffffff",
+      marginTop: -1,
+    },
+    scaleBar: {
+      position: "absolute",
+      bottom: 16,
+      left: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    scaleBarLine: {
+      width: 80,
+      height: 3,
+      backgroundColor: C.accent,
+      borderRadius: 2,
+    },
+    scaleBarText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 12,
+      color: isDark ? C.textPrimary : "#ffffff",
+      letterSpacing: 0.5,
+      textShadowColor: "rgba(0,0,0,0.6)",
+      textShadowRadius: 2,
+    },
+    chipContainer: {
+      position: "absolute",
+      bottom: 16,
+      left: 0,
+      right: 0,
+      alignItems: "center",
+      pointerEvents: "none",
+    },
+    chip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: chipBg,
+      borderWidth: 1,
+      borderColor: C.accent,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      borderRadius: 999,
+      maxWidth: "80%",
+    },
+    chipDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: C.accent,
+    },
+    chipText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 13,
+      letterSpacing: 0.5,
+      color: C.textPrimary,
+      flexShrink: 1,
+    },
+    chipTierText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 12,
+      letterSpacing: 1,
+      marginLeft: 2,
+    },
+    bottomSheet: {
+      backgroundColor: C.background,
+      borderTopWidth: 1,
+      borderTopColor: C.borderBright,
+      paddingTop: Spacing.lg,
+      paddingHorizontal: Spacing.lg,
+      paddingBottom: Spacing.xxl,
+    },
+    confirmButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      height: 54,
+      borderRadius: 16,
+      backgroundColor: C.accent,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    confirmButtonDisabled: {
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      shadowOpacity: 0,
+      elevation: 0,
+    },
+    confirmText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 15,
+      letterSpacing: 1.5,
+    },
+  });
+}
+
 export default function ChooseOnMapModal({
   visible,
   onClose,
@@ -48,6 +239,10 @@ export default function ChooseOnMapModal({
   recentResults,
   initialLocation,
 }: Props) {
+  const { colors: C, isDark } = useTheme();
+  const tierColors = useTierColors();
+  const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
+
   const cameraRef = useRef<any>(null);
   const [pinCoord, setPinCoord] = useState<[number, number] | null>(null);
   const [pinName, setPinName] = useState("");
@@ -194,6 +389,11 @@ export default function ChooseOnMapModal({
     onClose();
   };
 
+  // Mapbox style URL: dark hattuara dark-v11, light için light-v11.
+  const mapStyleURL = isDark
+    ? "mapbox://styles/mapbox/dark-v11"
+    : "mapbox://styles/mapbox/light-v11";
+
   return (
     <Modal
       visible={visible}
@@ -211,17 +411,17 @@ export default function ChooseOnMapModal({
             <Ionicons
               name="chevron-back"
               size={20}
-              color={Colors.textPrimary}
+              color={C.textPrimary}
             />
           </Pressable>
           <View style={{ marginLeft: Spacing.md }}>
-            <Text style={[Typography.displayLG, { color: Colors.textPrimary }]}>
+            <Text style={[Typography.displayLG, { color: C.textPrimary }]}>
               Choose Location
             </Text>
             <Text
               style={[
                 Typography.body,
-                { color: Colors.textSecondary, marginTop: 2 },
+                { color: C.textSecondary, marginTop: 2 },
               ]}
             >
               Tap a spot to set your mission pin
@@ -232,11 +432,11 @@ export default function ChooseOnMapModal({
         <View style={styles.mapContainer}>
           {!userCoord ? (
             <View style={[StyleSheet.absoluteFill, styles.mapFallback]}>
-              <ActivityIndicator size="large" color={Colors.accent} />
+              <ActivityIndicator size="large" color={C.accent} />
               <Text
                 style={[
                   Typography.body,
-                  { color: Colors.textSecondary, marginTop: 12 },
+                  { color: C.textSecondary, marginTop: 12 },
                 ]}
               >
                 Finding your location...
@@ -245,7 +445,7 @@ export default function ChooseOnMapModal({
           ) : MapboxAvailable ? (
             <MapView
               style={StyleSheet.absoluteFill}
-              styleURL="mapbox://styles/mapbox/dark-v11"
+              styleURL={mapStyleURL}
               onPress={handleMapPress}
               attributionEnabled={false}
               logoEnabled={false}
@@ -281,8 +481,8 @@ export default function ChooseOnMapModal({
                         styles.pinHead,
                         {
                           backgroundColor: pinTier
-                            ? TIER_COLORS[
-                                pinTier.tier as keyof typeof TIER_COLORS
+                            ? tierColors[
+                                pinTier.tier as keyof typeof tierColors
                               ]
                             : "#ffffff",
                         },
@@ -291,7 +491,7 @@ export default function ChooseOnMapModal({
                       <Ionicons
                         name="location"
                         size={16}
-                        color={Colors.background}
+                        color={C.background}
                       />
                     </View>
                     <View
@@ -299,8 +499,8 @@ export default function ChooseOnMapModal({
                         styles.pinTail,
                         {
                           borderTopColor: pinTier
-                            ? TIER_COLORS[
-                                pinTier.tier as keyof typeof TIER_COLORS
+                            ? tierColors[
+                                pinTier.tier as keyof typeof tierColors
                               ]
                             : "#ffffff",
                         },
@@ -315,12 +515,12 @@ export default function ChooseOnMapModal({
               <Ionicons
                 name="map-outline"
                 size={32}
-                color={Colors.textSecondary}
+                color={C.textSecondary}
               />
               <Text
                 style={[
                   Typography.body,
-                  { color: Colors.textSecondary, marginTop: 8 },
+                  { color: C.textSecondary, marginTop: 8 },
                 ]}
               >
                 Map unavailable
@@ -339,7 +539,7 @@ export default function ChooseOnMapModal({
             <View style={styles.chipContainer}>
               <View style={styles.chip}>
                 {geocoding ? (
-                  <ActivityIndicator size="small" color={Colors.accent} />
+                  <ActivityIndicator size="small" color={C.accent} />
                 ) : (
                   <>
                     <View
@@ -347,8 +547,8 @@ export default function ChooseOnMapModal({
                         styles.chipDot,
                         pinTier && {
                           backgroundColor:
-                            TIER_COLORS[
-                              pinTier.tier as keyof typeof TIER_COLORS
+                            tierColors[
+                              pinTier.tier as keyof typeof tierColors
                             ],
                         },
                       ]}
@@ -362,8 +562,8 @@ export default function ChooseOnMapModal({
                           styles.chipTierText,
                           {
                             color:
-                              TIER_COLORS[
-                                pinTier.tier as keyof typeof TIER_COLORS
+                              tierColors[
+                                pinTier.tier as keyof typeof tierColors
                               ],
                           },
                         ]}
@@ -390,12 +590,12 @@ export default function ChooseOnMapModal({
             <Ionicons
               name="location"
               size={18}
-              color={pinCoord ? Colors.background : Colors.textSecondary}
+              color={pinCoord ? C.background : C.textSecondary}
             />
             <Text
               style={[
                 styles.confirmText,
-                { color: pinCoord ? Colors.background : Colors.textSecondary },
+                { color: pinCoord ? C.background : C.textSecondary },
               ]}
             >
               CONFIRM LOCATION
@@ -406,182 +606,3 @@ export default function ChooseOnMapModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 56,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderBright,
-  },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapContainer: {
-    flex: 1,
-    position: "relative",
-  },
-  mapFallback: {
-    backgroundColor: "#0a1226",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userPulse: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(166, 230, 53, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userDotOuter: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "rgba(166, 230, 53, 0.35)",
-    borderWidth: 2,
-    borderColor: Colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userDotInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.accent,
-  },
-  pinWrapper: {
-    alignItems: "center",
-  },
-  pinHead: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
-    elevation: 6,
-  },
-  pinTail: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 7,
-    borderRightWidth: 7,
-    borderTopWidth: 11,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "#ffffff",
-    marginTop: -1,
-  },
-  scaleBar: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  scaleBarLine: {
-    width: 80,
-    height: 3,
-    backgroundColor: Colors.accent,
-    borderRadius: 2,
-  },
-  scaleBarText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 12,
-    color: Colors.textPrimary,
-    letterSpacing: 0.5,
-  },
-  chipContainer: {
-    position: "absolute",
-    bottom: 16,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    pointerEvents: "none",
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(10, 18, 38, 0.92)",
-    borderWidth: 1,
-    borderColor: Colors.accent,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 999,
-    maxWidth: "80%",
-  },
-  chipDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.accent,
-  },
-  chipText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 13,
-    letterSpacing: 0.5,
-    color: Colors.textPrimary,
-    flexShrink: 1,
-  },
-  chipTierText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 12,
-    letterSpacing: 1,
-    marginLeft: 2,
-  },
-  bottomSheet: {
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderBright,
-    paddingTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxl,
-  },
-  confirmButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  confirmButtonDisabled: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  confirmText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 15,
-    letterSpacing: 1.5,
-  },
-});

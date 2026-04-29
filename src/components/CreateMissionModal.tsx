@@ -12,7 +12,9 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing, Typography } from "../constants";
+import { Spacing, Typography } from "../constants";
+import { useTheme } from "../context/ThemeContext";
+import type { ColorScheme } from "../constants/colors";
 import { createMission, getMissionsToday } from "../api/missions";
 import { LocationService } from "../services/LocationService";
 import { classifyDistance, haversineMeters } from "../config/tierConfig";
@@ -46,11 +48,85 @@ const INITIAL_TIME_WINDOW: TimeWindowState = {
   toAmPm: "PM",
 };
 
+function makeStyles(C: ColorScheme) {
+  return StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      flex: 1,
+      backgroundColor: C.background,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderColor: C.borderBright,
+      marginTop: 60,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    backButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    fieldLabel: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 11,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+      marginTop: Spacing.lg,
+      marginBottom: Spacing.sm,
+    },
+    inputWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      paddingHorizontal: Spacing.md,
+      height: 50,
+      gap: 10,
+    },
+    input: {
+      flex: 1,
+      color: C.textPrimary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 15,
+    },
+    submitButton: {
+      height: 56,
+      borderRadius: 18,
+      backgroundColor: C.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: Spacing.lg,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.45,
+      shadowRadius: 18,
+      elevation: 8,
+    },
+  });
+}
+
 export default function CreateMissionModal({
   visible,
   onClose,
   onCreated,
 }: Props) {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
+
   const [loading, setLoading] = useState(false);
   const [missionName, setMissionName] = useState("");
   const [locationName, setLocationName] = useState("");
@@ -209,19 +285,19 @@ export default function CreateMissionModal({
                   <Ionicons
                     name="chevron-back"
                     size={20}
-                    color={Colors.textPrimary}
+                    color={C.textPrimary}
                   />
                 </Pressable>
                 <View style={{ flex: 1, marginLeft: Spacing.md }}>
                   <Text
-                    style={[Typography.displayLG, { color: Colors.textPrimary }]}
+                    style={[Typography.displayLG, { color: C.textPrimary }]}
                   >
                     New Mission
                   </Text>
                   <Text
                     style={[
                       Typography.body,
-                      { color: Colors.textSecondary, marginTop: 2 },
+                      { color: C.textSecondary, marginTop: 2 },
                     ]}
                   >
                     Set a routine at a real-world location
@@ -231,15 +307,11 @@ export default function CreateMissionModal({
 
               <Text style={styles.fieldLabel}>MISSION NAME</Text>
               <View style={styles.inputWrap}>
-                <Ionicons
-                  name="create-outline"
-                  size={16}
-                  color={Colors.accent}
-                />
+                <Ionicons name="create-outline" size={16} color={C.accent} />
                 <TextInput
                   style={styles.input}
                   placeholder="e.g., Deep Work Block"
-                  placeholderTextColor={Colors.textSecondary}
+                  placeholderTextColor={C.textSecondary}
                   value={missionName}
                   onChangeText={setMissionName}
                 />
@@ -291,9 +363,9 @@ export default function CreateMissionModal({
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color={Colors.background} />
+                  <ActivityIndicator color={C.background} />
                 ) : (
-                  <Text style={[Typography.cta, { color: Colors.background }]}>
+                  <Text style={[Typography.cta, { color: C.background }]}>
                     LAUNCH MISSION →
                   </Text>
                 )}
@@ -313,72 +385,3 @@ export default function CreateMissionModal({
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderColor: Colors.borderBright,
-    marginTop: 60,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fieldLabel: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 11,
-    letterSpacing: 1.4,
-    color: Colors.textSecondary,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    paddingHorizontal: Spacing.md,
-    height: 50,
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-  },
-  submitButton: {
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: Colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.lg,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 18,
-    elevation: 8,
-  },
-});

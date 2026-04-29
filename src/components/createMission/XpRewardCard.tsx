@@ -1,6 +1,9 @@
+import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Colors, Spacing, Typography } from "../../constants";
-import { TIER_COLORS, TIER_CONFIG, type TierPreview } from "../../config/tierConfig";
+import { Spacing, Typography } from "../../constants";
+import { useTheme, useTierColors } from "../../context/ThemeContext";
+import type { ColorScheme } from "../../constants/colors";
+import { TIER_CONFIG, type TierPreview } from "../../config/tierConfig";
 import XPCountUp from "../XPCountUp";
 
 interface Props {
@@ -14,15 +17,50 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(meters < 10000 ? 2 : 1)} km`;
 }
 
+function makeStyles(C: ColorScheme) {
+  return StyleSheet.create({
+    xpCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      borderRadius: 16,
+      padding: Spacing.md,
+      marginTop: Spacing.md,
+    },
+    baseChip: {
+      alignSelf: "flex-start",
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      marginTop: 6,
+    },
+    baseChipText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 10,
+      letterSpacing: 1,
+      color: C.accent,
+    },
+  });
+}
+
 export default function XpRewardCard({
   tierPreview,
   anchorCoords,
   anchorError,
 }: Props) {
+  const { colors: C } = useTheme();
+  const tierColors = useTierColors();
+  const styles = useMemo(() => makeStyles(C), [C]);
+
   return (
     <View style={styles.xpCard}>
       <View style={{ flex: 1 }}>
-        <Text style={[Typography.label, { color: Colors.textSecondary }]}>
+        <Text style={[Typography.label, { color: C.textSecondary }]}>
           XP REWARD
         </Text>
         {tierPreview ? (
@@ -30,7 +68,7 @@ export default function XpRewardCard({
             <Text
               style={[
                 Typography.body,
-                { color: Colors.textPrimary, marginTop: 4 },
+                { color: C.textPrimary, marginTop: 4 },
               ]}
             >
               Tier {tierPreview.tier} ·{" "}
@@ -40,15 +78,15 @@ export default function XpRewardCard({
               style={[
                 styles.baseChip,
                 {
-                  borderColor: TIER_COLORS[tierPreview.tier],
-                  backgroundColor: "rgba(166, 230, 53, 0.08)",
+                  borderColor: tierColors[tierPreview.tier],
+                  backgroundColor: C.accentSoft,
                 },
               ]}
             >
               <Text
                 style={[
                   styles.baseChipText,
-                  { color: TIER_COLORS[tierPreview.tier] },
+                  { color: tierColors[tierPreview.tier] },
                 ]}
               >
                 {TIER_CONFIG.baseXP} × {tierPreview.multiplier.toFixed(1)}
@@ -60,7 +98,7 @@ export default function XpRewardCard({
             <Text
               style={[
                 Typography.body,
-                { color: Colors.textSecondary, marginTop: 4 },
+                { color: C.textSecondary, marginTop: 4 },
               ]}
             >
               {anchorError
@@ -89,15 +127,15 @@ export default function XpRewardCard({
             Typography.statXL,
             {
               color: tierPreview
-                ? TIER_COLORS[tierPreview.tier]
-                : Colors.textSecondary,
+                ? tierColors[tierPreview.tier]
+                : C.textSecondary,
             },
           ]}
         />
         <Text
           style={[
             Typography.label,
-            { color: Colors.textSecondary, marginTop: -4 },
+            { color: C.textSecondary, marginTop: -4 },
           ]}
         >
           XP
@@ -106,32 +144,3 @@ export default function XpRewardCard({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  xpCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    borderRadius: 16,
-    padding: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  baseChip: {
-    alignSelf: "flex-start",
-    backgroundColor: Colors.accentSoft,
-    borderWidth: 1,
-    borderColor: "rgba(166, 230, 53, 0.55)",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginTop: 6,
-  },
-  baseChipText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 10,
-    letterSpacing: 1,
-    color: Colors.accent,
-  },
-});

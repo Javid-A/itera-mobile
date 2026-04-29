@@ -1,6 +1,9 @@
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing } from "../../constants";
+import { Spacing } from "../../constants";
+import { useTheme } from "../../context/ThemeContext";
+import type { ColorScheme } from "../../constants/colors";
 
 interface Props {
   expanded: boolean;
@@ -10,14 +13,108 @@ interface Props {
 }
 
 const PRESETS = [50, 100, 150, 200, 300, 500];
-const FIELD_LABEL_STYLE = {
-  fontFamily: "Rajdhani_700Bold",
-  fontSize: 11,
-  letterSpacing: 1.4,
-  color: Colors.textSecondary,
-  marginTop: Spacing.lg,
-  marginBottom: Spacing.sm,
-} as const;
+
+function makeStyles(C: ColorScheme) {
+  return StyleSheet.create({
+    fieldLabel: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 11,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+      marginTop: Spacing.lg,
+      marginBottom: Spacing.sm,
+    },
+    advancedToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: Spacing.md,
+      paddingVertical: 4,
+      alignSelf: "flex-start",
+    },
+    advancedToggleText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 11,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+    },
+    advancedSummary: {
+      fontFamily: "Inter_400Regular",
+      fontSize: 11,
+      color: C.textSecondary,
+      marginLeft: 2,
+    },
+    advancedCard: {
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      padding: Spacing.md,
+      marginTop: 6,
+    },
+    radiusRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: Spacing.md,
+    },
+    radiusBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: C.surface2,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    radiusValueWrap: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: 4,
+    },
+    radiusValue: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 32,
+      color: C.textPrimary,
+    },
+    radiusUnit: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 16,
+      color: C.textSecondary,
+    },
+    radiusPresets: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: Spacing.sm,
+    },
+    radiusPreset: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: C.surface2,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+    },
+    radiusPresetActive: {
+      borderColor: C.accent,
+      backgroundColor: C.accentSoft,
+    },
+    radiusPresetText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 12,
+      letterSpacing: 0.5,
+      color: C.textSecondary,
+    },
+    radiusHint: {
+      fontFamily: "Inter_400Regular",
+      fontSize: 11,
+      color: C.textSecondary,
+      marginTop: 4,
+    },
+  });
+}
 
 export default function AdvancedRadiusPicker({
   expanded,
@@ -25,13 +122,16 @@ export default function AdvancedRadiusPicker({
   radiusMeters,
   onRadiusChange,
 }: Props) {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
+
   return (
     <>
       <Pressable style={styles.advancedToggle} onPress={onToggle}>
         <Ionicons
           name={expanded ? "chevron-down" : "chevron-forward"}
           size={14}
-          color={Colors.textSecondary}
+          color={C.textSecondary}
         />
         <Text style={styles.advancedToggleText}>ADVANCED</Text>
         {!expanded && (
@@ -41,14 +141,14 @@ export default function AdvancedRadiusPicker({
 
       {expanded && (
         <View style={styles.advancedCard}>
-          <Text style={FIELD_LABEL_STYLE}>GEOFENCE RADIUS</Text>
+          <Text style={styles.fieldLabel}>GEOFENCE RADIUS</Text>
           <View style={styles.radiusRow}>
             <Pressable
               style={styles.radiusBtn}
               onPress={() => onRadiusChange(Math.max(50, radiusMeters - 50))}
               hitSlop={8}
             >
-              <Ionicons name="remove" size={18} color={Colors.textPrimary} />
+              <Ionicons name="remove" size={18} color={C.textPrimary} />
             </Pressable>
             <View style={styles.radiusValueWrap}>
               <Text style={styles.radiusValue}>{radiusMeters}</Text>
@@ -59,7 +159,7 @@ export default function AdvancedRadiusPicker({
               onPress={() => onRadiusChange(Math.min(500, radiusMeters + 50))}
               hitSlop={8}
             >
-              <Ionicons name="add" size={18} color={Colors.textPrimary} />
+              <Ionicons name="add" size={18} color={C.textPrimary} />
             </Pressable>
           </View>
           <View style={styles.radiusPresets}>
@@ -75,7 +175,7 @@ export default function AdvancedRadiusPicker({
                 <Text
                   style={[
                     styles.radiusPresetText,
-                    radiusMeters === r && { color: Colors.accent },
+                    radiusMeters === r && { color: C.accent },
                   ]}
                 >
                   {r}m
@@ -91,95 +191,3 @@ export default function AdvancedRadiusPicker({
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  advancedToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: Spacing.md,
-    paddingVertical: 4,
-    alignSelf: "flex-start",
-  },
-  advancedToggleText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 11,
-    letterSpacing: 1.4,
-    color: Colors.textSecondary,
-  },
-  advancedSummary: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginLeft: 2,
-  },
-  advancedCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    padding: Spacing.md,
-    marginTop: 6,
-  },
-  radiusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  radiusBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: Colors.surface2,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radiusValueWrap: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-  },
-  radiusValue: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 32,
-    color: Colors.textPrimary,
-  },
-  radiusUnit: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  radiusPresets: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: Spacing.sm,
-  },
-  radiusPreset: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: Colors.surface2,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-  },
-  radiusPresetActive: {
-    borderColor: Colors.accent,
-    backgroundColor: Colors.accentSoft,
-  },
-  radiusPresetText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 12,
-    letterSpacing: 0.5,
-    color: Colors.textSecondary,
-  },
-  radiusHint: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-});

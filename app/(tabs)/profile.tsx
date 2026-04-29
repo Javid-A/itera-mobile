@@ -9,8 +9,9 @@ import ScreenContainer from '../../src/components/ScreenContainer';
 import BackgroundLocationPrompt from '../../src/components/BackgroundLocationPrompt';
 import LevelUpModal from '../../src/components/LevelUpModal';
 import XPCountUp from '../../src/components/XPCountUp';
-import { Colors, Spacing, Typography } from '../../src/constants';
+import { Spacing, Typography } from '../../src/constants';
 import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
 import { resetProfileStats } from '../../src/api/profile';
 import { useProfile } from '../../src/state/queries/useProfile';
 import { useMissionHistory } from '../../src/state/queries/useMissionHistory';
@@ -18,6 +19,7 @@ import { qk } from '../../src/state/queryKeys';
 import { requestBackgroundLocation } from '../../src/services/locationSettings';
 import { useBackgroundPermission } from '../../src/hooks/useBackgroundPermission';
 import { STORAGE_KEYS, XP_PER_LEVEL } from '../../src/config/gameConfig';
+import type { ColorScheme } from '../../src/constants/colors';
 
 const RING_SIZE = 128;
 const RING_STROKE = 8;
@@ -38,8 +40,239 @@ function isoDateKey(d: Date): string {
 
 const PROFILE_FALLBACK = { username: '', currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0 };
 
+function makeStyles(C: ColorScheme) {
+  return StyleSheet.create({
+    titleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: Spacing.md,
+    },
+    levelUpPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    levelUpPillText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 12,
+      letterSpacing: 1.2,
+      color: C.accent,
+    },
+    identityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: Spacing.lg,
+      gap: Spacing.md,
+    },
+    ringWrap: {
+      width: RING_SIZE,
+      height: RING_SIZE,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    ringCenter: {
+      position: 'absolute',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    identityInfo: {
+      flex: 1,
+    },
+    tierPill: {
+      alignSelf: 'flex-start',
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      marginTop: 4,
+    },
+    tierPillText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      color: C.accent,
+    },
+    xpBarWrap: {
+      height: 6,
+      backgroundColor: C.surface2,
+      borderRadius: 3,
+      overflow: 'hidden',
+      marginTop: Spacing.sm,
+    },
+    xpBarFill: {
+      height: '100%',
+      backgroundColor: C.accent,
+      borderRadius: 3,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.7,
+      shadowRadius: 6,
+    },
+    statsRow: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      marginTop: Spacing.lg,
+    },
+    statCard: {
+      flex: 1,
+      backgroundColor: C.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: Spacing.md,
+    },
+    statCardLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      color: C.textSecondary,
+      marginTop: 2,
+    },
+    streakCard: {
+      backgroundColor: C.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      padding: Spacing.md,
+      marginTop: Spacing.md,
+    },
+    streakCardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    streakCardTitle: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 12,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+    },
+    todayPendingPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: C.orangeDim,
+      borderWidth: 1,
+      borderColor: C.orangeBorder,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    todayPendingFlame: {
+      fontSize: 10,
+    },
+    todayPendingText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 10,
+      letterSpacing: 1.2,
+      color: C.orange,
+    },
+    weekDotsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: Spacing.md,
+    },
+    weekDotCol: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    weekDot: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+    },
+    weekDotActive: {
+      backgroundColor: C.accentSoft,
+      borderColor: C.accent,
+    },
+    weekDotInactive: {
+      backgroundColor: C.surface2,
+      borderColor: C.border,
+    },
+    weekDotPending: {
+      backgroundColor: C.orangeDim,
+      borderColor: C.orangeBorder,
+    },
+    weekDotInner: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: C.accent,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 4,
+    },
+    weekDotLabel: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      color: C.textSecondary,
+      marginTop: 6,
+      letterSpacing: 0.8,
+    },
+    reminderBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: C.orangeSubtle,
+      borderWidth: 1,
+      borderColor: C.orangeBorder,
+      borderRadius: 12,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 10,
+      marginTop: Spacing.md,
+    },
+    reminderText: {
+      flex: 1,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      color: C.orange,
+    },
+    sectionLabel: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+      marginTop: Spacing.xl,
+      marginBottom: Spacing.sm,
+    },
+    settingsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.surface,
+      borderRadius: 16,
+      padding: Spacing.md,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+    },
+    settingsIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: C.surface2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+  });
+}
+
 export default function ProfileScreen() {
   const { username, logout } = useAuth();
+  const { colors: C, isDark, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
   const { data: profileData } = useProfile();
   const { data: historyData } = useMissionHistory();
@@ -52,8 +285,7 @@ export default function ProfileScreen() {
   const { granted: bgGranted, refresh: checkBgPermission, setGranted: setBgGranted } =
     useBackgroundPermission();
 
-  // OS izninin dışarıdan iptal edilmesi durumunda auto-tracking flag'ini kapat —
-  // yan etkiyi hook'tan ayrı tuttuk ki hook reusable kalsın.
+  // OS izninin dışarıdan iptal edilmesi durumunda auto-tracking flag'ini kapat
   useEffect(() => {
     if (!bgGranted) {
       setIsAutoTrackingOn(false);
@@ -84,22 +316,16 @@ export default function ProfileScreen() {
   const { streakDays, locationsCount, weekDots, todayDone } = useMemo(() => {
     const dayKeys = new Set(history.map((m) => isoDateKey(new Date(m.completedAt))));
 
-    // Streak: consecutive days ending today with at least one mission
     let streak = 0;
     const cursor = startOfDay(new Date());
-    // If today has no mission, streak starts from yesterday
     if (!dayKeys.has(isoDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
     while (dayKeys.has(isoDateKey(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
     }
 
-    // Unique mission ids — proxy for locations. With single-day missions every completion
-    // has its own id, so this counts total completions until we surface a stable location id
-    // on the history payload.
-    const uniqueRoutines = new Set(history.map((m) => m.missionId));
+    const uniqueRoutines = new Set(history.map((m) => m.id));
 
-    // Week dots (Mon..Sun)
     const today = startOfDay(new Date());
     const weekStart = new Date(today);
     const dayIdx = (today.getDay() + 6) % 7;
@@ -119,6 +345,8 @@ export default function ProfileScreen() {
       todayDone: dayKeys.has(isoDateKey(today)),
     };
   }, [history]);
+
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -147,11 +375,9 @@ export default function ProfileScreen() {
 
   const handleAutoTrackingToggle = async () => {
     if (isAutoTrackingOn) {
-      // Turn off logic purely at app level
       setIsAutoTrackingOn(false);
       await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'false');
     } else {
-      // Trying to turn on
       if (bgGranted) {
         setIsAutoTrackingOn(true);
         await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'true');
@@ -196,9 +422,9 @@ export default function ProfileScreen() {
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
         <View style={styles.titleRow}>
-          <Text style={[Typography.displayXL, { color: Colors.textPrimary }]}>Profile</Text>
+          <Text style={[Typography.displayXL, { color: C.textPrimary }]}>Profile</Text>
           <Pressable style={styles.levelUpPill} onPress={() => setShowLevelUp(true)}>
-            <Ionicons name="flash" size={14} color={Colors.accent} />
+            <Ionicons name="flash" size={14} color={C.accent} />
             <Text style={styles.levelUpPillText}>LEVEL UP</Text>
           </Pressable>
         </View>
@@ -210,7 +436,7 @@ export default function ProfileScreen() {
                 cx={RING_SIZE / 2}
                 cy={RING_SIZE / 2}
                 r={RING_RADIUS}
-                stroke={Colors.borderBright}
+                stroke={C.borderBright}
                 strokeWidth={RING_STROKE}
                 fill="none"
               />
@@ -218,7 +444,7 @@ export default function ProfileScreen() {
                 cx={RING_SIZE / 2}
                 cy={RING_SIZE / 2}
                 r={RING_RADIUS}
-                stroke={Colors.accent}
+                stroke={C.accent}
                 strokeWidth={RING_STROKE}
                 fill="none"
                 strokeDasharray={RING_CIRC}
@@ -228,17 +454,17 @@ export default function ProfileScreen() {
               />
             </Svg>
             <View style={styles.ringCenter}>
-              <Text style={[Typography.label, { color: Colors.textSecondary }]}>LEVEL</Text>
+              <Text style={[Typography.label, { color: C.textSecondary }]}>LEVEL</Text>
               <XPCountUp
                 target={stats.currentLevel}
                 duration={900}
-                style={[Typography.statXL, { color: Colors.accent, marginTop: -2, fontSize: 40 }]}
+                style={[Typography.statXL, { color: C.accent, marginTop: -2, fontSize: 40 }]}
               />
             </View>
           </View>
 
           <View style={styles.identityInfo}>
-            <Text style={[Typography.displayLG, { color: Colors.textPrimary }]} numberOfLines={1}>
+            <Text style={[Typography.displayLG, { color: C.textPrimary }]} numberOfLines={1}>
               {username ?? '...'}
             </Text>
             <View style={styles.tierPill}>
@@ -251,9 +477,9 @@ export default function ProfileScreen() {
               <XPCountUp
                 target={stats.currentXP}
                 duration={1100}
-                style={[Typography.caption, { color: Colors.textSecondary }]}
+                style={[Typography.caption, { color: C.textSecondary }]}
               />
-              <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
+              <Text style={[Typography.caption, { color: C.textSecondary }]}>
                 {` / ${xpTarget.toLocaleString()} XP to Lv ${stats.currentLevel + 1}`}
               </Text>
             </View>
@@ -266,7 +492,7 @@ export default function ProfileScreen() {
               target={stats.totalMissions}
               duration={1000}
               delay={100}
-              style={[Typography.statXL, { color: Colors.accent }]}
+              style={[Typography.statXL, { color: C.accent }]}
             />
             <Text style={styles.statCardLabel}>Missions</Text>
           </View>
@@ -275,7 +501,7 @@ export default function ProfileScreen() {
               target={streakDays}
               duration={1000}
               delay={250}
-              style={[Typography.statXL, { color: Colors.accent }]}
+              style={[Typography.statXL, { color: C.accent }]}
             />
             <Text style={styles.statCardLabel}>Day Streak</Text>
           </View>
@@ -284,7 +510,7 @@ export default function ProfileScreen() {
               target={locationsCount}
               duration={1000}
               delay={400}
-              style={[Typography.statXL, { color: Colors.accent }]}
+              style={[Typography.statXL, { color: C.accent }]}
             />
             <Text style={styles.statCardLabel}>Locations</Text>
           </View>
@@ -332,7 +558,7 @@ export default function ProfileScreen() {
                       {active && <View style={styles.weekDotInner} />}
                     </View>
                   )}
-                  <Text style={[styles.weekDotLabel, isTodayIdx && { color: Colors.textPrimary }]}>
+                  <Text style={[styles.weekDotLabel, isTodayIdx && { color: C.textPrimary }]}>
                     {DAY_LABELS[i]}
                   </Text>
                 </View>
@@ -341,7 +567,7 @@ export default function ProfileScreen() {
           </View>
           {!todayDone && streakDays > 0 && (
             <View style={styles.reminderBanner}>
-              <Ionicons name="flash" size={14} color={Colors.orange} />
+              <Ionicons name="flash" size={14} color={C.orange} />
               <Text style={styles.reminderText}>
                 Complete 1 mission today to maintain your {streakDays}-day streak
               </Text>
@@ -351,35 +577,57 @@ export default function ProfileScreen() {
 
         <Text style={styles.sectionLabel}>SETTINGS</Text>
 
-        <Pressable style={styles.settingsRow} onPress={handleAutoTrackingToggle}>
-          <View style={[styles.settingsIcon, isAutoTrackingOn && { backgroundColor: Colors.accentSoft, borderColor: Colors.accent }]}>
-            <Ionicons name="star-outline" size={18} color={isAutoTrackingOn ? Colors.accent : Colors.textSecondary} />
+        <Pressable style={styles.settingsRow} onPress={toggleTheme}>
+          <View style={[styles.settingsIcon, !isDark && { backgroundColor: C.accentSoft, borderColor: C.accent }]}>
+            <Ionicons
+              name={isDark ? 'moon-outline' : 'sunny-outline'}
+              size={18}
+              color={isDark ? C.textSecondary : C.accent}
+            />
           </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
-            <Text style={[Typography.bodyBold, { color: Colors.textPrimary }]}>Auto-Tracking</Text>
-            <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
+            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Appearance</Text>
+            <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
+              {isDark ? 'Dark mode' : 'Light mode — Haze'}
+            </Text>
+          </View>
+          <Switch
+            value={!isDark}
+            onValueChange={toggleTheme}
+            trackColor={{ false: C.surface3, true: C.accent }}
+            thumbColor={!isDark ? '#ffffff' : '#c9d2e6'}
+          />
+        </Pressable>
+
+        <Pressable style={[styles.settingsRow, { marginTop: Spacing.sm }]} onPress={handleAutoTrackingToggle}>
+          <View style={[styles.settingsIcon, isAutoTrackingOn && { backgroundColor: C.accentSoft, borderColor: C.accent }]}>
+            <Ionicons name="star-outline" size={18} color={isAutoTrackingOn ? C.accent : C.textSecondary} />
+          </View>
+          <View style={{ flex: 1, marginLeft: Spacing.md }}>
+            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Auto-Tracking</Text>
+            <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
               {isAutoTrackingOn ? 'Missions complete automatically' : 'Tap to enable background location'}
             </Text>
           </View>
           <Switch
             value={isAutoTrackingOn}
             onValueChange={handleAutoTrackingToggle}
-            trackColor={{ false: Colors.surface3, true: Colors.accent }}
+            trackColor={{ false: C.surface3, true: C.accent }}
             thumbColor={isAutoTrackingOn ? '#ffffff' : '#c9d2e6'}
           />
         </Pressable>
 
         <Pressable style={[styles.settingsRow, { marginTop: Spacing.sm }]} onPress={handleLogout}>
           <View style={styles.settingsIcon}>
-            <Ionicons name="log-out-outline" size={18} color={Colors.danger} />
+            <Ionicons name="log-out-outline" size={18} color={C.danger} />
           </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
-            <Text style={[Typography.bodyBold, { color: Colors.textPrimary }]}>Sign Out</Text>
-            <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
+            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Sign Out</Text>
+            <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
               End your current session
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
         </Pressable>
 
         {__DEV__ && (
@@ -387,15 +635,15 @@ export default function ProfileScreen() {
             <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>DEVELOPER</Text>
             <Pressable style={styles.settingsRow} onPress={handleResetStats}>
               <View style={styles.settingsIcon}>
-                <Ionicons name="refresh-outline" size={18} color={Colors.orange} />
+                <Ionicons name="refresh-outline" size={18} color={C.orange} />
               </View>
               <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                <Text style={[Typography.bodyBold, { color: Colors.textPrimary }]}>Reset Stats</Text>
-                <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
+                <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Reset Stats</Text>
+                <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
                   Wipe completed missions, XP and level
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+              <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
             </Pressable>
           </>
         )}
@@ -415,231 +663,3 @@ export default function ProfileScreen() {
     </ScreenContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: Spacing.md,
-  },
-  levelUpPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.accentSoft,
-    borderWidth: 1,
-    borderColor: 'rgba(166, 230, 53, 0.55)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  levelUpPillText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 12,
-    letterSpacing: 1.2,
-    color: Colors.accent,
-  },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-    gap: Spacing.md,
-  },
-  ringWrap: {
-    width: RING_SIZE,
-    height: RING_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringCenter: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  identityInfo: {
-    flex: 1,
-  },
-  tierPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.accentSoft,
-    borderWidth: 1,
-    borderColor: 'rgba(166, 230, 53, 0.55)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginTop: 4,
-  },
-  tierPillText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    color: Colors.accent,
-  },
-  xpBarWrap: {
-    height: 6,
-    backgroundColor: Colors.surface2,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginTop: Spacing.sm,
-  },
-  xpBarFill: {
-    height: '100%',
-    backgroundColor: Colors.accent,
-    borderRadius: 3,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 6,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-  },
-  statCardLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  streakCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    padding: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  streakCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  streakCardTitle: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 12,
-    letterSpacing: 1.4,
-    color: Colors.textSecondary,
-  },
-  todayPendingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(249, 115, 22, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.55)',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  todayPendingFlame: {
-    fontSize: 10,
-  },
-  todayPendingText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 10,
-    letterSpacing: 1.2,
-    color: Colors.orange,
-  },
-  weekDotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: Spacing.md,
-  },
-  weekDotCol: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  weekDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-  },
-  weekDotActive: {
-    backgroundColor: Colors.accentSoft,
-    borderColor: Colors.accent,
-  },
-  weekDotInactive: {
-    backgroundColor: Colors.surface2,
-    borderColor: Colors.border,
-  },
-  weekDotPending: {
-    backgroundColor: 'rgba(249, 115, 22, 0.18)',
-    borderColor: 'rgba(249, 115, 22, 0.55)',
-  },
-  weekDotInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-  },
-  weekDotLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 6,
-    letterSpacing: 0.8,
-  },
-  reminderBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.4)',
-    borderRadius: 12,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 10,
-    marginTop: Spacing.md,
-  },
-  reminderText: {
-    flex: 1,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    color: Colors.orange,
-  },
-  sectionLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.4,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.sm,
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-  },
-  settingsIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: Colors.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-});

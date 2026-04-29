@@ -1,5 +1,5 @@
-import type { MissionTier } from '../types/Mission';
-export { haversineMeters } from '../utils/geo';
+import type { MissionTier } from "../types/Mission";
+export { haversineMeters } from "../utils/geo";
 
 // Must mirror the backend's `XpTiers` section in appsettings.json.
 // Kept in code so the Create-mission UI can show a live preview before the
@@ -20,27 +20,40 @@ const C_GRADIENT_OUTER_BASE_METERS = 22000;
 export const TIER_CONFIG = {
   baseXP: 100,
   tiers: [
-    { tier: 'A' as MissionTier, upperBoundMeters: A_BOUND_BASE_METERS * TIER_TEST_SCALE, multiplier: 1.0 },
-    { tier: 'B' as MissionTier, upperBoundMeters: B_BOUND_BASE_METERS * TIER_TEST_SCALE, multiplier: 1.5 },
-    { tier: 'C' as MissionTier, upperBoundMeters: null as number | null, multiplier: 2.0 },
+    {
+      tier: "A" as MissionTier,
+      upperBoundMeters: A_BOUND_BASE_METERS * TIER_TEST_SCALE,
+      multiplier: 1.0,
+    },
+    {
+      tier: "B" as MissionTier,
+      upperBoundMeters: B_BOUND_BASE_METERS * TIER_TEST_SCALE,
+      multiplier: 1.5,
+    },
+    {
+      tier: "C" as MissionTier,
+      upperBoundMeters: null as number | null,
+      multiplier: 2.0,
+    },
   ],
 } as const;
 
-// Tier accent colors. TEST palette is the active one; ORIGINAL is preserved for
-// quick dev switching. Swap the TIER_COLORS export below to flip every screen at once.
-export const TIER_COLORS_ORIGINAL: Record<MissionTier, string> = {
-  A: '#a6e635',
-  B: '#22D3EE',
-  C: '#A855F7',
+// Tier accent colors — themed. Use `useTierColors()` from ThemeContext to pick
+// the right palette at runtime; raw exports stay for non-React call sites.
+export const TIER_COLORS_DARK: Record<MissionTier, string> = {
+  A: "#25ff8f",
+  B: "#2ae3ff",
+  C: "#c64bff",
 };
 
-export const TIER_COLORS_TEST: Record<MissionTier, string> = {
-  A: '#4de697',
-  B: '#3577d6',
-  C: '#685acb',
+export const TIER_COLORS_LIGHT: Record<MissionTier, string> = {
+  A: "#16c26a",
+  B: "#2060ff",
+  C: "#b030f0",
 };
 
-export const TIER_COLORS: Record<MissionTier, string> = TIER_COLORS_TEST;
+// Backward-compatible default (dark)
+export const TIER_COLORS: Record<MissionTier, string> = TIER_COLORS_DARK;
 
 // Visual-only constants for the tier zones overlay on the Choose-Location map.
 // Label offsets sit just outside each border so the overlay stays legible at
@@ -93,4 +106,3 @@ export function cTierThresholdLabel(): string {
   }
   return `${Math.round(meters)} m+`;
 }
-

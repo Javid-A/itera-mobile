@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Animated,
   Pressable,
@@ -8,8 +9,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { GestureResponderHandlers } from "react-native";
-import { Colors, Spacing, Typography } from "../../constants";
-import { TIER_COLORS } from "../../config/tierConfig";
+import { Spacing, Typography } from "../../constants";
+import { useTheme, useTierColors } from "../../context/ThemeContext";
+import type { ColorScheme } from "../../constants/colors";
 import type { Mission } from "../../types/Mission";
 
 interface Props {
@@ -31,6 +33,112 @@ export const SHEET_HEIGHTS = {
   expanded: SHEET_EXPANDED_HEIGHT,
 };
 
+// Light-mode sheet uses the lavender surface so it doesn't feel like a dark
+// modal punched out of a light app; dark-mode keeps the original deep-navy.
+function sheetBackground(C: ColorScheme, isDark: boolean): string {
+  return isDark ? "rgba(6, 7, 14, 0.96)" : C.surface;
+}
+
+function makeStyles(C: ColorScheme, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: SHEET_COLLAPSED_HEIGHT,
+      backgroundColor: "#000",
+      zIndex: 20,
+      elevation: 20,
+    },
+    sheet: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: SHEET_EXPANDED_HEIGHT,
+      backgroundColor: sheetBackground(C, isDark),
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: C.borderBright,
+      zIndex: 25,
+      elevation: 25,
+    },
+    sheetHeader: {
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.sm,
+      paddingBottom: Spacing.sm,
+    },
+    sheetHandle: {
+      width: 40,
+      height: 4,
+      backgroundColor: C.muted,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginBottom: Spacing.sm,
+    },
+    sheetTitleRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    countPill: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 20,
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+    },
+    sheetList: {
+      flex: 1,
+    },
+    emptySheet: {
+      padding: Spacing.xl,
+      alignItems: "center",
+    },
+    missionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 12,
+    },
+    missionRowBorder: {
+      borderTopWidth: 1,
+      borderTopColor: C.border,
+    },
+    missionIconWrap: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 14,
+      borderWidth: 1,
+    },
+    missionIconDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: C.accent,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 6,
+    },
+    missionInfo: {
+      flex: 1,
+    },
+    deleteMissionBtn: {
+      marginLeft: Spacing.sm,
+      padding: 4,
+    },
+  });
+}
+
 export default function MissionsBottomSheet({
   missions,
   sheetY,
@@ -41,6 +149,9 @@ export default function MissionsBottomSheet({
   onMissionPress,
   onMissionDelete,
 }: Props) {
+  const { colors: C, isDark } = useTheme();
+  const tierColors = useTierColors();
+  const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
   const activeMissions = missions.filter((m) => m.status !== "completed");
 
   return (
@@ -58,11 +169,11 @@ export default function MissionsBottomSheet({
         <View style={styles.sheetHeader} {...panHandlers}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetTitleRow}>
-            <Text style={[Typography.displaySM, { color: Colors.textPrimary }]}>
+            <Text style={[Typography.displaySM, { color: C.textPrimary }]}>
               Active Missions
             </Text>
             <View style={styles.countPill}>
-              <Text style={[Typography.label, { color: Colors.accent }]}>
+              <Text style={[Typography.label, { color: C.accent }]}>
                 {activeMissions.length} ACTIVE
               </Text>
             </View>
@@ -78,7 +189,7 @@ export default function MissionsBottomSheet({
               <Text
                 style={[
                   Typography.body,
-                  { color: Colors.textSecondary, textAlign: "center" },
+                  { color: C.textSecondary, textAlign: "center" },
                 ]}
               >
                 No missions yet. Tap the + button to add your first.
@@ -86,7 +197,7 @@ export default function MissionsBottomSheet({
             </View>
           ) : (
             activeMissions.map((mission, i) => {
-              const tierColor = TIER_COLORS[mission.tier] ?? Colors.accent;
+              const tierColor = tierColors[mission.tier] ?? C.accent;
               return (
                 <Pressable
                   key={mission.id}
@@ -113,7 +224,7 @@ export default function MissionsBottomSheet({
                     <Text
                       style={[
                         Typography.bodyMedium,
-                        { color: Colors.textPrimary },
+                        { color: C.textPrimary },
                       ]}
                       numberOfLines={1}
                     >
@@ -122,7 +233,7 @@ export default function MissionsBottomSheet({
                     <Text
                       style={[
                         Typography.caption,
-                        { color: Colors.textSecondary },
+                        { color: C.textSecondary },
                       ]}
                       numberOfLines={1}
                     >
@@ -140,7 +251,7 @@ export default function MissionsBottomSheet({
                     <Ionicons
                       name="trash-outline"
                       size={16}
-                      color={Colors.textSecondary}
+                      color={C.textSecondary}
                     />
                   </Pressable>
                 </Pressable>
@@ -152,101 +263,3 @@ export default function MissionsBottomSheet({
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: SHEET_COLLAPSED_HEIGHT,
-    backgroundColor: "#000",
-    zIndex: 20,
-    elevation: 20,
-  },
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_EXPANDED_HEIGHT,
-    backgroundColor: "rgba(6, 7, 14, 0.96)",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: Colors.borderBright,
-    zIndex: 25,
-    elevation: 25,
-  },
-  sheetHeader: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.sm,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: Colors.muted,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: Spacing.sm,
-  },
-  sheetTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  countPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-    backgroundColor: "rgba(141, 232, 58, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(141, 232, 58, 0.4)",
-  },
-  sheetList: {
-    flex: 1,
-  },
-  emptySheet: {
-    padding: Spacing.xl,
-    alignItems: "center",
-  },
-  missionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
-  },
-  missionRowBorder: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  missionIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-    borderWidth: 1,
-  },
-  missionIconDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-  },
-  missionInfo: {
-    flex: 1,
-  },
-  deleteMissionBtn: {
-    marginLeft: Spacing.sm,
-    padding: 4,
-  },
-});

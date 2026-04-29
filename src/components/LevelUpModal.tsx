@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Dimensions, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography } from '../constants';
+import { Spacing, Typography } from '../constants';
+import { useTheme } from '../context/ThemeContext';
+import type { ColorScheme } from '../constants/colors';
 import XPCountUp from './XPCountUp';
 
 interface Props {
@@ -18,7 +20,6 @@ const CENTER_Y = 230;
 
 const RING_SIZES = [280, 220, 170, 120];
 const STATIC_RING_SIZES = [320, 260];
-const PARTICLE_COLORS = [Colors.accent, Colors.accent, Colors.accent, Colors.orange, Colors.blue, '#ffffff'];
 
 interface Particle {
   id: number;
@@ -32,7 +33,7 @@ interface Particle {
   dy: number;
 }
 
-function generateParticles(): Particle[] {
+function generateParticles(palette: string[]): Particle[] {
   return Array.from({ length: 24 }, (_, i) => {
     const angle = -180 + Math.random() * 360;
     const rad = (angle * Math.PI) / 180;
@@ -42,7 +43,7 @@ function generateParticles(): Particle[] {
       startX: CENTER_X + (Math.random() - 0.5) * 80,
       startY: CENTER_Y,
       size: 2 + Math.random() * 4,
-      color: PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)],
+      color: palette[Math.floor(Math.random() * palette.length)],
       delay: Math.random() * 700,
       duration: 1400 + Math.random() * 800,
       dx: Math.sin(rad) * dist,
@@ -94,7 +95,7 @@ function ParticleDot({ p, runKey }: { p: Particle; runKey: number }) {
   );
 }
 
-function PulseRing({ size, delay }: { size: number; delay: number }) {
+function PulseRing({ size, delay, ringStyle }: { size: number; delay: number; ringStyle: any }) {
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -121,7 +122,7 @@ function PulseRing({ size, delay }: { size: number; delay: number }) {
     <Animated.View
       pointerEvents="none"
       style={[
-        styles.ring,
+        ringStyle,
         {
           width: size,
           height: size,
@@ -136,7 +137,7 @@ function PulseRing({ size, delay }: { size: number; delay: number }) {
   );
 }
 
-function TwinkleDot({ x, y, delay }: { x: number; y: number; delay: number }) {
+function TwinkleDot({ x, y, delay, twinkleStyle }: { x: number; y: number; delay: number; twinkleStyle: any }) {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -154,22 +155,198 @@ function TwinkleDot({ x, y, delay }: { x: number; y: number; delay: number }) {
     <Animated.View
       pointerEvents="none"
       style={[
-        styles.twinkle,
+        twinkleStyle,
         { left: x, top: y, opacity },
       ]}
     />
   );
 }
 
-export default function LevelUpModal({ visible, level, earnedXP, onClose }: Props) {
-  const particles = useMemo(generateParticles, []);
-  const runKey = useRef(0);
-  if (visible) runKey.current += 0; // capture but reset on remount via key
+function hexToRgba(hex: string, alpha: number): string {
+  if (!hex.startsWith('#') || hex.length !== 7) return hex;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
-  // Center icon: self-glow (opacity+scale) + float
+function makeStyles(C: ColorScheme, isDark: boolean) {
+  const overlayBg = isDark ? '#07080f' : C.background;
+  const bgGlowBg = isDark ? '#0c1520' : C.surface2;
+  const ringBorder = hexToRgba(C.accent, 0.4);
+  const staticRing0 = hexToRgba(C.accent, 0.04);
+  const staticRing1 = hexToRgba(C.accent, 0.07);
+  const iconBoxBg = hexToRgba(C.accent, 0.18);
+  // Reward kart arka planı: dark'ta orijinal lacivert şeffaflık, light'ta surface üstü ince border.
+  const rewardCardBg = isDark ? 'rgba(13, 17, 32, 0.85)' : C.surface;
+
+  return {
+    styles: StyleSheet.create({
+      overlay: {
+        flex: 1,
+        backgroundColor: overlayBg,
+        overflow: 'hidden',
+      },
+      bgGlow: {
+        position: 'absolute',
+        top: -100,
+        left: -100,
+        right: -100,
+        bottom: -100,
+        backgroundColor: bgGlowBg,
+        opacity: 0.5,
+        borderRadius: 800,
+      },
+      content: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: Spacing.xl,
+        gap: Spacing.lg,
+      },
+      ring: {
+        position: 'absolute',
+        left: CENTER_X,
+        top: CENTER_Y,
+        borderWidth: 1.5,
+        borderColor: ringBorder,
+      },
+      staticRing0: {
+        position: 'absolute',
+        left: CENTER_X,
+        top: CENTER_Y,
+        borderWidth: 1,
+        borderColor: staticRing0,
+      },
+      staticRing1: {
+        position: 'absolute',
+        left: CENTER_X,
+        top: CENTER_Y,
+        borderWidth: 1,
+        borderColor: staticRing1,
+      },
+      twinkle: {
+        position: 'absolute',
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: C.accent,
+        shadowColor: C.accent,
+        shadowOpacity: 1,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 0 },
+      },
+      iconBox: {
+        width: 100,
+        height: 100,
+        borderRadius: 28,
+        backgroundColor: iconBoxBg,
+        borderWidth: 2.5,
+        borderColor: C.accent,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: C.accent,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.7,
+        shadowRadius: 24,
+        elevation: 16,
+      },
+      congrats: {
+        fontFamily: 'Rajdhani_700Bold',
+        fontSize: 11,
+        letterSpacing: 4,
+        color: C.textSecondary,
+        marginTop: Spacing.lg,
+      },
+      bigTitle: {
+        fontFamily: 'Rajdhani_700Bold',
+        fontSize: 64,
+        letterSpacing: -1,
+        color: C.accent,
+        marginTop: Spacing.xs,
+        textShadowColor: C.accent,
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 16,
+        lineHeight: 64,
+      },
+      reachedText: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: 15,
+        color: C.textSecondary,
+        marginTop: Spacing.sm,
+      },
+      rewardRow: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+        width: '100%',
+      },
+      rewardCard: {
+        flex: 1,
+        backgroundColor: rewardCardBg,
+        borderWidth: 1,
+        borderColor: C.borderBright,
+        borderRadius: 18,
+        paddingVertical: Spacing.md,
+        alignItems: 'center',
+        shadowColor: C.accent,
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 0 },
+      },
+      rewardValue: {
+        fontFamily: 'Rajdhani_700Bold',
+        fontSize: 26,
+        color: C.accent,
+        textShadowColor: C.accent,
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 10,
+      },
+      rewardLabel: {
+        fontFamily: 'Rajdhani_700Bold',
+        fontSize: 10,
+        letterSpacing: 1.2,
+        color: C.textSecondary,
+        marginTop: 4,
+      },
+      cta: {
+        width: '100%',
+        height: 56,
+        borderRadius: 18,
+        backgroundColor: C.accent,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: Spacing.md,
+        shadowColor: C.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.5,
+        shadowRadius: 22,
+        elevation: 10,
+      },
+      backLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: Spacing.xs,
+      },
+    }),
+    iconFill: hexToRgba(C.accent, 0.18),
+  };
+}
+
+export default function LevelUpModal({ visible, level, earnedXP, onClose }: Props) {
+  const { colors: C, isDark } = useTheme();
+  const { styles, iconFill } = useMemo(() => makeStyles(C, isDark), [C, isDark]);
+
+  const particlePalette = useMemo(
+    () => [C.accent, C.accent, C.accent, C.orange, C.blue, isDark ? '#ffffff' : C.textPrimary],
+    [C, isDark],
+  );
+  const particles = useMemo(() => generateParticles(particlePalette), [particlePalette]);
+  const runKey = useRef(0);
+  if (visible) runKey.current += 0;
+
   const iconGlow = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
-  // Title shimmer
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -212,45 +389,39 @@ export default function LevelUpModal({ visible, level, earnedXP, onClose }: Prop
       <View style={styles.overlay}>
         <View style={styles.bgGlow} />
 
-        {/* Particles */}
         {particles.map((p) => (
           <ParticleDot key={p.id} p={p} runKey={runKey.current} />
         ))}
 
-        {/* Static decorative rings */}
         {STATIC_RING_SIZES.map((size, i) => (
           <View
             key={`s${i}`}
             pointerEvents="none"
             style={[
-              styles.staticRing,
+              i === 0 ? styles.staticRing0 : styles.staticRing1,
               {
                 width: size,
                 height: size,
                 borderRadius: size / 2,
                 marginLeft: -size / 2,
                 marginTop: -size / 2,
-                borderColor: i === 0 ? 'rgba(166, 230, 53, 0.04)' : 'rgba(166, 230, 53, 0.07)',
               },
             ]}
           />
         ))}
 
-        {/* Pulse rings */}
         {RING_SIZES.map((size, i) => (
-          <PulseRing key={`p${i}`} size={size} delay={i * 500} />
+          <PulseRing key={`p${i}`} size={size} delay={i * 500} ringStyle={styles.ring} />
         ))}
 
-        {/* Twinkle dots */}
-        <TwinkleDot x={20} y={120} delay={0} />
-        <TwinkleDot x={SCREEN_W - 30} y={90} delay={200} />
-        <TwinkleDot x={10} y={300} delay={400} />
-        <TwinkleDot x={SCREEN_W - 25} y={310} delay={600} />
-        <TwinkleDot x={30} y={520} delay={800} />
-        <TwinkleDot x={SCREEN_W - 40} y={500} delay={1000} />
+        <TwinkleDot x={20} y={120} delay={0} twinkleStyle={styles.twinkle} />
+        <TwinkleDot x={SCREEN_W - 30} y={90} delay={200} twinkleStyle={styles.twinkle} />
+        <TwinkleDot x={10} y={300} delay={400} twinkleStyle={styles.twinkle} />
+        <TwinkleDot x={SCREEN_W - 25} y={310} delay={600} twinkleStyle={styles.twinkle} />
+        <TwinkleDot x={30} y={520} delay={800} twinkleStyle={styles.twinkle} />
+        <TwinkleDot x={SCREEN_W - 40} y={500} delay={1000} twinkleStyle={styles.twinkle} />
 
         <View style={styles.content}>
-          {/* Center glowing icon */}
           <Animated.View
             style={[
               styles.iconBox,
@@ -263,27 +434,25 @@ export default function LevelUpModal({ visible, level, earnedXP, onClose }: Prop
             <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
               <Path
                 d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
-                stroke={Colors.accent}
+                stroke={C.accent}
                 strokeWidth={1.6}
-                fill="rgba(166, 230, 53, 0.18)"
+                fill={iconFill}
               />
               <Path
                 d="M12 8v4l3 2"
-                stroke={Colors.accent}
+                stroke={C.accent}
                 strokeWidth={1.6}
                 strokeLinecap="round"
               />
             </Svg>
           </Animated.View>
 
-          {/* Title */}
           <Animated.Text style={[styles.congrats, { opacity: titleOpacity }]}>CONGRATULATIONS</Animated.Text>
           <Text style={styles.bigTitle}>LEVEL UP!</Text>
           <Text style={styles.reachedText}>
-            You reached <Text style={{ color: Colors.accent, fontFamily: 'Inter_700Bold' }}>Level {level}</Text>
+            You reached <Text style={{ color: C.accent, fontFamily: 'Inter_700Bold' }}>Level {level}</Text>
           </Text>
 
-          {/* Reward cards with count-up */}
           <View style={styles.rewardRow}>
             <View style={styles.rewardCard}>
               <XPCountUp
@@ -300,165 +469,24 @@ export default function LevelUpModal({ visible, level, earnedXP, onClose }: Prop
                 target={level}
                 duration={1100}
                 delay={500}
-                style={[styles.rewardValue, { color: Colors.textPrimary }]}
+                style={[styles.rewardValue, { color: C.textPrimary }]}
               />
               <Text style={styles.rewardLabel}>NEW LEVEL</Text>
             </View>
           </View>
 
           <Pressable style={styles.cta} onPress={onClose}>
-            <Text style={[Typography.cta, { color: Colors.background, fontSize: 18, letterSpacing: 2 }]}>
+            <Text style={[Typography.cta, { color: C.background, fontSize: 18, letterSpacing: 2 }]}>
               CONTINUE →
             </Text>
           </Pressable>
 
           <Pressable style={styles.backLink} onPress={onClose}>
-            <Ionicons name="arrow-back" size={14} color={Colors.textSecondary} />
-            <Text style={[Typography.body, { color: Colors.textSecondary }]}>Back to Map</Text>
+            <Ionicons name="arrow-back" size={14} color={C.textSecondary} />
+            <Text style={[Typography.body, { color: C.textSecondary }]}>Back to Map</Text>
           </Pressable>
         </View>
       </View>
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: '#07080f',
-    overflow: 'hidden',
-  },
-  bgGlow: {
-    position: 'absolute',
-    top: -100,
-    left: -100,
-    right: -100,
-    bottom: -100,
-    backgroundColor: '#0c1520',
-    opacity: 0.5,
-    borderRadius: 800,
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.lg,
-  },
-  ring: {
-    position: 'absolute',
-    left: CENTER_X,
-    top: CENTER_Y,
-    borderWidth: 1.5,
-    borderColor: 'rgba(166, 230, 53, 0.4)',
-  },
-  staticRing: {
-    position: 'absolute',
-    left: CENTER_X,
-    top: CENTER_Y,
-    borderWidth: 1,
-  },
-  twinkle: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  iconBox: {
-    width: 100,
-    height: 100,
-    borderRadius: 28,
-    backgroundColor: 'rgba(166, 230, 53, 0.18)',
-    borderWidth: 2.5,
-    borderColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 24,
-    elevation: 16,
-  },
-  congrats: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 4,
-    color: Colors.textSecondary,
-    marginTop: Spacing.lg,
-  },
-  bigTitle: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 64,
-    letterSpacing: -1,
-    color: Colors.accent,
-    marginTop: Spacing.xs,
-    textShadowColor: Colors.accent,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 16,
-    lineHeight: 64,
-  },
-  reachedText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 15,
-    color: Colors.textSecondary,
-    marginTop: Spacing.sm,
-  },
-  rewardRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    width: '100%',
-  },
-  rewardCard: {
-    flex: 1,
-    backgroundColor: 'rgba(13, 17, 32, 0.85)',
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    borderRadius: 18,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    shadowColor: Colors.accent,
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  rewardValue: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 26,
-    color: Colors.accent,
-    textShadowColor: Colors.accent,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
-  rewardLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 10,
-    letterSpacing: 1.2,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  cta: {
-    width: '100%',
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.md,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 22,
-    elevation: 10,
-  },
-  backLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: Spacing.xs,
-  },
-});

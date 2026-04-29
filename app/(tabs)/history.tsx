@@ -4,15 +4,15 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenContainer from '../../src/components/ScreenContainer';
 import RouteMapModal from '../../src/components/RouteMapModal';
-import { Colors, Spacing, Typography } from '../../src/constants';
+import { Spacing, Typography } from '../../src/constants';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useDaySummary } from '../../src/state/queries/useDaySummary';
 import type { DayMission } from '../../src/types/DayMission';
 import type { DaySummary } from '../../src/types/DaySummary';
+import type { ColorScheme } from '../../src/constants/colors';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-// Server returns "yyyy-MM-dd" — parse as local-calendar date so passing it to RouteMapModal /
-// label formatters renders the same day the server intended, regardless of device TZ.
 function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
@@ -25,9 +25,6 @@ function formatTime(iso: string): string {
   });
 }
 
-// Section label is derived from the date itself, not hardcoded — so when the app sits open
-// across midnight and refetches, "TODAY" and "YESTERDAY" shift correctly, and any future
-// section (e.g. a deeper history view) gets a sensible label automatically.
 function formatSectionLabel(sectionDate: string, todayDate: string): string {
   if (sectionDate === todayDate) return 'TODAY';
   const today = parseLocalDate(todayDate);
@@ -49,7 +46,277 @@ interface MissionRowData {
   status: 'completed' | 'pending' | 'missed';
 }
 
-function MissionCard({ row }: { row: MissionRowData }) {
+function makeStyles(C: ColorScheme) {
+  // Helpers for status-tinted alpha colors derived from the active palette
+  const dangerSoft = hexToRgba(C.danger, 0.18);
+  const dangerBorder = hexToRgba(C.danger, 0.55);
+  const dangerCardBorder = hexToRgba(C.danger, 0.35);
+  const orangeBorderStrong = hexToRgba(C.orange, 0.5);
+  const orangeCardBorder = hexToRgba(C.orange, 0.35);
+
+  return StyleSheet.create({
+    weekChipRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: Spacing.sm,
+    },
+    weekChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    weekChipText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      letterSpacing: 1.2,
+      color: C.accent,
+    },
+    chartCard: {
+      backgroundColor: C.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.md,
+      marginTop: Spacing.md,
+    },
+    chartHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+    },
+    chartTitle: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+    },
+    chartBars: {
+      flexDirection: 'row',
+      height: 150,
+      alignItems: 'flex-end',
+      marginTop: Spacing.md,
+      gap: 6,
+    },
+    chartBarCol: {
+      flex: 1,
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      position: 'relative',
+    },
+    chartBarValueContainer: {
+      height: 16,
+      justifyContent: 'flex-end',
+      marginBottom: 4,
+    },
+    chartBarValue: {
+      fontFamily: 'Rajdhani_600SemiBold',
+      fontSize: 10,
+      color: C.textSecondary,
+      textAlign: 'center',
+    },
+    chartBarStackWrapper: {
+      flex: 1,
+      width: '100%',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+    },
+    chartBarStack: {
+      width: '78%',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+    },
+    chartBar: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: C.accentDim,
+      borderRadius: 4,
+    },
+    chartBarToday: {
+      backgroundColor: C.accent,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.7,
+      shadowRadius: 10,
+    },
+    chartBarEmpty: {
+      backgroundColor: C.border,
+      height: 4,
+    },
+    chartBarLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      color: C.textSecondary,
+      marginTop: 6,
+    },
+    todayDot: {
+      position: 'absolute',
+      bottom: -10,
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: C.accent,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    sectionLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    sectionLabel: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 12,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+    },
+    progressPill: {
+      backgroundColor: dangerSoft,
+      borderWidth: 1,
+      borderColor: dangerBorder,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    progressPillDone: {
+      backgroundColor: C.accentSoft,
+      borderColor: C.accentBorder,
+    },
+    progressPillText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      color: C.danger,
+    },
+    routeMapButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+      backgroundColor: C.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+    routeMapButtonText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      letterSpacing: 1.2,
+      color: C.accent,
+    },
+    sectionDivider: {
+      height: 2,
+      backgroundColor: C.accentBorder,
+      marginTop: Spacing.sm,
+      borderRadius: 2,
+    },
+    missionCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      padding: Spacing.md,
+      gap: Spacing.md,
+      overflow: 'hidden',
+    },
+    missionCardMissed: {
+      borderColor: dangerCardBorder,
+    },
+    missionCardPending: {
+      borderColor: orangeCardBorder,
+    },
+    missionAccent: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 3,
+      backgroundColor: C.accent,
+    },
+    missionIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+    },
+    missionIconCompleted: {
+      borderColor: C.accentBorder,
+      backgroundColor: C.accentSoft,
+    },
+    missionIconMissed: {
+      borderColor: dangerBorder,
+      backgroundColor: dangerSoft,
+    },
+    missionIconPending: {
+      borderColor: orangeBorderStrong,
+      backgroundColor: C.orangeSubtle,
+    },
+    missedPill: {
+      backgroundColor: dangerSoft,
+      borderWidth: 1,
+      borderColor: dangerBorder,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    missedPillText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      letterSpacing: 1,
+      color: C.danger,
+    },
+    pendingPill: {
+      backgroundColor: C.orangeSubtle,
+      borderWidth: 1,
+      borderColor: orangeBorderStrong,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    pendingPillText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 11,
+      letterSpacing: 1,
+      color: C.orange,
+    },
+    empty: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: Spacing.xxl,
+    },
+    emptyAction: {
+      marginTop: Spacing.md,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+    },
+  });
+}
+
+// Convert "#rrggbb" to rgba(r,g,b,a). Falls back to the input string for any
+// non-hex value (rgba/named) so callers can pass already-tinted tokens through.
+function hexToRgba(hex: string, alpha: number): string {
+  if (!hex.startsWith('#') || hex.length !== 7) return hex;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function MissionCard({ row, C, styles }: { row: MissionRowData; C: ColorScheme; styles: ReturnType<typeof makeStyles> }) {
   const missed = row.status === 'missed';
   const pending = row.status === 'pending';
   return (
@@ -63,31 +330,27 @@ function MissionCard({ row }: { row: MissionRowData }) {
       <View
         style={[
           styles.missionAccent,
-          missed && { backgroundColor: Colors.danger },
-          pending && { backgroundColor: Colors.orange },
+          missed && { backgroundColor: C.danger },
+          pending && { backgroundColor: C.orange },
         ]}
       />
       <View
         style={[
           styles.missionIcon,
-          missed
-            ? { borderColor: 'rgba(239, 68, 68, 0.6)', backgroundColor: 'rgba(239, 68, 68, 0.12)' }
-            : pending
-            ? { borderColor: 'rgba(249, 115, 22, 0.6)', backgroundColor: 'rgba(249, 115, 22, 0.12)' }
-            : { borderColor: 'rgba(166, 230, 53, 0.55)', backgroundColor: Colors.accentSoft },
+          missed ? styles.missionIconMissed : pending ? styles.missionIconPending : styles.missionIconCompleted,
         ]}
       >
         <Ionicons
           name={missed ? 'alert-circle-outline' : pending ? 'time-outline' : 'checkmark'}
           size={20}
-          color={missed ? Colors.danger : pending ? Colors.orange : Colors.accent}
+          color={missed ? C.danger : pending ? C.orange : C.accent}
         />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[Typography.bodyBold, { color: Colors.textPrimary }]} numberOfLines={1}>
+        <Text style={[Typography.bodyBold, { color: C.textPrimary }]} numberOfLines={1}>
           {row.name}
         </Text>
-        <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+        <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]} numberOfLines={1}>
           {missed
             ? `${row.location} · Not completed`
             : pending
@@ -105,8 +368,8 @@ function MissionCard({ row }: { row: MissionRowData }) {
         </View>
       ) : (
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[Typography.statMD, { color: Colors.accent }]}>+{row.xp}</Text>
-          <Text style={[Typography.label, { color: Colors.textSecondary, marginTop: -2 }]}>XP</Text>
+          <Text style={[Typography.statMD, { color: C.accent }]}>+{row.xp}</Text>
+          <Text style={[Typography.label, { color: C.textSecondary, marginTop: -2 }]}>XP</Text>
         </View>
       )}
     </View>
@@ -125,8 +388,11 @@ interface DaySection {
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const { colors: C } = useTheme();
   const { data: summary } = useDaySummary();
   const [routeMapSection, setRouteMapSection] = useState<{ date: Date; dayMissions: DayMission[] } | null>(null);
+
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const { weekTotals, weekTotalXP, todaySection, yesterdaySection, todayIndex } = useMemo(() => {
     if (!summary) {
@@ -223,8 +489,6 @@ export default function HistoryScreen() {
 
   const renderSection = (section: DaySection | null, isToday: boolean) => {
     if (!section) return null;
-    // Past-day sections collapse when empty so we don't show empty "YESTERDAY" cards.
-    // Today always renders so the user sees the empty-state copy.
     if (!isToday && section.rows.length === 0) return null;
     return (
       <View style={{ marginTop: Spacing.lg }}>
@@ -243,7 +507,7 @@ export default function HistoryScreen() {
                 style={[
                   styles.progressPillText,
                   section.done === section.total && section.total > 0
-                    ? { color: Colors.accent }
+                    ? { color: C.accent }
                     : undefined,
                 ]}
               >
@@ -255,18 +519,18 @@ export default function HistoryScreen() {
             style={styles.routeMapButton}
             onPress={() => setRouteMapSection({ date: section.date, dayMissions: section.dayMissions })}
           >
-            <Ionicons name="git-network-outline" size={14} color={Colors.accent} />
+            <Ionicons name="git-network-outline" size={14} color={C.accent} />
             <Text style={styles.routeMapButtonText}>ROUTE MAP</Text>
           </Pressable>
         </View>
         <View style={styles.sectionDivider} />
         <View style={{ marginTop: Spacing.sm, gap: Spacing.sm }}>
           {section.rows.length === 0 ? (
-            <Text style={[Typography.body, { color: Colors.textSecondary, textAlign: 'center', padding: Spacing.md }]}>
+            <Text style={[Typography.body, { color: C.textSecondary, textAlign: 'center', padding: Spacing.md }]}>
               No missions today yet.
             </Text>
           ) : (
-            section.rows.map((row) => <MissionCard key={row.id} row={row} />)
+            section.rows.map((row) => <MissionCard key={row.id} row={row} C={C} styles={styles} />)
           )}
         </View>
       </View>
@@ -279,23 +543,22 @@ export default function HistoryScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: Spacing.xxl, paddingTop: Spacing.md }}
       >
-        <Text style={[Typography.displayXL, { color: Colors.textPrimary }]}>Mission Log</Text>
+        <Text style={[Typography.displayXL, { color: C.textPrimary }]}>Mission Log</Text>
 
         <View style={styles.weekChipRow}>
           <View style={styles.weekChip}>
-            <Ionicons name="arrow-up" size={11} color={Colors.accent} />
+            <Ionicons name="arrow-up" size={11} color={C.accent} />
             <Text style={styles.weekChipText}>THIS WEEK</Text>
           </View>
-          <Text style={[Typography.body, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>
+          <Text style={[Typography.body, { color: C.textSecondary, marginLeft: Spacing.sm }]}>
             {weekTotalXP.toLocaleString()} XP earned
           </Text>
         </View>
 
-        {/* Weekly bar chart */}
         <View style={styles.chartCard}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>THIS WEEK</Text>
-            <Text style={[Typography.statMD, { color: Colors.accent }]}>
+            <Text style={[Typography.statMD, { color: C.accent }]}>
               {weekTotalXP.toLocaleString()} XP
             </Text>
           </View>
@@ -307,7 +570,7 @@ export default function HistoryScreen() {
                 <View key={i} style={styles.chartBarCol}>
                   <View style={styles.chartBarValueContainer}>
                     {xp > 0 && (
-                      <Text style={[styles.chartBarValue, isToday && { color: Colors.accent }]}>{xp}</Text>
+                      <Text style={[styles.chartBarValue, isToday && { color: C.accent }]}>{xp}</Text>
                     )}
                   </View>
                   <View style={styles.chartBarStackWrapper}>
@@ -325,7 +588,7 @@ export default function HistoryScreen() {
                       )}
                     </View>
                   </View>
-                  <Text style={[styles.chartBarLabel, isToday && { color: Colors.accent }]}>{DAY_LABELS[i]}</Text>
+                  <Text style={[styles.chartBarLabel, isToday && { color: C.accent }]}>{DAY_LABELS[i]}</Text>
                   {isToday && <View style={styles.todayDot} />}
                 </View>
               );
@@ -338,12 +601,12 @@ export default function HistoryScreen() {
 
         {summary !== null && todaySection?.total === 0 && yesterdaySection?.total === 0 && (
           <View style={styles.empty}>
-            <Ionicons name="map-outline" size={48} color={Colors.border} style={{ marginBottom: Spacing.md }} />
-            <Text style={[Typography.bodyLg, { color: Colors.textSecondary, textAlign: 'center' }]}>
+            <Ionicons name="map-outline" size={48} color={C.border} style={{ marginBottom: Spacing.md }} />
+            <Text style={[Typography.bodyLg, { color: C.textSecondary, textAlign: 'center' }]}>
               No completed missions yet.
             </Text>
             <Pressable onPress={() => router.push('/(tabs)/map')} style={styles.emptyAction}>
-              <Text style={[Typography.cta, { color: Colors.accent, fontSize: 13 }]}>GO TO MAP →</Text>
+              <Text style={[Typography.cta, { color: C.accent, fontSize: 13 }]}>GO TO MAP →</Text>
             </Pressable>
           </View>
         )}
@@ -358,242 +621,3 @@ export default function HistoryScreen() {
     </ScreenContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  weekChipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-  },
-  weekChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.accentSoft,
-    borderWidth: 1,
-    borderColor: 'rgba(166, 230, 53, 0.45)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  weekChipText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.2,
-    color: Colors.accent,
-  },
-  chartCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  chartTitle: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.4,
-    color: Colors.textSecondary,
-  },
-  chartBars: {
-    flexDirection: 'row',
-    height: 150,
-    alignItems: 'flex-end',
-    marginTop: Spacing.md,
-    gap: 6,
-  },
-  chartBarCol: {
-    flex: 1,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    position: 'relative',
-  },
-  chartBarValueContainer: {
-    height: 16,
-    justifyContent: 'flex-end',
-    marginBottom: 4,
-  },
-  chartBarValue: {
-    fontFamily: 'Rajdhani_600SemiBold',
-    fontSize: 10,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  chartBarStackWrapper: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  chartBarStack: {
-    width: '78%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  chartBar: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(166, 230, 53, 0.45)',
-    borderRadius: 4,
-  },
-  chartBarToday: {
-    backgroundColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 10,
-  },
-  chartBarEmpty: {
-    backgroundColor: Colors.border,
-    height: 4,
-  },
-  chartBarLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 6,
-  },
-  todayDot: {
-    position: 'absolute',
-    bottom: -10,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.accent,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  sectionLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 12,
-    letterSpacing: 1.4,
-    color: Colors.textSecondary,
-  },
-  progressPill: {
-    backgroundColor: 'rgba(239, 68, 68, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.55)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  progressPillDone: {
-    backgroundColor: Colors.accentSoft,
-    borderColor: 'rgba(166, 230, 53, 0.55)',
-  },
-  progressPillText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    color: Colors.danger,
-  },
-  routeMapButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(166, 230, 53, 0.55)',
-    backgroundColor: Colors.accentSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  routeMapButtonText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.2,
-    color: Colors.accent,
-  },
-  sectionDivider: {
-    height: 2,
-    backgroundColor: 'rgba(166, 230, 53, 0.55)',
-    marginTop: Spacing.sm,
-    borderRadius: 2,
-  },
-  missionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    padding: Spacing.md,
-    gap: Spacing.md,
-    overflow: 'hidden',
-  },
-  missionCardMissed: {
-    borderColor: 'rgba(239, 68, 68, 0.35)',
-  },
-  missionCardPending: {
-    borderColor: 'rgba(249, 115, 22, 0.35)',
-  },
-  missionAccent: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 3,
-    backgroundColor: Colors.accent,
-  },
-  missionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-  },
-  missedPill: {
-    backgroundColor: 'rgba(239, 68, 68, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.55)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  missedPillText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 1,
-    color: Colors.danger,
-  },
-  pendingPill: {
-    backgroundColor: 'rgba(249, 115, 22, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.5)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  pendingPillText: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 1,
-    color: Colors.orange,
-  },
-  empty: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.xxl,
-  },
-  emptyAction: {
-    marginTop: Spacing.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-});

@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing, Typography } from "../../constants";
+import { Spacing, Typography } from "../../constants";
+import { useTheme } from "../../context/ThemeContext";
+import type { ColorScheme } from "../../constants/colors";
 import type { AmPm, TimeWindowState } from "./types";
 
 interface Props {
@@ -12,7 +14,134 @@ interface Props {
 const formatTime = (h: number, m: number, ap: AmPm) =>
   `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`;
 
+function makeStyles(C: ColorScheme) {
+  return StyleSheet.create({
+    timeWindowRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      paddingHorizontal: Spacing.md,
+      height: 50,
+    },
+    timeWindowRowActive: {
+      borderColor: C.accent,
+      backgroundColor: C.accentSoft,
+    },
+    xpBonusText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 12,
+      letterSpacing: 0.5,
+      color: C.accent,
+      marginRight: Spacing.sm,
+    },
+    timePickerCard: {
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      padding: Spacing.md,
+      marginTop: Spacing.sm,
+    },
+    timePickerRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 10,
+    },
+    timePickerLabel: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 11,
+      letterSpacing: 1.4,
+      color: C.textSecondary,
+      marginBottom: 6,
+    },
+    timeButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: C.surface2,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 12,
+    },
+    timeButtonActive: {
+      borderColor: C.accent,
+    },
+    timeButtonText: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 16,
+      color: C.textPrimary,
+    },
+    timeArrow: {
+      paddingBottom: 12,
+      paddingHorizontal: 4,
+    },
+    timeAdjuster: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: Spacing.md,
+      gap: 8,
+      paddingTop: Spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: C.border,
+    },
+    timeAdjusterCol: {
+      alignItems: "center",
+      gap: 6,
+    },
+    timeAdjusterValue: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 28,
+      color: C.textPrimary,
+      minWidth: 44,
+      textAlign: "center",
+    },
+    timeAdjusterColon: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 24,
+      color: C.textSecondary,
+      marginBottom: 4,
+    },
+    amPmButton: {
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accent,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginLeft: 8,
+    },
+    amPmText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 15,
+      letterSpacing: 1,
+      color: C.accent,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: C.borderBright,
+      backgroundColor: C.surface2,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    checkboxChecked: {
+      backgroundColor: C.accent,
+      borderColor: C.accent,
+    },
+  });
+}
+
 export default function TimeWindowPicker({ state, onChange }: Props) {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [active, setActive] = useState<"from" | "to" | null>(null);
 
   const adjustHour = (which: "from" | "to", delta: number) => {
@@ -45,14 +174,14 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
       >
         <View style={[styles.checkbox, state.enabled && styles.checkboxChecked]}>
           {state.enabled && (
-            <Ionicons name="checkmark" size={14} color={Colors.background} />
+            <Ionicons name="checkmark" size={14} color={C.background} />
           )}
         </View>
         <Text
           style={[
             Typography.body,
             {
-              color: state.enabled ? Colors.textPrimary : Colors.textSecondary,
+              color: state.enabled ? C.textPrimary : C.textSecondary,
               flex: 1,
               marginLeft: Spacing.sm,
             },
@@ -64,7 +193,7 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
         <Ionicons
           name="time-outline"
           size={18}
-          color={state.enabled ? Colors.accent : Colors.textSecondary}
+          color={state.enabled ? C.accent : C.textSecondary}
         />
       </Pressable>
 
@@ -86,18 +215,12 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
                 <Ionicons
                   name="time-outline"
                   size={16}
-                  color={
-                    active === "from" ? Colors.accent : Colors.textSecondary
-                  }
+                  color={active === "from" ? C.accent : C.textSecondary}
                 />
               </Pressable>
             </View>
             <View style={styles.timeArrow}>
-              <Ionicons
-                name="arrow-forward"
-                size={16}
-                color={Colors.textSecondary}
-              />
+              <Ionicons name="arrow-forward" size={16} color={C.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.timePickerLabel}>TO</Text>
@@ -114,7 +237,7 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
                 <Ionicons
                   name="time-outline"
                   size={16}
-                  color={active === "to" ? Colors.accent : Colors.textSecondary}
+                  color={active === "to" ? C.accent : C.textSecondary}
                 />
               </Pressable>
             </View>
@@ -124,7 +247,7 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
             <View style={styles.timeAdjuster}>
               <View style={styles.timeAdjusterCol}>
                 <Pressable hitSlop={8} onPress={() => adjustHour(active, 1)}>
-                  <Ionicons name="chevron-up" size={18} color={Colors.accent} />
+                  <Ionicons name="chevron-up" size={18} color={C.accent} />
                 </Pressable>
                 <Text style={styles.timeAdjusterValue}>
                   {String(
@@ -132,32 +255,21 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
                   ).padStart(2, "0")}
                 </Text>
                 <Pressable hitSlop={8} onPress={() => adjustHour(active, -1)}>
-                  <Ionicons
-                    name="chevron-down"
-                    size={18}
-                    color={Colors.accent}
-                  />
+                  <Ionicons name="chevron-down" size={18} color={C.accent} />
                 </Pressable>
               </View>
               <Text style={styles.timeAdjusterColon}>:</Text>
               <View style={styles.timeAdjusterCol}>
                 <Pressable hitSlop={8} onPress={() => adjustMinute(active, 1)}>
-                  <Ionicons name="chevron-up" size={18} color={Colors.accent} />
+                  <Ionicons name="chevron-up" size={18} color={C.accent} />
                 </Pressable>
                 <Text style={styles.timeAdjusterValue}>
                   {String(
                     active === "from" ? state.fromMinute : state.toMinute,
                   ).padStart(2, "0")}
                 </Text>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => adjustMinute(active, -1)}
-                >
-                  <Ionicons
-                    name="chevron-down"
-                    size={18}
-                    color={Colors.accent}
-                  />
+                <Pressable hitSlop={8} onPress={() => adjustMinute(active, -1)}>
+                  <Ionicons name="chevron-down" size={18} color={C.accent} />
                 </Pressable>
               </View>
               <Pressable
@@ -175,126 +287,3 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  timeWindowRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    paddingHorizontal: Spacing.md,
-    height: 50,
-  },
-  timeWindowRowActive: {
-    borderColor: Colors.accent,
-    backgroundColor: Colors.accentSoft,
-  },
-  xpBonusText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 12,
-    letterSpacing: 0.5,
-    color: Colors.accent,
-    marginRight: Spacing.sm,
-  },
-  timePickerCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    padding: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  timePickerRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 10,
-  },
-  timePickerLabel: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 11,
-    letterSpacing: 1.4,
-    color: Colors.textSecondary,
-    marginBottom: 6,
-  },
-  timeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.surface2,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.borderBright,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
-  },
-  timeButtonActive: {
-    borderColor: Colors.accent,
-  },
-  timeButtonText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 16,
-    color: Colors.textPrimary,
-  },
-  timeArrow: {
-    paddingBottom: 12,
-    paddingHorizontal: 4,
-  },
-  timeAdjuster: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.md,
-    gap: 8,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  timeAdjusterCol: {
-    alignItems: "center",
-    gap: 6,
-  },
-  timeAdjusterValue: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 28,
-    color: Colors.textPrimary,
-    minWidth: 44,
-    textAlign: "center",
-  },
-  timeAdjusterColon: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 24,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  amPmButton: {
-    backgroundColor: Colors.accentSoft,
-    borderWidth: 1,
-    borderColor: Colors.accent,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginLeft: 8,
-  },
-  amPmText: {
-    fontFamily: "Rajdhani_700Bold",
-    fontSize: 15,
-    letterSpacing: 1,
-    color: Colors.accent,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: Colors.borderBright,
-    backgroundColor: Colors.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxChecked: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
-  },
-});
