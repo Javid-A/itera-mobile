@@ -3,9 +3,10 @@ import * as Location from 'expo-location';
 import { GeofencingEventType, type LocationRegion } from 'expo-location';
 import { AppState } from 'react-native';
 import axios from 'axios';
-import apiClient from './apiClient';
+import { arriveMission } from '../api/missions';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../config/gameConfig';
 
 export const GEOFENCE_TASK_NAME = 'itera-geofence-task';
 
@@ -16,7 +17,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   }
 
   try {
-    const isAutoTrackingEnabled = await AsyncStorage.getItem('autoTrackingEnabled');
+    const isAutoTrackingEnabled = await AsyncStorage.getItem(STORAGE_KEYS.autoTrackingEnabled);
     if (isAutoTrackingEnabled === 'false') {
       console.log('[GeofenceTask] Auto-tracking is disabled in settings. Ignoring geofence event.');
       return;
@@ -54,11 +55,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   }
 
   try {
-    const { data: result } = await apiClient.post('/missions/arrive', {
-      missionId,
-      latitude,
-      longitude,
-    });
+    const result = await arriveMission({ missionId, latitude, longitude });
 
     if (result.cooldownActive) {
       console.log(`[GeofenceTask] Already completed: ${missionId}`);

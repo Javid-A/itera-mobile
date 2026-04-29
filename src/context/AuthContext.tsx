@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import apiClient from '../services/apiClient';
+import { login as loginRequest, register as registerRequest } from '../api/auth';
 import { saveAuthData, getStoredUser, clearAuthData } from '../services/tokenStorage';
 
 interface AuthState {
@@ -38,14 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
     const timeZone = resolveDeviceTimeZone();
-    const { data } = await apiClient.post('/auth/login', { username, password, timeZone });
+    const data = await loginRequest({ username, password, timeZone });
     await saveAuthData(data.token, data.userId, data.username);
     setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
   };
 
   const register = async (username: string, password: string) => {
     const timeZone = resolveDeviceTimeZone();
-    const { data } = await apiClient.post('/auth/register', { username, password, timeZone });
+    const data = await registerRequest({ username, password, timeZone });
     await saveAuthData(data.token, data.userId, data.username);
     setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
   };

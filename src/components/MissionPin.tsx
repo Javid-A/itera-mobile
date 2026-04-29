@@ -2,32 +2,11 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants';
-import type { MissionTier } from '../src/types/Mission';
-
-const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
-  briefcase: 'briefcase',
-  barbell: 'barbell',
-  cafe: 'cafe',
-  star: 'star',
-  home: 'home',
-  school: 'school',
-};
+import type { MissionTier } from '../types/Mission';
+import { TIER_COLORS } from '../config/tierConfig';
+import { getMissionIconName } from '../config/missionIcons';
 
 const GREEN = '#22C55E';
-
-const TIER_ACCENT_ORIGINAL: Record<MissionTier, string> = {
-  A: Colors.accent,
-  B: '#22D3EE',
-  C: '#A855F7',
-};
-
-const TIER_ACCENT_TEST: Record<MissionTier, string> = {
-  A: '#4de697',
-  B: '#3577d6',
-  C: '#685acb',
-};
-
-const TIER_ACCENT = TIER_ACCENT_TEST;
 
 interface Props {
   iconType: string;
@@ -36,8 +15,8 @@ interface Props {
 }
 
 export default function MissionPin({ iconType, completed = false, tier }: Props) {
-  const iconName = ICON_MAP[iconType] ?? 'location';
-  const baseAccent = tier ? TIER_ACCENT[tier] : Colors.accent;
+  const iconName = getMissionIconName(iconType);
+  const baseAccent = tier ? TIER_COLORS[tier] : Colors.accent;
   const floatAnim = useRef(new Animated.Value(0)).current;
   const colorAnim = useRef(new Animated.Value(completed ? 1 : 0)).current;
 

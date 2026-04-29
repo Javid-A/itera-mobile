@@ -9,22 +9,14 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, Typography } from "../constants";
-import type { DayMission } from "../app/(tabs)/history";
-
-let MapboxAvailable = false;
-let MapView: any;
-let Camera: any;
-let MarkerView: any;
-
-try {
-  const maps = require("@rnmapbox/maps");
-  MapView = maps.MapView;
-  Camera = maps.Camera;
-  MarkerView = maps.MarkerView;
-  MapboxAvailable = true;
-} catch {
-  MapboxAvailable = false;
-}
+import type { DayMission } from "../types/DayMission";
+import { haversineMeters } from "../config/tierConfig";
+import {
+  MapboxAvailable,
+  MapView,
+  Camera,
+  MarkerView,
+} from "../services/mapbox";
 
 interface Props {
   visible: boolean;
@@ -79,22 +71,6 @@ const BOUNDS_PADDING = 40;
 
 function isValidCoord(m: DayMission): boolean {
   return m.latitude !== 0 && m.longitude !== 0;
-}
-
-function haversineMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
 function calcCameraSettings(missions: DayMission[]): CameraSettings | null {

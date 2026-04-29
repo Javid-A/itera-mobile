@@ -1,64 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenContainer from '../../components/ScreenContainer';
-import RouteMapModal from '../../components/RouteMapModal';
-import { Colors, Spacing, Typography } from '../../constants';
-import apiClient from '../../src/services/apiClient';
+import ScreenContainer from '../../src/components/ScreenContainer';
+import RouteMapModal from '../../src/components/RouteMapModal';
+import { Colors, Spacing, Typography } from '../../src/constants';
+import { useDaySummary } from '../../src/state/queries/useDaySummary';
+import type { DayMission } from '../../src/types/DayMission';
+import type { DaySummary } from '../../src/types/DaySummary';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
-export interface DayMission {
-  id: string;
-  missionName: string;
-  locationName: string;
-  latitude: number;
-  longitude: number;
-  status: 'completed' | 'pending' | 'missed';
-  completedAt?: string;
-  earnedXP?: number;
-  potentialXP?: number;
-}
-
-interface DayCompletedItem {
-  id: string;
-  missionId: string;
-  missionName: string;
-  earnedXP: number;
-  completedAt: string;
-  latitude: number;
-  longitude: number;
-}
-
-interface DayPendingItem {
-  missionId: string;
-  missionName: string;
-  locationName: string;
-  potentialXP: number;
-  latitude: number;
-  longitude: number;
-}
-
-interface DaySummary {
-  date: string; // ISO yyyy-mm-dd in user's TZ, source of truth from server
-  completed: DayCompletedItem[];
-  pending: DayPendingItem[];
-  doneCount: number;
-  totalCount: number;
-}
-
-interface WeekDaySummary {
-  date: string;
-  totalXP: number;
-}
-
-interface DaySummaryResponse {
-  timeZone: string;
-  today: DaySummary;
-  yesterday: DaySummary;
-  week: WeekDaySummary[];
-}
 
 // Server returns "yyyy-MM-dd" — parse as local-calendar date so passing it to RouteMapModal /
 // label formatters renders the same day the server intended, regardless of device TZ.
@@ -174,17 +125,8 @@ interface DaySection {
 
 export default function HistoryScreen() {
   const router = useRouter();
-  const [summary, setSummary] = useState<DaySummaryResponse | null>(null);
+  const { data: summary } = useDaySummary();
   const [routeMapSection, setRouteMapSection] = useState<{ date: Date; dayMissions: DayMission[] } | null>(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      apiClient
-        .get<DaySummaryResponse>('/missions/day-summary')
-        .then(({ data }) => setSummary(data))
-        .catch(() => {});
-    }, []),
-  );
 
   const { weekTotals, weekTotalXP, todaySection, yesterdaySection, todayIndex } = useMemo(() => {
     if (!summary) {

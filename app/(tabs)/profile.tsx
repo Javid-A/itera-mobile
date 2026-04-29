@@ -1,37 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, AppState, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Animated, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ScreenContainer from '../../components/ScreenContainer';
-import BackgroundLocationPrompt from '../../components/BackgroundLocationPrompt';
-import LevelUpModal from '../../components/LevelUpModal';
-import XPCountUp from '../../components/XPCountUp';
-import { Colors, Spacing, Typography } from '../../constants';
+import { useQueryClient } from '@tanstack/react-query';
+import ScreenContainer from '../../src/components/ScreenContainer';
+import BackgroundLocationPrompt from '../../src/components/BackgroundLocationPrompt';
+import LevelUpModal from '../../src/components/LevelUpModal';
+import XPCountUp from '../../src/components/XPCountUp';
+import { Colors, Spacing, Typography } from '../../src/constants';
 import { useAuth } from '../../src/context/AuthContext';
-import apiClient from '../../src/services/apiClient';
+import { resetProfileStats } from '../../src/api/profile';
+import { useProfile } from '../../src/state/queries/useProfile';
+import { useMissionHistory } from '../../src/state/queries/useMissionHistory';
+import { qk } from '../../src/state/queryKeys';
 import { requestBackgroundLocation } from '../../src/services/locationSettings';
-
-interface HistoryItem {
-  id: string;
-  missionId: string;
-  missionName: string;
-  earnedXP: number;
-  completedAt: string;
-  latitude: number;
-  longitude: number;
-}
-
-const XP_PER_LEVEL = 1000;
-
-interface ProfileStats {
-  currentLevel: number;
-  currentXP: number;
-  totalMissions: number;
-  totalXP: number;
-}
+import { useBackgroundPermission } from '../../src/hooks/useBackgroundPermission';
+import { STORAGE_KEYS, XP_PER_LEVEL } from '../../src/config/gameConfig';
 
 const RING_SIZE = 128;
 const RING_STROKE = 8;
@@ -50,31 +36,34 @@ function isoDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+const PROFILE_FALLBACK = { username: '', currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0 };
+
 export default function ProfileScreen() {
   const { username, logout } = useAuth();
-  const [stats, setStats] = useState<ProfileStats>({ currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0 });
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [bgGranted, setBgGranted] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: profileData } = useProfile();
+  const { data: historyData } = useMissionHistory();
+  const stats = profileData ?? PROFILE_FALLBACK;
+  const history = historyData ?? [];
   const [isAutoTrackingOn, setIsAutoTrackingOn] = useState(false);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
-  const appState = useRef(AppState.currentState);
 
-  const checkBgPermission = useCallback(() => {
-    Location.getBackgroundPermissionsAsync().then((bg) => {
-      const granted = bg.status === 'granted';
-      setBgGranted(granted);
-      // If OS permission was revoked outside the app, turn off the feature automatically
-      if (!granted) {
-        setIsAutoTrackingOn(false);
-        AsyncStorage.setItem('autoTrackingEnabled', 'false');
-      }
-    });
-  }, []);
+  const { granted: bgGranted, refresh: checkBgPermission, setGranted: setBgGranted } =
+    useBackgroundPermission();
+
+  // OS izninin dışarıdan iptal edilmesi durumunda auto-tracking flag'ini kapat —
+  // yan etkiyi hook'tan ayrı tuttuk ki hook reusable kalsın.
+  useEffect(() => {
+    if (!bgGranted) {
+      setIsAutoTrackingOn(false);
+      AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'false');
+    }
+  }, [bgGranted]);
 
   const loadAutoTrackingState = useCallback(async () => {
     try {
-      const value = await AsyncStorage.getItem('autoTrackingEnabled');
+      const value = await AsyncStorage.getItem(STORAGE_KEYS.autoTrackingEnabled);
       if (value !== null) {
         setIsAutoTrackingOn(value === 'true');
       }
@@ -84,29 +73,13 @@ export default function ProfileScreen() {
   }, []);
 
   const refresh = useCallback(() => {
-    apiClient
-      .get<ProfileStats>('/profile')
-      .then(({ data }) => setStats(data))
-      .catch(() => {});
-    apiClient
-      .get<HistoryItem[]>('/missions/history')
-      .then(({ data }) => setHistory(data))
-      .catch(() => {});
+    queryClient.invalidateQueries({ queryKey: qk.profile });
+    queryClient.invalidateQueries({ queryKey: qk.missionHistory });
     checkBgPermission();
     loadAutoTrackingState();
-  }, [checkBgPermission, loadAutoTrackingState]);
+  }, [queryClient, checkBgPermission, loadAutoTrackingState]);
 
   useFocusEffect(refresh);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (next) => {
-      if (appState.current.match(/inactive|background/) && next === 'active') {
-        checkBgPermission();
-      }
-      appState.current = next;
-    });
-    return () => sub.remove();
-  }, [checkBgPermission]);
 
   const { streakDays, locationsCount, weekDots, todayDone } = useMemo(() => {
     const dayKeys = new Set(history.map((m) => isoDateKey(new Date(m.completedAt))));
@@ -168,7 +141,7 @@ export default function ProfileScreen() {
     if (granted) {
       setBgGranted(true);
       setIsAutoTrackingOn(true);
-      await AsyncStorage.setItem('autoTrackingEnabled', 'true');
+      await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'true');
     }
   };
 
@@ -176,12 +149,12 @@ export default function ProfileScreen() {
     if (isAutoTrackingOn) {
       // Turn off logic purely at app level
       setIsAutoTrackingOn(false);
-      await AsyncStorage.setItem('autoTrackingEnabled', 'false');
+      await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'false');
     } else {
       // Trying to turn on
       if (bgGranted) {
         setIsAutoTrackingOn(true);
-        await AsyncStorage.setItem('autoTrackingEnabled', 'true');
+        await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'true');
       } else {
         setShowBgPrompt(true);
       }
@@ -207,7 +180,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await apiClient.delete('/profile/stats');
+            await resetProfileStats();
             refresh();
           } catch {
             Alert.alert('Error', 'Failed to reset stats.');

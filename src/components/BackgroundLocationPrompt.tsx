@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Colors, Spacing, Typography } from '../constants';
 
-const bgVideoSource = require('../assets/video/bg-location.mp4');
+const bgVideoSource = require('../../assets/video/bg-location.mp4');
 
 interface Props {
   visible: boolean;

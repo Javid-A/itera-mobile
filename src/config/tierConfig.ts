@@ -1,4 +1,5 @@
 import type { MissionTier } from '../types/Mission';
+export { haversineMeters } from '../utils/geo';
 
 // Must mirror the backend's `XpTiers` section in appsettings.json.
 // Kept in code so the Create-mission UI can show a live preview before the
@@ -24,6 +25,22 @@ export const TIER_CONFIG = {
     { tier: 'C' as MissionTier, upperBoundMeters: null as number | null, multiplier: 2.0 },
   ],
 } as const;
+
+// Tier accent colors. TEST palette is the active one; ORIGINAL is preserved for
+// quick dev switching. Swap the TIER_COLORS export below to flip every screen at once.
+export const TIER_COLORS_ORIGINAL: Record<MissionTier, string> = {
+  A: '#a6e635',
+  B: '#22D3EE',
+  C: '#A855F7',
+};
+
+export const TIER_COLORS_TEST: Record<MissionTier, string> = {
+  A: '#4de697',
+  B: '#3577d6',
+  C: '#685acb',
+};
+
+export const TIER_COLORS: Record<MissionTier, string> = TIER_COLORS_TEST;
 
 // Visual-only constants for the tier zones overlay on the Choose-Location map.
 // Label offsets sit just outside each border so the overlay stays legible at
@@ -77,19 +94,3 @@ export function cTierThresholdLabel(): string {
   return `${Math.round(meters)} m+`;
 }
 
-export function haversineMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}

@@ -44,19 +44,19 @@ const MIRRORED_FROM: Partial<Record<Direction, Direction>> = {
 };
 
 const IDLE: Record<string, any> = {
-  n: require("../assets/idle_n.png"),
-  nw: require("../assets/idle_nw.png"),
-  w: require("../assets/idle_w.png"),
-  sw: require("../assets/idle_sw.png"),
-  s: require("../assets/idle_s.png"),
+  n: require("../../assets/idle_n.png"),
+  nw: require("../../assets/idle_nw.png"),
+  w: require("../../assets/idle_w.png"),
+  sw: require("../../assets/idle_sw.png"),
+  s: require("../../assets/idle_s.png"),
 };
 
 const WALK: Record<string, any> = {
-  n: require("../assets/walk_n.png"),
-  nw: require("../assets/walk_nw.png"),
-  w: require("../assets/walk_w.png"),
-  sw: require("../assets/walk_sw.png"),
-  s: require("../assets/walk_s.png"),
+  n: require("../../assets/walk_n.png"),
+  nw: require("../../assets/walk_nw.png"),
+  w: require("../../assets/walk_w.png"),
+  sw: require("../../assets/walk_sw.png"),
+  s: require("../../assets/walk_s.png"),
 };
 
 export function bearingToDirection(relativeBearing: number): Direction {

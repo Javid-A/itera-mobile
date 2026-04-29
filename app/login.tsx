@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
-import { Colors, Spacing, Typography } from '../constants';
+import { Colors, Spacing, Typography } from '../src/constants';
 
 export default function LoginScreen() {
   const { login, register } = useAuth();

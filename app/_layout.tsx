@@ -14,8 +14,10 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
-import { Colors } from '../constants';
+import { queryClient } from '../src/state/queryClient';
+import { Colors } from '../src/constants';
 
 function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -60,8 +62,10 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RootNavigator />
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
