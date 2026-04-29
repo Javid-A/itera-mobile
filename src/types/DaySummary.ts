@@ -1,6 +1,5 @@
 export interface DayCompletedItem {
   id: string;
-  missionId: string;
   missionName: string;
   earnedXP: number;
   completedAt: string;
