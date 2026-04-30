@@ -235,7 +235,7 @@ export default function MapScreen() {
       <MapView
         style={styles.map}
         styleURL="mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa" // day
-        // styleURL="mapbox://styles/javid-a/cmoaror1v001o01s3c6zcdfuy" // night
+        // styleURL="mapbox://styles/javid-a/cmod7nmgy001301r6dqrp2luq" // night
         compassEnabled={false}
         logoEnabled={false}
         attributionEnabled={false}

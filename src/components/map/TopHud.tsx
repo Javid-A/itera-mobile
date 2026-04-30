@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Spacing, Typography } from "../../constants";
@@ -26,8 +26,6 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 function makeStyles(C: ColorScheme, isDark: boolean) {
-  // HUD harita üzerinde blur'lu yüzüyor — light mode'da camsı surface scrim,
-  // dark'ta orijinal koyu lacivert şeffaflık.
   const hudCardBg = isDark ? "rgba(11, 14, 26, 0.45)" : "rgba(255, 255, 255, 0.55)";
   const hudCardBorder = isDark
     ? "rgba(255, 255, 255, 0.15)"
@@ -40,9 +38,7 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
     ? "rgba(255, 255, 255, 0.08)"
     : "rgba(14, 15, 42, 0.10)";
   const levelChipBg = hexToRgba(C.accent, 0.16);
-  const levelChipBorder = hexToRgba(C.accent, 0.4);
-  // Pill içindeki "7D" badge'i sıcak turuncu — light mode'da yazı rengi koyu navy
-  // okunsun diye değişiyor.
+  const levelChipBorder = hexToRgba(C.accent, 0.8); // Increased opacity for a glowing ring effect
   const badgeTextColor = isDark ? "#1a0f06" : "#ffffff";
 
   return StyleSheet.create({
@@ -50,31 +46,73 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       position: "absolute",
       top: 58,
       left: Spacing.md,
-      right: Spacing.md,
       zIndex: 10,
+      alignItems: "flex-start",
     },
-    hudCard: {
+    hudContainer: {
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: hudCardBg,
-      borderRadius: 20,
+      borderRadius: 25,
       borderWidth: 1,
       borderColor: hudCardBorder,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: 10,
-      gap: 12,
+      padding: 4, // 4px padding + 1px border on each side = 10px. 50 - 10 = 40px for the inner chip
       overflow: "hidden",
+      height: 50,
+    },
+    levelChip: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: levelChipBg,
+      borderWidth: 1.5,
+      borderColor: levelChipBorder,
+      overflow: "hidden",
+    },
+    expandedContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      width: 210, 
+      paddingLeft: 12,
+      paddingRight: 8,
+    },
+    detailsWrap: {
+      flex: 1,
+      justifyContent: "center",
+    },
+    hudLabelRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "baseline", // Baseline aligns different font sizes perfectly
+      marginBottom: 6,
     },
     hudLevelLabel: {
       fontFamily: "Rajdhani_700Bold",
-      fontSize: 11,
+      fontSize: 12, // Increased slightly for better legibility
       letterSpacing: 1.6,
       color: C.textSecondary,
+    },
+    xpTrack: {
+      height: 6, // Slightly thicker track
+      backgroundColor: xpTrackBg,
+      borderRadius: 3,
+      overflow: "hidden",
+    },
+    xpFill: {
+      height: "100%",
+      backgroundColor: C.accent,
+      borderRadius: 3,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 8,
     },
     hudPillRow: {
       flexDirection: "row",
       gap: 8,
-      marginTop: 8,
+      marginTop: 10,
     },
     hudPill: {
       flexDirection: "row",
@@ -119,37 +157,6 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       letterSpacing: 1,
       color: C.accent,
     },
-    levelChip: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: levelChipBg,
-      borderWidth: 1.5,
-      borderColor: levelChipBorder,
-      overflow: "hidden",
-    },
-    hudLabelRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 5,
-    },
-    xpTrack: {
-      height: 5,
-      backgroundColor: xpTrackBg,
-      borderRadius: 3,
-      overflow: "hidden",
-    },
-    xpFill: {
-      height: "100%",
-      backgroundColor: C.accent,
-      borderRadius: 3,
-      shadowColor: C.accent,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.7,
-      shadowRadius: 6,
-    },
   });
 }
 
@@ -169,47 +176,123 @@ export default function TopHud({
 
   const blurTint = isDark ? "dark" : "light";
 
+  const [isExpanded, setIsExpanded] = useState(false);
+  const expandAnim = useRef(new Animated.Value(0)).current;
+  const collapseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const containerWidth = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [50, 270], // Increased width slightly to accommodate adjusted paddings
+  });
+
+  const contentOpacity = expandAnim.interpolate({
+    inputRange: [0.15, 1],
+    outputRange: [0, 1],
+  });
+
+  const contentTranslateX = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-10, 0], // Adds a subtle slide-out effect to the text
+  });
+
+  const toggleExpand = useCallback(() => {
+    if (!isExpanded) {
+      setIsExpanded(true);
+      Animated.spring(expandAnim, {
+        toValue: 1,
+        useNativeDriver: false,
+        friction: 8,
+        tension: 60,
+      }).start();
+
+      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = setTimeout(() => {
+        setIsExpanded(false);
+        Animated.spring(expandAnim, {
+          toValue: 0,
+          useNativeDriver: false,
+          friction: 8,
+          tension: 60,
+        }).start();
+      }, 4000);
+    } else {
+      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
+      router.push("/profile");
+    }
+  }, [isExpanded, expandAnim]);
+
+  useEffect(() => {
+    return () => {
+      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Runs on focus
+      return () => {
+        // Runs on blur
+        if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
+        setIsExpanded(false);
+        expandAnim.setValue(0); // Instantly collapse so it's ready for next focus
+      };
+    }, [expandAnim])
+  );
+
   return (
     <View style={styles.topHud} pointerEvents="box-none">
-      <Pressable onPress={() => router.push("/profile")}>
-        <BlurView
-          intensity={45}
-          tint={blurTint}
-          style={styles.hudCard}
-          experimentalBlurMethod="dimezisBlurView"
-        >
+      <Pressable onPress={toggleExpand}>
+        <Animated.View style={[styles.hudContainer, { width: containerWidth }]}>
           <BlurView
-            intensity={30}
+            intensity={45}
             tint={blurTint}
-            style={styles.levelChip}
+            style={StyleSheet.absoluteFill}
             experimentalBlurMethod="dimezisBlurView"
-          >
+          />
+          
+          <View style={styles.levelChip}>
+            <BlurView
+              intensity={30}
+              tint={blurTint}
+              style={StyleSheet.absoluteFill}
+              experimentalBlurMethod="dimezisBlurView"
+            />
             <Text style={[Typography.statMD, { color: C.accent }]}>
               {profile?.currentLevel ?? 1}
             </Text>
-          </BlurView>
-          <View style={{ flex: 1 }}>
-            <View style={styles.hudLabelRow}>
-              <Text style={styles.hudLevelLabel}>
-                LEVEL {profile?.currentLevel ?? 1}
-              </Text>
-              <Text style={[Typography.statSM, { color: C.accent }]}>
-                {(profile?.currentXP ?? 0).toLocaleString()} /{" "}
-                {xpForLevel.toLocaleString()} XP
-              </Text>
-            </View>
-            <View style={styles.xpTrack}>
-              <View
-                style={[styles.xpFill, { width: `${xpProgress * 100}%` }]}
-              />
-            </View>
           </View>
-          <Ionicons
-            name="chevron-forward"
-            size={16}
-            color={C.textSecondary}
-          />
-        </BlurView>
+
+          <Animated.View 
+            style={[
+              styles.expandedContent, 
+              { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] }
+            ]} 
+            pointerEvents={isExpanded ? "auto" : "none"}
+          >
+            <View style={styles.detailsWrap}>
+              <View style={styles.hudLabelRow}>
+                <Text style={styles.hudLevelLabel}>
+                  LEVEL {profile?.currentLevel ?? 1}
+                </Text>
+                <Text style={[Typography.statSM, { color: C.accent }]}>
+                  {(profile?.currentXP ?? 0).toLocaleString()} /{" "}
+                  {xpForLevel.toLocaleString()} XP
+                </Text>
+              </View>
+              <View style={styles.xpTrack}>
+                <View
+                  style={[styles.xpFill, { width: `${xpProgress * 100}%` }]}
+                />
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={C.textSecondary}
+              style={{ marginLeft: 6 }}
+            />
+          </Animated.View>
+        </Animated.View>
       </Pressable>
 
       {showStreak || bgDenied ? (

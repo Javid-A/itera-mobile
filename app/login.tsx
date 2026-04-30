@@ -69,7 +69,8 @@ function makeStyles(C: ColorScheme) {
       color: C.textPrimary,
       fontFamily: 'Inter_400Regular',
       fontSize: 15,
-      padding: Spacing.md,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 0,
       height: 50,
     },
     forgot: {

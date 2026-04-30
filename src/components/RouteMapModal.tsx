@@ -113,8 +113,12 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
   const orangeCardBorder = hexToRgba(C.orange, 0.3);
   // Map overlay chips need a solid backing that reads on both light and dark
   // tile bases — use an opaque surface scrim.
-  const overlayChipBg = isDark ? "rgba(7, 8, 15, 0.85)" : "rgba(255, 255, 255, 0.92)";
-  const numberedPinBg = isDark ? "rgba(7, 8, 15, 0.92)" : "rgba(255, 255, 255, 0.96)";
+  const overlayChipBg = isDark
+    ? "rgba(7, 8, 15, 0.85)"
+    : "rgba(255, 255, 255, 0.92)";
+  const numberedPinBg = isDark
+    ? "rgba(7, 8, 15, 0.92)"
+    : "rgba(255, 255, 255, 0.96)";
 
   return StyleSheet.create({
     overlay: {
@@ -484,10 +488,7 @@ export default function RouteMapModal({
                   ]}
                 >
                   <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: C.orange },
-                    ]}
+                    style={[styles.legendDot, { backgroundColor: C.orange }]}
                   />
                   <Text style={[styles.legendText, { color: C.orange }]}>
                     PENDING
@@ -502,10 +503,7 @@ export default function RouteMapModal({
                   ]}
                 >
                   <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: C.danger },
-                    ]}
+                    style={[styles.legendDot, { backgroundColor: C.danger }]}
                   />
                   <Text style={[styles.legendText, { color: C.danger }]}>
                     MISSED
@@ -662,10 +660,7 @@ export default function RouteMapModal({
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text
-                      style={[
-                        Typography.bodyBold,
-                        { color: C.textPrimary },
-                      ]}
+                      style={[Typography.bodyBold, { color: C.textPrimary }]}
                     >
                       {m.missionName}
                     </Text>

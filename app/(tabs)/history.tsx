@@ -1,39 +1,50 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import ScreenContainer from '../../src/components/ScreenContainer';
-import RouteMapModal from '../../src/components/RouteMapModal';
-import { Spacing, Typography } from '../../src/constants';
-import { useTheme } from '../../src/context/ThemeContext';
-import { useDaySummary } from '../../src/state/queries/useDaySummary';
-import type { DayMission } from '../../src/types/DayMission';
-import type { DaySummary } from '../../src/types/DaySummary';
-import type { ColorScheme } from '../../src/constants/colors';
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import ScreenContainer from "../../src/components/ScreenContainer";
+import RouteMapModal from "../../src/components/RouteMapModal";
+import { Spacing, Typography } from "../../src/constants";
+import { useTheme } from "../../src/context/ThemeContext";
+import { useDaySummary } from "../../src/state/queries/useDaySummary";
+import type { DayMission } from "../../src/types/DayMission";
+import type { DaySummary } from "../../src/types/DaySummary";
+import type { ColorScheme } from "../../src/constants/colors";
 
-const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 function parseLocalDate(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
+  const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 function formatSectionLabel(sectionDate: string, todayDate: string): string {
-  if (sectionDate === todayDate) return 'TODAY';
+  if (sectionDate === todayDate) return "TODAY";
   const today = parseLocalDate(todayDate);
   const target = parseLocalDate(sectionDate);
   const dayMs = 86400000;
   const diffDays = Math.round((today.getTime() - target.getTime()) / dayMs);
-  if (diffDays === 1) return 'YESTERDAY';
+  if (diffDays === 1) return "YESTERDAY";
   return target
-    .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit' })
+    .toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "2-digit",
+    })
     .toUpperCase();
 }
 
@@ -43,7 +54,7 @@ interface MissionRowData {
   location: string;
   time: string;
   xp: number;
-  status: 'completed' | 'pending' | 'missed';
+  status: "completed" | "pending" | "missed";
 }
 
 function makeStyles(C: ColorScheme) {
@@ -56,13 +67,13 @@ function makeStyles(C: ColorScheme) {
 
   return StyleSheet.create({
     weekChipRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       marginTop: Spacing.sm,
     },
     weekChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 4,
       backgroundColor: C.accentSoft,
       borderWidth: 1,
@@ -72,7 +83,7 @@ function makeStyles(C: ColorScheme) {
       paddingVertical: 4,
     },
     weekChipText: {
-      fontFamily: 'Rajdhani_700Bold',
+      fontFamily: "Rajdhani_700Bold",
       fontSize: 11,
       letterSpacing: 1.2,
       color: C.accent,
@@ -87,55 +98,55 @@ function makeStyles(C: ColorScheme) {
       marginTop: Spacing.md,
     },
     chartHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'baseline',
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "baseline",
     },
     chartTitle: {
-      fontFamily: 'Rajdhani_700Bold',
+      fontFamily: "Rajdhani_700Bold",
       fontSize: 11,
       letterSpacing: 1.4,
       color: C.textSecondary,
     },
     chartBars: {
-      flexDirection: 'row',
+      flexDirection: "row",
       height: 150,
-      alignItems: 'flex-end',
+      alignItems: "flex-end",
       marginTop: Spacing.md,
       gap: 6,
     },
     chartBarCol: {
       flex: 1,
-      height: '100%',
-      alignItems: 'center',
-      justifyContent: 'flex-end',
-      position: 'relative',
+      height: "100%",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      position: "relative",
     },
     chartBarValueContainer: {
       height: 16,
-      justifyContent: 'flex-end',
+      justifyContent: "flex-end",
       marginBottom: 4,
     },
     chartBarValue: {
-      fontFamily: 'Rajdhani_600SemiBold',
+      fontFamily: "Rajdhani_600SemiBold",
       fontSize: 10,
       color: C.textSecondary,
-      textAlign: 'center',
+      textAlign: "center",
     },
     chartBarStackWrapper: {
       flex: 1,
-      width: '100%',
-      justifyContent: 'flex-end',
-      alignItems: 'center',
+      width: "100%",
+      justifyContent: "flex-end",
+      alignItems: "center",
     },
     chartBarStack: {
-      width: '78%',
-      alignItems: 'center',
-      justifyContent: 'flex-end',
+      width: "78%",
+      alignItems: "center",
+      justifyContent: "flex-end",
     },
     chartBar: {
-      width: '100%',
-      height: '100%',
+      width: "100%",
+      height: "100%",
       backgroundColor: C.accentDim,
       borderRadius: 4,
     },
@@ -151,13 +162,13 @@ function makeStyles(C: ColorScheme) {
       height: 4,
     },
     chartBarLabel: {
-      fontFamily: 'Inter_500Medium',
+      fontFamily: "Inter_500Medium",
       fontSize: 11,
       color: C.textSecondary,
       marginTop: 6,
     },
     todayDot: {
-      position: 'absolute',
+      position: "absolute",
       bottom: -10,
       width: 4,
       height: 4,
@@ -165,17 +176,17 @@ function makeStyles(C: ColorScheme) {
       backgroundColor: C.accent,
     },
     sectionHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
     },
     sectionLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: Spacing.sm,
     },
     sectionLabel: {
-      fontFamily: 'Rajdhani_700Bold',
+      fontFamily: "Rajdhani_700Bold",
       fontSize: 12,
       letterSpacing: 1.4,
       color: C.textSecondary,
@@ -193,13 +204,13 @@ function makeStyles(C: ColorScheme) {
       borderColor: C.accentBorder,
     },
     progressPillText: {
-      fontFamily: 'Rajdhani_700Bold',
+      fontFamily: "Rajdhani_700Bold",
       fontSize: 11,
       color: C.danger,
     },
     routeMapButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 5,
       borderWidth: 1,
       borderColor: C.accentBorder,
@@ -209,7 +220,7 @@ function makeStyles(C: ColorScheme) {
       borderRadius: 999,
     },
     routeMapButtonText: {
-      fontFamily: 'Rajdhani_700Bold',
+      fontFamily: "Rajdhani_700Bold",
       fontSize: 11,
       letterSpacing: 1.2,
       color: C.accent,
@@ -221,15 +232,15 @@ function makeStyles(C: ColorScheme) {
       borderRadius: 2,
     },
     missionCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       backgroundColor: C.surface,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: C.borderBright,
       padding: Spacing.md,
       gap: Spacing.md,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
     missionCardMissed: {
       borderColor: dangerCardBorder,
@@ -238,7 +249,7 @@ function makeStyles(C: ColorScheme) {
       borderColor: orangeCardBorder,
     },
     missionAccent: {
-      position: 'absolute',
+      position: "absolute",
       left: 0,
       top: 0,
       bottom: 0,
@@ -249,8 +260,8 @@ function makeStyles(C: ColorScheme) {
       width: 42,
       height: 42,
       borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 1.5,
     },
     missionIconCompleted: {
@@ -274,7 +285,7 @@ function makeStyles(C: ColorScheme) {
       paddingVertical: 4,
     },
     missedPillText: {
-      fontFamily: 'Rajdhani_700Bold',
+      fontFamily: "Rajdhani_700Bold",
       fontSize: 11,
       letterSpacing: 1,
       color: C.danger,
@@ -288,14 +299,14 @@ function makeStyles(C: ColorScheme) {
       paddingVertical: 4,
     },
     pendingPillText: {
-      fontFamily: 'Rajdhani_700Bold',
+      fontFamily: "Rajdhani_700Bold",
       fontSize: 11,
       letterSpacing: 1,
       color: C.orange,
     },
     empty: {
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       marginTop: Spacing.xxl,
     },
     emptyAction: {
@@ -309,16 +320,24 @@ function makeStyles(C: ColorScheme) {
 // Convert "#rrggbb" to rgba(r,g,b,a). Falls back to the input string for any
 // non-hex value (rgba/named) so callers can pass already-tinted tokens through.
 function hexToRgba(hex: string, alpha: number): string {
-  if (!hex.startsWith('#') || hex.length !== 7) return hex;
+  if (!hex.startsWith("#") || hex.length !== 7) return hex;
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function MissionCard({ row, C, styles }: { row: MissionRowData; C: ColorScheme; styles: ReturnType<typeof makeStyles> }) {
-  const missed = row.status === 'missed';
-  const pending = row.status === 'pending';
+function MissionCard({
+  row,
+  C,
+  styles,
+}: {
+  row: MissionRowData;
+  C: ColorScheme;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const missed = row.status === "missed";
+  const pending = row.status === "pending";
   return (
     <View
       style={[
@@ -337,25 +356,41 @@ function MissionCard({ row, C, styles }: { row: MissionRowData; C: ColorScheme; 
       <View
         style={[
           styles.missionIcon,
-          missed ? styles.missionIconMissed : pending ? styles.missionIconPending : styles.missionIconCompleted,
+          missed
+            ? styles.missionIconMissed
+            : pending
+              ? styles.missionIconPending
+              : styles.missionIconCompleted,
         ]}
       >
         <Ionicons
-          name={missed ? 'alert-circle-outline' : pending ? 'time-outline' : 'checkmark'}
+          name={
+            missed
+              ? "alert-circle-outline"
+              : pending
+                ? "time-outline"
+                : "checkmark"
+          }
           size={20}
           color={missed ? C.danger : pending ? C.orange : C.accent}
         />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[Typography.bodyBold, { color: C.textPrimary }]} numberOfLines={1}>
+        <Text
+          style={[Typography.bodyBold, { color: C.textPrimary }]}
+          numberOfLines={1}
+        >
           {row.name}
         </Text>
-        <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+        <Text
+          style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}
+          numberOfLines={1}
+        >
           {missed
             ? `${row.location} · Not completed`
             : pending
-            ? row.location
-            : `${row.location} · ${row.time}`}
+              ? row.location
+              : `${row.location} · ${row.time}`}
         </Text>
       </View>
       {missed ? (
@@ -367,9 +402,18 @@ function MissionCard({ row, C, styles }: { row: MissionRowData; C: ColorScheme; 
           <Text style={styles.pendingPillText}>PENDING</Text>
         </View>
       ) : (
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[Typography.statMD, { color: C.accent }]}>+{row.xp}</Text>
-          <Text style={[Typography.label, { color: C.textSecondary, marginTop: -2 }]}>XP</Text>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={[Typography.statMD, { color: C.accent }]}>
+            +{row.xp}
+          </Text>
+          <Text
+            style={[
+              Typography.label,
+              { color: C.textSecondary, marginTop: -2 },
+            ]}
+          >
+            XP
+          </Text>
         </View>
       )}
     </View>
@@ -390,11 +434,20 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { colors: C } = useTheme();
   const { data: summary } = useDaySummary();
-  const [routeMapSection, setRouteMapSection] = useState<{ date: Date; dayMissions: DayMission[] } | null>(null);
+  const [routeMapSection, setRouteMapSection] = useState<{
+    date: Date;
+    dayMissions: DayMission[];
+  } | null>(null);
 
   const styles = useMemo(() => makeStyles(C), [C]);
 
-  const { weekTotals, weekTotalXP, todaySection, yesterdaySection, todayIndex } = useMemo(() => {
+  const {
+    weekTotals,
+    weekTotalXP,
+    todaySection,
+    yesterdaySection,
+    todayIndex,
+  } = useMemo(() => {
     if (!summary) {
       return {
         weekTotals: new Array(7).fill(0) as number[],
@@ -416,16 +469,16 @@ export default function HistoryScreen() {
         location: m.missionName,
         time: formatTime(m.completedAt),
         xp: m.earnedXP,
-        status: 'completed',
+        status: "completed",
       }));
 
       const pendingRows: MissionRowData[] = day.pending.map((p) => ({
         id: p.missionId,
         name: p.missionName,
         location: p.locationName,
-        time: '',
+        time: "",
         xp: p.potentialXP,
-        status: isToday ? 'pending' : 'missed',
+        status: isToday ? "pending" : "missed",
       }));
 
       const rows: MissionRowData[] = [...completedRows, ...pendingRows];
@@ -436,7 +489,7 @@ export default function HistoryScreen() {
         locationName: m.missionName,
         latitude: m.latitude,
         longitude: m.longitude,
-        status: 'completed',
+        status: "completed",
         completedAt: m.completedAt,
         earnedXP: m.earnedXP,
       }));
@@ -447,7 +500,7 @@ export default function HistoryScreen() {
         locationName: p.locationName,
         latitude: p.latitude,
         longitude: p.longitude,
-        status: isToday ? 'pending' : 'missed',
+        status: isToday ? "pending" : "missed",
         potentialXP: p.potentialXP,
       }));
 
@@ -477,15 +530,29 @@ export default function HistoryScreen() {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1100, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1100, useNativeDriver: true }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
       ]),
     );
     loop.start();
     return () => loop.stop();
   }, [pulse]);
-  const selfGlowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
-  const selfGlowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+  const selfGlowOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.7, 1],
+  });
+  const selfGlowScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.04],
+  });
 
   const renderSection = (section: DaySection | null, isToday: boolean) => {
     if (!section) return null;
@@ -517,7 +584,12 @@ export default function HistoryScreen() {
           </View>
           <Pressable
             style={styles.routeMapButton}
-            onPress={() => setRouteMapSection({ date: section.date, dayMissions: section.dayMissions })}
+            onPress={() =>
+              setRouteMapSection({
+                date: section.date,
+                dayMissions: section.dayMissions,
+              })
+            }
           >
             <Ionicons name="git-network-outline" size={14} color={C.accent} />
             <Text style={styles.routeMapButtonText}>ROUTE MAP</Text>
@@ -526,11 +598,22 @@ export default function HistoryScreen() {
         <View style={styles.sectionDivider} />
         <View style={{ marginTop: Spacing.sm, gap: Spacing.sm }}>
           {section.rows.length === 0 ? (
-            <Text style={[Typography.body, { color: C.textSecondary, textAlign: 'center', padding: Spacing.md }]}>
+            <Text
+              style={[
+                Typography.body,
+                {
+                  color: C.textSecondary,
+                  textAlign: "center",
+                  padding: Spacing.md,
+                },
+              ]}
+            >
               No missions today yet.
             </Text>
           ) : (
-            section.rows.map((row) => <MissionCard key={row.id} row={row} C={C} styles={styles} />)
+            section.rows.map((row) => (
+              <MissionCard key={row.id} row={row} C={C} styles={styles} />
+            ))
           )}
         </View>
       </View>
@@ -541,16 +624,26 @@ export default function HistoryScreen() {
     <ScreenContainer>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: Spacing.xxl, paddingTop: Spacing.md }}
+        contentContainerStyle={{
+          paddingBottom: Spacing.xxl,
+          paddingTop: Spacing.md,
+        }}
       >
-        <Text style={[Typography.displayXL, { color: C.textPrimary }]}>Mission Log</Text>
+        <Text style={[Typography.displayXL, { color: C.textPrimary }]}>
+          Mission Log
+        </Text>
 
         <View style={styles.weekChipRow}>
           <View style={styles.weekChip}>
             <Ionicons name="arrow-up" size={11} color={C.accent} />
             <Text style={styles.weekChipText}>THIS WEEK</Text>
           </View>
-          <Text style={[Typography.body, { color: C.textSecondary, marginLeft: Spacing.sm }]}>
+          <Text
+            style={[
+              Typography.body,
+              { color: C.textSecondary, marginLeft: Spacing.sm },
+            ]}
+          >
             {weekTotalXP.toLocaleString()} XP earned
           </Text>
         </View>
@@ -565,30 +658,58 @@ export default function HistoryScreen() {
           <View style={styles.chartBars}>
             {weekTotals.map((xp, i) => {
               const isToday = i === todayIndex;
-              const heightPct = xp === 0 ? 6 : Math.min(100, Math.max(12, (xp / maxBar) * 100));
+              const heightPct =
+                xp === 0 ? 6 : Math.min(100, Math.max(12, (xp / maxBar) * 100));
               return (
                 <View key={i} style={styles.chartBarCol}>
                   <View style={styles.chartBarValueContainer}>
                     {xp > 0 && (
-                      <Text style={[styles.chartBarValue, isToday && { color: C.accent }]}>{xp}</Text>
+                      <Text
+                        style={[
+                          styles.chartBarValue,
+                          isToday && { color: C.accent },
+                        ]}
+                      >
+                        {xp}
+                      </Text>
                     )}
                   </View>
                   <View style={styles.chartBarStackWrapper}>
-                    <View style={[styles.chartBarStack, { height: `${heightPct}%` }]}>
+                    <View
+                      style={[
+                        styles.chartBarStack,
+                        { height: `${heightPct}%` },
+                      ]}
+                    >
                       {isToday ? (
                         <Animated.View
                           style={[
                             styles.chartBar,
                             styles.chartBarToday,
-                            { opacity: selfGlowOpacity, transform: [{ scaleY: selfGlowScale }] },
+                            {
+                              opacity: selfGlowOpacity,
+                              transform: [{ scaleY: selfGlowScale }],
+                            },
                           ]}
                         />
                       ) : (
-                        <View style={[styles.chartBar, xp === 0 && styles.chartBarEmpty]} />
+                        <View
+                          style={[
+                            styles.chartBar,
+                            xp === 0 && styles.chartBarEmpty,
+                          ]}
+                        />
                       )}
                     </View>
                   </View>
-                  <Text style={[styles.chartBarLabel, isToday && { color: C.accent }]}>{DAY_LABELS[i]}</Text>
+                  <Text
+                    style={[
+                      styles.chartBarLabel,
+                      isToday && { color: C.accent },
+                    ]}
+                  >
+                    {DAY_LABELS[i]}
+                  </Text>
                   {isToday && <View style={styles.todayDot} />}
                 </View>
               );
@@ -599,17 +720,36 @@ export default function HistoryScreen() {
         {renderSection(todaySection, true)}
         {renderSection(yesterdaySection, false)}
 
-        {summary !== null && todaySection?.total === 0 && yesterdaySection?.total === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="map-outline" size={48} color={C.border} style={{ marginBottom: Spacing.md }} />
-            <Text style={[Typography.bodyLg, { color: C.textSecondary, textAlign: 'center' }]}>
-              No completed missions yet.
-            </Text>
-            <Pressable onPress={() => router.push('/(tabs)/map')} style={styles.emptyAction}>
-              <Text style={[Typography.cta, { color: C.accent, fontSize: 13 }]}>GO TO MAP →</Text>
-            </Pressable>
-          </View>
-        )}
+        {summary !== null &&
+          todaySection?.total === 0 &&
+          yesterdaySection?.total === 0 && (
+            <View style={styles.empty}>
+              <Ionicons
+                name="map-outline"
+                size={48}
+                color={C.border}
+                style={{ marginBottom: Spacing.md }}
+              />
+              <Text
+                style={[
+                  Typography.bodyLg,
+                  { color: C.textSecondary, textAlign: "center" },
+                ]}
+              >
+                No completed missions yet.
+              </Text>
+              <Pressable
+                onPress={() => router.push("/(tabs)/map")}
+                style={styles.emptyAction}
+              >
+                <Text
+                  style={[Typography.cta, { color: C.accent, fontSize: 13 }]}
+                >
+                  GO TO MAP →
+                </Text>
+              </Pressable>
+            </View>
+          )}
       </ScrollView>
 
       <RouteMapModal

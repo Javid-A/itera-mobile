@@ -102,6 +102,7 @@ function makeStyles(C: ColorScheme) {
       color: C.textPrimary,
       fontFamily: "Inter_400Regular",
       fontSize: 15,
+      paddingVertical: 0,
     },
     submitButton: {
       height: 56,
