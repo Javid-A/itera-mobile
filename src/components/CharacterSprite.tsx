@@ -4,7 +4,7 @@ import { Image, View } from "react-native";
 const IDLE_FRAMES = 67;
 const IDLE_COLS = 8;
 const IDLE_ROWS = 9;
-// Idle frames are 256x384 (portrait 2:3); walk frames are 384x384
+// Idle frames are 256x384 (portrait 2:3); walk frames are 256x256 (square)
 const IDLE_CELL_ASPECT = 256 / 384;
 
 const WALK_FRAMES = 15;
@@ -17,7 +17,8 @@ const WALK_ROWS = 3;
 // over an already-downsampled intermediate layer.
 const SOURCE_CELL_H = 384;
 const IDLE_SOURCE_CELL_W = 256;
-const WALK_SOURCE_CELL_W = 384;
+const WALK_SOURCE_CELL_W = 256;
+const WALK_SOURCE_CELL_H = 256;
 
 // Blender 30 FPS: idle exported every 3 frames → 10 FPS; walk every 2 frames → 15 FPS
 const IDLE_FRAME_DURATION = (1000 / 30) * 3;
@@ -121,7 +122,7 @@ export default function CharacterSprite({
   // Render the sprite sheet at native source resolution and shrink with a
   // single transform, so the GPU samples source pixels directly.
   const sourceCellW = isWalking ? WALK_SOURCE_CELL_W : IDLE_SOURCE_CELL_W;
-  const sourceCellH = SOURCE_CELL_H;
+  const sourceCellH = isWalking ? WALK_SOURCE_CELL_H : SOURCE_CELL_H;
   const innerScale = displayCellH / sourceCellH;
   const imgWidth = cols * sourceCellW;
   const imgHeight = rows * sourceCellH;
