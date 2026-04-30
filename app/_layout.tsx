@@ -20,18 +20,17 @@ import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { queryClient } from '../src/state/queryClient';
 import { DarkColors } from '../src/constants/colors';
 
-function RootNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+function LoadingScreen() {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color={colors.accent} size="large" />
+    </View>
+  );
+}
+
+function ThemedStack() {
   const { colors, isDark } = useTheme();
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={colors.accent} size="large" />
-      </View>
-    );
-  }
-
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -39,6 +38,18 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
       </Stack>
+    </>
+  );
+}
+
+function RootNavigator() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) return <LoadingScreen />;
+
+  return (
+    <>
+      <ThemedStack />
       {isAuthenticated ? <Redirect href="/(tabs)/map" /> : <Redirect href="/login" />}
     </>
   );
