@@ -99,6 +99,7 @@ export default function MapScreen() {
 
   const refreshProfile = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: qk.profile });
+    queryClient.invalidateQueries({ queryKey: qk.daySummary });
   }, [queryClient]);
 
   const {

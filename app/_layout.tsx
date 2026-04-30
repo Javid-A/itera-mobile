@@ -18,7 +18,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { queryClient } from '../src/state/queryClient';
-import { DarkColors } from '../src/constants/colors';
+import { LightColors } from '../src/constants/colors';
 
 function LoadingScreen() {
   const { colors } = useTheme();
@@ -68,8 +68,8 @@ export default function RootLayout() {
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, backgroundColor: DarkColors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={DarkColors.accent} size="large" />
+      <View style={{ flex: 1, backgroundColor: LightColors.background, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={LightColors.accent} size="large" />
       </View>
     );
   }
