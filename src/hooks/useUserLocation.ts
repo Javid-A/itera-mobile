@@ -8,8 +8,8 @@ import { requestForegroundLocation } from '../services/locationSettings';
 // ─── GPS tuning ────────────────────────────────────────────────────────────
 const GPS_ENV: 'indoor' | 'outdoor' = 'outdoor';
 const GPS_CONFIG = {
-  indoor: { GPS_ACCURACY_MAX: 60, MIN_MOVE_METERS: 1.5, STATIONARY_TIMEOUT_MS: 1500 },
-  outdoor: { GPS_ACCURACY_MAX: 25, MIN_MOVE_METERS: 1.5, STATIONARY_TIMEOUT_MS: 1500 },
+  indoor: { GPS_ACCURACY_MAX: 60, MIN_MOVE_METERS: 1.5, STATIONARY_TIMEOUT_MS: 1000 },
+  outdoor: { GPS_ACCURACY_MAX: 25, MIN_MOVE_METERS: 1.5, STATIONARY_TIMEOUT_MS: 1000 },
 } as const;
 const { GPS_ACCURACY_MAX, MIN_MOVE_METERS, STATIONARY_TIMEOUT_MS } = GPS_CONFIG[GPS_ENV];
 
@@ -17,13 +17,32 @@ const POSITION_HISTORY_MAX = 8;
 const HEADING_MIN_TOTAL_M = 2.5;
 const HEADING_MIN_CONFIDENCE = 0.65;
 const HEADING_SEGMENT_MIN_M = 0.8;
-const WALK_WINDOW_MS = 3500;
+const WALK_WINDOW_MS = 2500;
 const WALK_WINDOW_MIN_M = 1.8;
 const WALK_NET_MIN_M = 1.5;
 const DIR_CONFIRM_THRESHOLD = 2;
+const DIR_CONFIRM_THRESHOLD_CHIP = 1;
 const SMOOTH_ALPHA = 0.35;
 const STATIONARY_SPEED_MS = 0.3;
-const MARKER_TWEEN_MS = 900;
+// Speed at which we trust the GPS chip enough to flip walking on without
+// waiting for the displacement window — well above the noise floor and well
+// below normal walking pace (~1.4 m/s).
+const CONFIDENT_WALK_SPEED_MS = 0.7;
+// Marker chase loop tuning: per-frame lerp factor (~0.18 → ~270ms time
+// constant @ 60Hz), max forward dead-reckoning projection from the last fix,
+// and the GPS-gap threshold above which we snap rather than tween (covers
+// background→foreground returns and signal-recovery from tunnels/elevators).
+const FOLLOW_ALPHA = 0.18;
+const DR_CAP_MS = 1500;
+const LONG_PAUSE_MS = 5000;
+// Skip setDisplayedCoords when the per-frame delta is below ~1 cm — saves
+// React reconciliation while the user is stationary or fully caught up.
+const SUBPIXEL_M = 0.01;
+// Camera animation duration is clamped to this range and otherwise tracks the
+// actual GPS sample interval, so the camera glide rate matches whatever pace
+// the receiver is delivering fixes.
+const CAMERA_ANIM_MIN_MS = 500;
+const CAMERA_ANIM_MAX_MS = 1500;
 const MAP_ZOOM_DEFAULT = 17.5;
 const MAP_PITCH = 65;
 
@@ -56,6 +75,14 @@ export function useUserLocation({
 
   const userCoordsRef = useRef<[number, number] | null>(null);
   const displayedCoordsRef = useRef<[number, number] | null>(null);
+  // Latest authoritative fix used by the marker chase loop. Velocity is
+  // deg/sec on [lng, lat], derived from the previous fix; the chase loop
+  // projects forward from this so the marker keeps moving during GPS gaps.
+  const lastFixRef = useRef<{
+    coords: [number, number];
+    t: number;
+    velocity: [number, number];
+  } | null>(null);
 
   const lastAccepted = useRef<{ lng: number; lat: number; t: number } | null>(null);
   const positionHistory = useRef<{ lng: number; lat: number; t: number }[]>([]);
@@ -76,34 +103,75 @@ export function useUserLocation({
     userCoordsRef.current = userCoords;
   }, [userCoords]);
 
-  // Smoothly tween rendered coords toward latest accepted GPS fix so the marker glides.
+  // Update the chase target whenever a new fix arrives. Inferred velocity from
+  // the previous fix lets the chase loop dead-reckon forward through the GPS
+  // gap — so the marker keeps moving at human pace instead of stalling between
+  // 1Hz samples. A long pause (background return, signal recovery) snaps
+  // rather than tweens, since the geometry between old and new is stale.
   useEffect(() => {
     if (!userCoords) return;
-    const current = displayedCoordsRef.current;
-    if (!current) {
+    const now = Date.now();
+    const prev = lastFixRef.current;
+
+    if (!prev) {
+      lastFixRef.current = { coords: userCoords, t: now, velocity: [0, 0] };
       displayedCoordsRef.current = userCoords;
       setDisplayedCoords(userCoords);
       return;
     }
-    const from = current;
-    const to = userCoords;
-    const start = Date.now();
+
+    const dtSec = (now - prev.t) / 1000;
+
+    if (dtSec * 1000 > LONG_PAUSE_MS) {
+      lastFixRef.current = { coords: userCoords, t: now, velocity: [0, 0] };
+      displayedCoordsRef.current = userCoords;
+      setDisplayedCoords(userCoords);
+      return;
+    }
+
+    const velocity: [number, number] =
+      dtSec > 0.05
+        ? [
+            (userCoords[0] - prev.coords[0]) / dtSec,
+            (userCoords[1] - prev.coords[1]) / dtSec,
+          ]
+        : prev.velocity;
+    lastFixRef.current = { coords: userCoords, t: now, velocity };
+  }, [userCoords]);
+
+  // Continuous RAF chase loop: each frame the displayed marker lerps toward
+  // `lastFix.coords + velocity * elapsed`, capped at DR_CAP_MS of forward
+  // projection so a stale velocity can't drift the marker arbitrarily far.
+  // setState is skipped when per-frame movement is sub-cm so React isn't
+  // re-rendering at 60Hz while stationary.
+  useEffect(() => {
     let raf: number | null = null;
-    const step = () => {
-      const t = Math.min(1, (Date.now() - start) / MARKER_TWEEN_MS);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const lng = from[0] + (to[0] - from[0]) * eased;
-      const lat = from[1] + (to[1] - from[1]) * eased;
-      const next: [number, number] = [lng, lat];
-      displayedCoordsRef.current = next;
-      setDisplayedCoords(next);
-      if (t < 1) raf = requestAnimationFrame(step);
+    const tick = () => {
+      const fix = lastFixRef.current;
+      const displayed = displayedCoordsRef.current;
+      if (fix && displayed) {
+        const elapsedMs = Math.min(Date.now() - fix.t, DR_CAP_MS);
+        const projSec = elapsedMs / 1000;
+        const targetLng = fix.coords[0] + fix.velocity[0] * projSec;
+        const targetLat = fix.coords[1] + fix.velocity[1] * projSec;
+        const nextLng = displayed[0] + (targetLng - displayed[0]) * FOLLOW_ALPHA;
+        const nextLat = displayed[1] + (targetLat - displayed[1]) * FOLLOW_ALPHA;
+        const movedM = haversineMeters(
+          displayed[1], displayed[0], nextLat, nextLng,
+        );
+        if (movedM > SUBPIXEL_M) {
+          const next: [number, number] = [nextLng, nextLat];
+          displayedCoordsRef.current = next;
+          setDisplayedCoords(next);
+        }
+      }
+      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(step);
+    raf = requestAnimationFrame(tick);
     return () => {
       if (raf != null) cancelAnimationFrame(raf);
     };
-  }, [userCoords]);
+  }, []);
 
   const startWatching = useCallback(async () => {
     if (watchSubRef.current || watchStartingRef.current) return;
@@ -169,9 +237,16 @@ export function useUserLocation({
           const smoothed: [number, number] = [smoothedLng, smoothedLat];
 
           setUserCoords(smoothed);
+          // Camera glides at the actual GPS sample interval (clamped) so its
+          // pace matches the marker chase — no fixed-duration mismatch when
+          // the receiver speeds up or slows down.
+          const camAnimMs = Math.min(
+            Math.max(timestamp - last.t, CAMERA_ANIM_MIN_MS),
+            CAMERA_ANIM_MAX_MS,
+          );
           cameraRef.current?.setCamera({
             centerCoordinate: smoothed,
-            animationDuration: MARKER_TWEEN_MS,
+            animationDuration: camAnimMs,
           });
           lastAccepted.current = { lng: smoothedLng, lat: smoothedLat, t: timestamp };
 
@@ -208,16 +283,28 @@ export function useUserLocation({
           const wantWalk =
             windowDist >= windowMin && netDisplacement >= netMin && speedIndicatesWalk;
 
+          // Asymmetric integrator: +1 per walk-evidence sample, -2 per idle —
+          // so stop reacts roughly twice as fast as start without sacrificing
+          // start-side jitter rejection.
           walkCandidateRef.current = wantWalk
             ? Math.min(walkCandidateRef.current + 1, 3)
-            : Math.max(walkCandidateRef.current - 1, -3);
+            : Math.max(walkCandidateRef.current - 2, -3);
 
-          if (walkCandidateRef.current >= 2) setIsWalking(true);
-          else if (walkCandidateRef.current <= -1) setIsWalking(false);
+          // Confident GPS-reported speed bypasses the integrator entirely.
+          if (reportedSpeed >= CONFIDENT_WALK_SPEED_MS) {
+            walkCandidateRef.current = Math.max(walkCandidateRef.current, 2);
+            setIsWalking(true);
+          } else if (walkCandidateRef.current >= 1) {
+            setIsWalking(true);
+          } else if (walkCandidateRef.current <= -1) {
+            setIsWalking(false);
+          }
 
-          // Commit a direction candidate only after DIR_CONFIRM_THRESHOLD consecutive
+          // Commit a direction candidate only after `minConfirm` consecutive
           // identical readings to suppress jitter from noisy GPS heading samples.
-          const tryCommitDirection = (candidate: Direction) => {
+          // Chip heading is already sensor-fused so it commits faster than the
+          // synthesized history bearing.
+          const tryCommitDirection = (candidate: Direction, minConfirm: number) => {
             if (candidate === characterDirectionRef.current) {
               dirCandidateRef.current = null;
               dirCandidateCountRef.current = 0;
@@ -229,7 +316,7 @@ export function useUserLocation({
               dirCandidateRef.current = candidate;
               dirCandidateCountRef.current = 1;
             }
-            if (dirCandidateCountRef.current >= DIR_CONFIRM_THRESHOLD) {
+            if (dirCandidateCountRef.current >= minConfirm) {
               characterDirectionRef.current = candidate;
               setCharacterDirection(candidate);
               dirCandidateRef.current = null;
@@ -244,7 +331,7 @@ export function useUserLocation({
           if (coords.heading != null && coords.heading >= 0 && speedIndicatesWalk) {
             lastAbsBearing.current = coords.heading;
             const rel = (coords.heading - cameraHeading + 360) % 360;
-            tryCommitDirection(bearingToDirection(rel));
+            tryCommitDirection(bearingToDirection(rel), DIR_CONFIRM_THRESHOLD_CHIP);
           } else if (hist.length >= 3) {
             let sumSin = 0;
             let sumCos = 0;
@@ -272,16 +359,10 @@ export function useUserLocation({
                   ((Math.atan2(sumSin, sumCos) * 180) / Math.PI + 360) % 360;
                 lastAbsBearing.current = bearingAbs;
                 const rel = (bearingAbs - cameraHeading + 360) % 360;
-                tryCommitDirection(bearingToDirection(rel));
+                tryCommitDirection(bearingToDirection(rel), DIR_CONFIRM_THRESHOLD);
               }
             }
           }
-
-          if (stationaryTimer.current) clearTimeout(stationaryTimer.current);
-          stationaryTimer.current = setTimeout(
-            () => setIsWalking(false),
-            STATIONARY_TIMEOUT_MS,
-          );
         },
       );
     } catch {
@@ -330,6 +411,9 @@ export function useUserLocation({
         watchSubRef.current = null;
         lastAccepted.current = null;
         positionHistory.current = [];
+        // Drop the chase target so the loop doesn't dead-reckon from a stale
+        // velocity while we wait for the first fresh fix.
+        lastFixRef.current = null;
         startWatching();
         onAppForeground?.();
       }
@@ -357,6 +441,7 @@ export function useUserLocation({
       // anında fresh konuma snap'le ve watcher'ı temiz olarak yeniden başlat.
       lastAccepted.current = null;
       positionHistory.current = [];
+      lastFixRef.current = { coords: next, t: Date.now(), velocity: [0, 0] };
       displayedCoordsRef.current = next;
       setDisplayedCoords(next);
       setUserCoords(next);

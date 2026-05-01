@@ -1,6 +1,10 @@
+import type { MissionTier } from './Mission';
+
 export interface DayCompletedItem {
   id: string;
   missionName: string;
+  iconType: string;
+  tier: MissionTier;
   earnedXP: number;
   completedAt: string;
   latitude: number;
@@ -11,6 +15,8 @@ export interface DayPendingItem {
   missionId: string;
   missionName: string;
   locationName: string;
+  iconType: string;
+  tier: MissionTier;
   potentialXP: number;
   latitude: number;
   longitude: number;

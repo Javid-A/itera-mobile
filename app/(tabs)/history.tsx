@@ -15,6 +15,9 @@ import { Spacing, Typography } from "../../src/constants";
 import { useTheme } from "../../src/context/ThemeContext";
 import { useDaySummary } from "../../src/state/queries/useDaySummary";
 import type { DayMission } from "../../src/types/DayMission";
+import type { MissionTier } from "../../src/types/Mission";
+import { useTierColors } from "../../src/context/ThemeContext";
+import { getMissionIconName } from "../../src/config/missionIcons";
 import type { DaySummary } from "../../src/types/DaySummary";
 import type { ColorScheme } from "../../src/constants/colors";
 
@@ -55,6 +58,8 @@ interface MissionRowData {
   time: string;
   xp: number;
   status: "completed" | "pending" | "missed";
+  tier: MissionTier;
+  iconType: string;
 }
 
 function makeStyles(C: ColorScheme) {
@@ -336,44 +341,44 @@ function MissionCard({
   C: ColorScheme;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const tierColors = useTierColors();
   const missed = row.status === "missed";
   const pending = row.status === "pending";
+  const accentColor = missed
+    ? C.danger
+    : pending
+      ? C.orange
+      : tierColors[row.tier];
+  const iconName = pending
+    ? "time-outline"
+    : missed
+      ? "alert-circle-outline"
+      : getMissionIconName(row.iconType);
   return (
     <View
       style={[
         styles.missionCard,
         missed && styles.missionCardMissed,
         pending && styles.missionCardPending,
+        !missed && !pending && { borderColor: hexToRgba(accentColor, 0.35) },
       ]}
     >
       <View
         style={[
           styles.missionAccent,
-          missed && { backgroundColor: C.danger },
-          pending && { backgroundColor: C.orange },
+          { backgroundColor: accentColor },
         ]}
       />
       <View
         style={[
           styles.missionIcon,
-          missed
-            ? styles.missionIconMissed
-            : pending
-              ? styles.missionIconPending
-              : styles.missionIconCompleted,
+          {
+            backgroundColor: hexToRgba(accentColor, 0.18),
+            borderColor: hexToRgba(accentColor, 0.55),
+          },
         ]}
       >
-        <Ionicons
-          name={
-            missed
-              ? "alert-circle-outline"
-              : pending
-                ? "time-outline"
-                : "checkmark"
-          }
-          size={20}
-          color={missed ? C.danger : pending ? C.orange : C.accent}
-        />
+        <Ionicons name={iconName} size={20} color={accentColor} />
       </View>
       <View style={{ flex: 1 }}>
         <Text
@@ -403,7 +408,7 @@ function MissionCard({
         </View>
       ) : (
         <View style={{ alignItems: "flex-end" }}>
-          <Text style={[Typography.statMD, { color: C.accent }]}>
+          <Text style={[Typography.statMD, { color: accentColor }]}>
             +{row.xp}
           </Text>
           <Text
@@ -470,6 +475,8 @@ export default function HistoryScreen() {
         time: formatTime(m.completedAt),
         xp: m.earnedXP,
         status: "completed",
+        tier: m.tier ?? "A",
+        iconType: m.iconType ?? "location",
       }));
 
       const pendingRows: MissionRowData[] = day.pending.map((p) => ({
@@ -479,6 +486,8 @@ export default function HistoryScreen() {
         time: "",
         xp: p.potentialXP,
         status: isToday ? "pending" : "missed",
+        tier: p.tier ?? "A",
+        iconType: p.iconType ?? "location",
       }));
 
       const rows: MissionRowData[] = [...completedRows, ...pendingRows];
@@ -487,6 +496,8 @@ export default function HistoryScreen() {
         id: m.id,
         missionName: m.missionName,
         locationName: m.missionName,
+        iconType: m.iconType ?? "location",
+        tier: m.tier ?? "A",
         latitude: m.latitude,
         longitude: m.longitude,
         status: "completed",
@@ -498,6 +509,8 @@ export default function HistoryScreen() {
         id: p.missionId,
         missionName: p.missionName,
         locationName: p.locationName,
+        iconType: p.iconType ?? "location",
+        tier: p.tier ?? "A",
         latitude: p.latitude,
         longitude: p.longitude,
         status: isToday ? "pending" : "missed",

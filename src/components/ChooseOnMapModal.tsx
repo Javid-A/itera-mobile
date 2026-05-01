@@ -37,12 +37,15 @@ type Props = {
   initialLocation?: { name: string; lat: number; lng: number } | null;
 };
 
-const TOKYO: [number, number] = [139.6917, 35.6895];
+// const TOKYO: [number, number] = [139.6917, 35.6895];
+const BERLIN: [number, number] = [13.405, 52.52];
 
 function makeStyles(C: ColorScheme, isDark: boolean) {
   // Mapbox style attribute is set on <MapView>; chip and fallback colors here
   // need to read the same way over both light and dark map tiles.
-  const chipBg = isDark ? "rgba(10, 18, 38, 0.92)" : "rgba(255, 255, 255, 0.92)";
+  const chipBg = isDark
+    ? "rgba(10, 18, 38, 0.92)"
+    : "rgba(255, 255, 255, 0.92)";
   const userPulseBg = isDark
     ? "rgba(166, 230, 53, 0.12)"
     : "rgba(22, 194, 106, 0.18)";
@@ -392,7 +395,7 @@ export default function ChooseOnMapModal({
   // Mapbox style URL: dark hattuara dark-v11, light için light-v11.
   const mapStyleURL = isDark
     ? "mapbox://styles/mapbox/dark-v11"
-    : "mapbox://styles/mapbox/light-v11";
+    : "mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa";
 
   return (
     <Modal
@@ -408,11 +411,7 @@ export default function ChooseOnMapModal({
             onPress={handleClose}
             hitSlop={8}
           >
-            <Ionicons
-              name="chevron-back"
-              size={20}
-              color={C.textPrimary}
-            />
+            <Ionicons name="chevron-back" size={20} color={C.textPrimary} />
           </Pressable>
           <View style={{ marginLeft: Spacing.md }}>
             <Text style={[Typography.displayLG, { color: C.textPrimary }]}>
@@ -458,7 +457,7 @@ export default function ChooseOnMapModal({
                 defaultSettings={{
                   centerCoordinate: initialLocation
                     ? [initialLocation.lng, initialLocation.lat]
-                    : (userCoord ?? TOKYO),
+                    : (userCoord ?? BERLIN),
                   zoomLevel: initialLocation ? 14 : 11,
                   pitch: 0,
                 }}
@@ -512,11 +511,7 @@ export default function ChooseOnMapModal({
             </MapView>
           ) : (
             <View style={[StyleSheet.absoluteFill, styles.mapFallback]}>
-              <Ionicons
-                name="map-outline"
-                size={32}
-                color={C.textSecondary}
-              />
+              <Ionicons name="map-outline" size={32} color={C.textSecondary} />
               <Text
                 style={[
                   Typography.body,
@@ -547,9 +542,7 @@ export default function ChooseOnMapModal({
                         styles.chipDot,
                         pinTier && {
                           backgroundColor:
-                            tierColors[
-                              pinTier.tier as keyof typeof tierColors
-                            ],
+                            tierColors[pinTier.tier as keyof typeof tierColors],
                         },
                       ]}
                     />

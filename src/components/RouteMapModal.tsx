@@ -9,10 +9,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Spacing, Typography } from "../constants";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme, useTierColors } from "../context/ThemeContext";
 import type { ColorScheme } from "../constants/colors";
 import type { DayMission } from "../types/DayMission";
 import { haversineMeters } from "../config/tierConfig";
+import { getMissionIconName } from "../config/missionIcons";
 import {
   MapboxAvailable,
   MapView,
@@ -58,11 +59,8 @@ type CameraSettings =
 
 const SINGLE_MISSION_ZOOM = 15;
 const FOCUS_ZOOM = 17;
-const FOCUS_FLY_MS_FAR = 850;
-const FOCUS_FLY_MS_CLOSE = 2100;
-const FOCUS_PITCH_MAX = 55;
-const SPREAD_TIGHT_M = 250;
-const SPREAD_LOOSE_M = 5000;
+const FOCUS_FLY_MS = 1400;
+const FOCUS_PITCH = 65;
 const BOUNDS_PADDING = 40;
 
 function isValidCoord(m: DayMission): boolean {
@@ -229,11 +227,6 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
     numberedPinDim: {
       opacity: 0.65,
     },
-    numberedPinText: {
-      fontFamily: "Rajdhani_700Bold",
-      fontSize: 14,
-      color: C.accent,
-    },
     dailyRouteChip: {
       position: "absolute",
       bottom: Spacing.sm,
@@ -290,24 +283,13 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
     rowPending: {
       borderColor: orangeCardBorder,
     },
-    rowSelected: {
-      borderColor: C.accent,
-      backgroundColor: C.accentSoft,
-    },
     rowNumber: {
       width: 30,
       height: 30,
       borderRadius: 10,
-      backgroundColor: C.accentSoft,
       borderWidth: 1.5,
-      borderColor: C.accent,
       alignItems: "center",
       justifyContent: "center",
-    },
-    rowNumberText: {
-      fontFamily: "Rajdhani_700Bold",
-      fontSize: 14,
-      color: C.accent,
     },
     missedPill: {
       backgroundColor: dangerSoft,
@@ -337,6 +319,27 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       letterSpacing: 1,
       color: C.orange,
     },
+    pinWrapper: {
+      alignItems: "center",
+      justifyContent: "flex-end",
+    },
+    pinTooltip: {
+      backgroundColor: overlayChipBg,
+      borderWidth: 1,
+      borderColor: C.borderBright,
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      maxWidth: 140,
+      marginBottom: 6,
+    },
+    pinTooltipText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 11,
+      letterSpacing: 0.5,
+      color: C.textPrimary,
+      textAlign: "center",
+    },
   });
 }
 
@@ -347,16 +350,14 @@ export default function RouteMapModal({
   onClose,
 }: Props) {
   const { colors: C, isDark } = useTheme();
+  const tierColors = useTierColors();
   const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
 
-  const PIN_COLORS: Record<DayMission["status"], string> = useMemo(
-    () => ({
-      completed: C.accent,
-      pending: C.orange,
-      missed: C.danger,
-    }),
-    [C],
-  );
+  const colorForMission = (m: DayMission): string => {
+    if (m.status === "missed") return C.danger;
+    if (m.status === "pending") return C.orange;
+    return tierColors[m.tier];
+  };
 
   const completed = missions.filter((m) => m.status === "completed").length;
   const pending = missions.filter((m) => m.status === "pending").length;
@@ -368,15 +369,20 @@ export default function RouteMapModal({
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(
     null,
   );
+  const [tooltipMissionId, setTooltipMissionId] = useState<string | null>(null);
   const prevSelectedRef = useRef<string | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!visible) {
-      setSelectedMissionId(null);
-      prevSelectedRef.current = null;
-      return;
+    setSelectedMissionId(null);
+    setTooltipMissionId(null);
+    prevSelectedRef.current = null;
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
+      tooltipTimerRef.current = null;
     }
-    if (!camera || !cameraRef.current) return;
+    if (!visible || !camera) return;
+    if (!cameraRef.current) return;
     if (camera.kind === "point") {
       cameraRef.current.setCamera({
         centerCoordinate: camera.centerCoordinate,
@@ -392,8 +398,6 @@ export default function RouteMapModal({
         0,
       );
     }
-    setSelectedMissionId(null);
-    prevSelectedRef.current = null;
   }, [visible, date, camera]);
 
   const focusMission = (m: DayMission) => {
@@ -401,37 +405,31 @@ export default function RouteMapModal({
     if (!isValidCoord(m)) return;
     if (prevSelectedRef.current === m.id) return;
 
-    const spreadM = camera?.spreadM ?? 0;
-    const closeness =
-      1 -
-      Math.min(
-        Math.max(
-          (spreadM - SPREAD_TIGHT_M) / (SPREAD_LOOSE_M - SPREAD_TIGHT_M),
-          0,
-        ),
-        1,
-      );
-    const focusPitch = Math.round(closeness * FOCUS_PITCH_MAX);
-    const flyMs = Math.round(
-      FOCUS_FLY_MS_FAR + (FOCUS_FLY_MS_CLOSE - FOCUS_FLY_MS_FAR) * closeness,
-    );
-
     cameraRef.current.setCamera({
       centerCoordinate: [m.longitude, m.latitude],
       zoomLevel: FOCUS_ZOOM,
-      pitch: focusPitch,
-      animationDuration: flyMs,
+      pitch: FOCUS_PITCH,
+      animationDuration: FOCUS_FLY_MS,
       animationMode: "flyTo",
     });
 
     prevSelectedRef.current = m.id;
     setSelectedMissionId(m.id);
+    setTooltipMissionId(null);
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    if (m.locationName) {
+      tooltipTimerRef.current = setTimeout(
+        () => setTooltipMissionId(m.id),
+        FOCUS_FLY_MS,
+      );
+    }
   };
 
   // Light mode'da kendi custom dark stilimiz yerine standart Mapbox light stiline düş.
   const mapStyleURL = isDark
     ? "mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa"
-    : "mapbox://styles/mapbox/light-v11";
+    : // : "mapbox://styles/mapbox/light-v11";
+      "mapbox://styles/javid-a/cmnywehfe001101qz3nmtgtsa";
 
   return (
     <Modal
@@ -512,7 +510,7 @@ export default function RouteMapModal({
               )}
             </View>
 
-            {MapboxAvailable && camera ? (
+            {visible && MapboxAvailable && camera ? (
               <MapView
                 style={styles.map}
                 styleURL={mapStyleURL}
@@ -546,29 +544,38 @@ export default function RouteMapModal({
                         }
                   }
                 />
-                {missions.map((m, i) => {
+                {missions.map((m) => {
                   if (!isValidCoord(m)) return null;
+                  const pinColor = colorForMission(m);
+                  const iconName = getMissionIconName(m.iconType);
+                  const showTooltip = tooltipMissionId === m.id;
                   return (
                     <MarkerView
                       key={m.id}
                       coordinate={[m.longitude, m.latitude]}
                       anchor={{ x: 0.5, y: 0.5 }}
                     >
-                      <View
-                        style={[
-                          styles.numberedPin,
-                          { borderColor: PIN_COLORS[m.status] },
-                          m.status !== "completed" && styles.numberedPinDim,
-                        ]}
-                      >
-                        <Text
+                      <View style={styles.pinWrapper}>
+                        {showTooltip && (
+                          <View style={styles.pinTooltip}>
+                            <Text style={styles.pinTooltipText}>
+                              {m.missionName}
+                            </Text>
+                          </View>
+                        )}
+                        <View
                           style={[
-                            styles.numberedPinText,
-                            { color: PIN_COLORS[m.status] },
+                            styles.numberedPin,
+                            { borderColor: pinColor },
+                            m.status !== "completed" && styles.numberedPinDim,
                           ]}
                         >
-                          {i + 1}
-                        </Text>
+                          <Ionicons
+                            name={iconName}
+                            size={14}
+                            color={pinColor}
+                          />
+                        </View>
                       </View>
                     </MarkerView>
                   );
@@ -629,69 +636,69 @@ export default function RouteMapModal({
             showsVerticalScrollIndicator={false}
           >
             <View style={{ gap: Spacing.sm, paddingTop: Spacing.sm }}>
-              {missions.map((m, i) => (
-                <Pressable
-                  key={m.id}
-                  onPress={() => focusMission(m)}
-                  style={[
-                    styles.row,
-                    m.status === "missed" && styles.rowMissed,
-                    m.status === "pending" && styles.rowPending,
-                    selectedMissionId === m.id && styles.rowSelected,
-                  ]}
-                >
-                  <View
+              {missions.map((m) => {
+                const rowColor = colorForMission(m);
+                const iconName = getMissionIconName(m.iconType);
+                return (
+                  <Pressable
+                    key={m.id}
+                    onPress={() => focusMission(m)}
                     style={[
-                      styles.rowNumber,
-                      {
-                        backgroundColor: `${PIN_COLORS[m.status]}1A`,
-                        borderColor: `${PIN_COLORS[m.status]}99`,
+                      styles.row,
+                      m.status === "missed" && styles.rowMissed,
+                      m.status === "pending" && styles.rowPending,
+                      selectedMissionId === m.id && {
+                        borderColor: rowColor,
+                        backgroundColor: hexToRgba(rowColor, 0.12),
                       },
                     ]}
                   >
-                    <Text
+                    <View
                       style={[
-                        styles.rowNumberText,
-                        { color: PIN_COLORS[m.status] },
+                        styles.rowNumber,
+                        {
+                          backgroundColor: hexToRgba(rowColor, 0.15),
+                          borderColor: hexToRgba(rowColor, 0.6),
+                        },
                       ]}
                     >
-                      {i + 1}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[Typography.bodyBold, { color: C.textPrimary }]}
-                    >
-                      {m.missionName}
-                    </Text>
-                    <Text
-                      style={[
-                        Typography.caption,
-                        { color: C.textSecondary, marginTop: 2 },
-                      ]}
-                    >
-                      {m.status === "completed" && m.completedAt
-                        ? formatTime(m.completedAt)
-                        : m.status === "pending"
-                          ? "Not completed yet"
-                          : "Not completed"}
-                    </Text>
-                  </View>
-                  {m.status === "completed" ? (
-                    <Text style={[Typography.statMD, { color: C.accent }]}>
-                      +{m.earnedXP}
-                    </Text>
-                  ) : m.status === "pending" ? (
-                    <View style={styles.pendingPill}>
-                      <Text style={styles.pendingPillText}>PENDING</Text>
+                      <Ionicons name={iconName} size={16} color={rowColor} />
                     </View>
-                  ) : (
-                    <View style={styles.missedPill}>
-                      <Text style={styles.missedPillText}>MISSED</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[Typography.bodyBold, { color: C.textPrimary }]}
+                      >
+                        {m.missionName}
+                      </Text>
+                      <Text
+                        style={[
+                          Typography.caption,
+                          { color: C.textSecondary, marginTop: 2 },
+                        ]}
+                      >
+                        {m.status === "completed" && m.completedAt
+                          ? formatTime(m.completedAt)
+                          : m.status === "pending"
+                            ? "Not completed yet"
+                            : "Not completed"}
+                      </Text>
                     </View>
-                  )}
-                </Pressable>
-              ))}
+                    {m.status === "completed" ? (
+                      <Text style={[Typography.statMD, { color: rowColor }]}>
+                        +{m.earnedXP}
+                      </Text>
+                    ) : m.status === "pending" ? (
+                      <View style={styles.pendingPill}>
+                        <Text style={styles.pendingPillText}>PENDING</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.missedPill}>
+                        <Text style={styles.missedPillText}>MISSED</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
             </View>
           </ScrollView>
         </View>
