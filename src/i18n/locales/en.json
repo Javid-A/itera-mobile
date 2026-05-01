@@ -114,6 +114,9 @@
     "autoTrackingOff": "AUTO-TRACKING OFF",
     "fix": "FIX"
   },
+  "xpToast": {
+    "streakBonus": "🔥 +{{xp}} STREAK BONUS"
+  },
   "bottomSheet": {
     "title": "Active Missions",
     "activeCount": "{{count}} ACTIVE",

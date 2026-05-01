@@ -4,4 +4,6 @@ export interface Profile {
   currentXP: number;
   totalMissions: number;
   totalXP: number;
+  currentStreak: number;
+  longestStreak?: number;
 }

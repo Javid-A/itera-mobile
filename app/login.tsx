@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
@@ -20,30 +20,9 @@ function makeStyles(C: ColorScheme) {
       alignItems: 'center',
       marginBottom: Spacing.xxl,
     },
-    title: {
-      fontFamily: 'Rajdhani_700Bold',
-      fontSize: 52,
-      color: C.textPrimary,
-      letterSpacing: -1,
-      lineHeight: 56,
-    },
-    subtitle: {
-      fontFamily: 'Rajdhani_600SemiBold',
-      fontSize: 12,
-      color: C.textSecondary,
-      letterSpacing: 4,
-      marginTop: Spacing.xs,
-    },
-    divider: {
-      width: 56,
-      height: 3,
-      backgroundColor: C.accent,
-      borderRadius: 2,
-      marginTop: Spacing.md,
-      shadowColor: C.accent,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.8,
-      shadowRadius: 10,
+    logo: {
+      width: 220,
+      height: 60,
     },
     card: {
       width: '100%',
@@ -105,7 +84,7 @@ function makeStyles(C: ColorScheme) {
 
 export default function LoginScreen() {
   const { login, register } = useAuth();
-  const { colors: C } = useTheme();
+  const { colors: C, isDark } = useTheme();
   const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -141,11 +120,13 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.titleWrap}>
-        <Text style={styles.title}>
-          ITERA<Text style={{ color: C.accent }}>.</Text>
-        </Text>
-        <Text style={styles.subtitle}>GAMIFIED PRODUCTIVITY</Text>
-        <View style={styles.divider} />
+        <Image
+          source={isDark
+            ? require('../assets/logo-horizontal-dark.png')
+            : require('../assets/logo-horizontal-light.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </View>
 
       <View style={styles.card}>

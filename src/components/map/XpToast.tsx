@@ -1,14 +1,17 @@
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Colors } from "../../constants";
 
 interface Props {
   xp: number;
+  streakBonusXP?: number;
   opacity: Animated.Value;
   translateY: Animated.Value;
 }
 
-export default function XpToast({ xp, opacity, translateY }: Props) {
+export default function XpToast({ xp, streakBonusXP = 0, opacity, translateY }: Props) {
+  const { t } = useTranslation();
   return (
     <Animated.View
       pointerEvents="none"
@@ -21,6 +24,13 @@ export default function XpToast({ xp, opacity, translateY }: Props) {
         <Ionicons name="star" size={16} color={Colors.success} />
         <Text style={styles.xpToastText}>+{xp} XP</Text>
       </View>
+      {streakBonusXP > 0 && (
+        <View style={styles.xpToastBonusBadge}>
+          <Text style={styles.xpToastBonusText}>
+            {t("xpToast.streakBonus", { xp: streakBonusXP })}
+          </Text>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -54,5 +64,25 @@ const styles = StyleSheet.create({
     fontFamily: "Rajdhani_700Bold",
     fontSize: 28,
     letterSpacing: 2,
+  },
+  xpToastBonusBadge: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: "rgba(20, 14, 8, 0.92)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ff8a3d",
+    shadowColor: "#ff8a3d",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  xpToastBonusText: {
+    color: "#ffb27a",
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 16,
+    letterSpacing: 1.5,
   },
 });

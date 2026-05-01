@@ -39,7 +39,7 @@ function isoDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-const PROFILE_FALLBACK = { username: '', currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0 };
+const PROFILE_FALLBACK = { username: '', currentLevel: 1, currentXP: 0, totalMissions: 0, totalXP: 0, currentStreak: 0 };
 
 function makeStyles(C: ColorScheme) {
   return StyleSheet.create({
@@ -317,17 +317,10 @@ export default function ProfileScreen() {
 
   useFocusEffect(refresh);
 
-  const { streakDays, locationsCount, weekDots, todayDone } = useMemo(() => {
+  const streakDays = stats.currentStreak ?? 0;
+
+  const { locationsCount, weekDots, todayDone } = useMemo(() => {
     const dayKeys = new Set(history.map((m) => isoDateKey(new Date(m.completedAt))));
-
-    let streak = 0;
-    const cursor = startOfDay(new Date());
-    if (!dayKeys.has(isoDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
-    while (dayKeys.has(isoDateKey(cursor))) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-
     const uniqueRoutines = new Set(history.map((m) => m.id));
 
     const today = startOfDay(new Date());
@@ -343,7 +336,6 @@ export default function ProfileScreen() {
     }
 
     return {
-      streakDays: streak,
       locationsCount: uniqueRoutines.size,
       weekDots: dots,
       todayDone: dayKeys.has(isoDateKey(today)),

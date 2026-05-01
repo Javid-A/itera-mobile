@@ -28,6 +28,9 @@ export interface ArriveResponse {
   cooldownActive?: boolean;
   leveledUp?: boolean;
   currentLevel?: number;
+  streakDays?: number;
+  streakBonusXP?: number;
+  streakIncreased?: boolean;
 }
 
 export async function getMissionsToday(): Promise<Mission[]> {

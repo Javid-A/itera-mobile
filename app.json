@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "itera-mobile",
+    "name": "Itera",
     "slug": "itera-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,17 +11,12 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B0D12"
+      "backgroundColor": "#E8EAF6"
     },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": [
-          "location",
-          "fetch",
-          "location",
-          "fetch"
-        ],
+        "UIBackgroundModes": ["location", "fetch", "location", "fetch"],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Itera needs your location to detect when you arrive at mission zones.",
         "NSLocationWhenInUseUsageDescription": "Itera needs your location to show missions near you."
       },
@@ -30,7 +25,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#E8EAF6"
       },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "pan",

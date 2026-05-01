@@ -106,6 +106,7 @@ export default function MapScreen() {
     activeMission,
     completingMissionId,
     completionXP,
+    completionStreakBonus,
     completionIsGreen,
     completionScale,
     vignetteAnim,
@@ -255,7 +256,7 @@ export default function MapScreen() {
         logoEnabled={false}
         attributionEnabled={false}
         scaleBarEnabled={false}
-        pitchEnabled={false}
+        pitchEnabled={true}
         rotateEnabled={true}
         onCameraChanged={handleCameraChanged}
       >
@@ -267,7 +268,7 @@ export default function MapScreen() {
             pitch: MAP_PITCH,
             heading: 0,
           }}
-          minZoomLevel={MAP_ZOOM_MIN}
+          minZoomLevel={2}
           maxZoomLevel={MAP_ZOOM_MAX}
         />
 
@@ -371,6 +372,7 @@ export default function MapScreen() {
 
       <XpToast
         xp={completionXP}
+        streakBonusXP={completionStreakBonus}
         opacity={xpToastOpacity}
         translateY={xpToastTranslate}
       />

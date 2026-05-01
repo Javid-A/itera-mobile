@@ -32,6 +32,7 @@ export function useMissionArrival({
     null,
   );
   const [completionXP, setCompletionXP] = useState(0);
+  const [completionStreakBonus, setCompletionStreakBonus] = useState(0);
   const [completionIsGreen, setCompletionIsGreen] = useState(false);
   const [completionScale, setCompletionScale] = useState(1);
 
@@ -168,6 +169,7 @@ export function useMissionArrival({
 
       const earnedXP = apiResult.earnedXP ?? 0;
       setCompletionXP(earnedXP);
+      setCompletionStreakBonus(apiResult.streakBonusXP ?? 0);
 
       setCompletionIsGreen(true);
       completionRadiusAnim.setValue(0);
@@ -264,6 +266,7 @@ export function useMissionArrival({
     activeMission,
     completingMissionId,
     completionXP,
+    completionStreakBonus,
     completionIsGreen,
     completionScale,
     vignetteAnim,

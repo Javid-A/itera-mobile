@@ -173,8 +173,11 @@ export default function TopHud({
 
   const xpForLevel = (profile?.currentLevel ?? 1) * XP_PER_LEVEL;
   const xpProgress = profile ? Math.min(1, profile.currentXP / xpForLevel) : 0;
+  const currentStreak = profile?.currentStreak ?? 0;
   const showStreak =
-    missions.length > 0 && missions.every((m) => m.status !== "completed");
+    currentStreak > 0 &&
+    missions.length > 0 &&
+    missions.every((m) => m.status !== "completed");
 
   const blurTint = isDark ? "dark" : "light";
 
@@ -309,7 +312,7 @@ export default function TopHud({
               <Text style={styles.hudPillFlame}>🔥</Text>
               <Text style={styles.hudPillText}>{t("topHud.streakAtRisk")}</Text>
               <View style={styles.hudPillBadge}>
-                <Text style={styles.hudPillBadgeText}>7D</Text>
+                <Text style={styles.hudPillBadgeText}>{currentStreak}D</Text>
               </View>
             </BlurView>
           )}
