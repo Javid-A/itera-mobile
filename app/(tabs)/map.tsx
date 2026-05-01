@@ -156,9 +156,23 @@ export default function MapScreen() {
   // Server verisi → lokal state senkronu. Arrival animasyonu sırasında ezmemek için
   // completingMissionId yokken kopyalıyoruz; animasyon biter bitmez (markCompleted
   // sonrası) bir sonraki refetch'te doğal akışla senkronize olur.
+  //
+  // Lokal olarak "completed" işaretlenmiş mission'ları koruyoruz: animasyon bitip
+  // completingMissionId null'a döndüğünde server cache henüz güncel olmayabilir.
+  // Stale data "active" yazarsa prevActiveMissionId sıfırlanıp arrival loop'a girer.
   useEffect(() => {
     if (missionsData && !completingMissionId) {
-      setMissions(missionsData);
+      setMissions((prev) => {
+        const locallyCompletedIds = new Set(
+          prev.filter((m) => m.status === "completed").map((m) => m.id),
+        );
+        if (locallyCompletedIds.size === 0) return missionsData;
+        return missionsData.map((m) =>
+          locallyCompletedIds.has(m.id)
+            ? { ...m, status: "completed" as const }
+            : m,
+        );
+      });
     }
   }, [missionsData, completingMissionId]);
 
