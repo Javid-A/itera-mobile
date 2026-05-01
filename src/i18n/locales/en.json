@@ -1,0 +1,131 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "error": "Error",
+    "xp": "XP",
+    "dayLabels": ["M", "T", "W", "T", "F", "S", "S"]
+  },
+  "tabs": {
+    "map": "Map",
+    "log": "Log",
+    "profile": "Profile"
+  },
+  "login": {
+    "createAccount": "CREATE ACCOUNT",
+    "signIn": "SIGN IN",
+    "username": "USERNAME",
+    "usernamePlaceholder": "Enter username",
+    "email": "EMAIL",
+    "emailPlaceholder": "Enter email",
+    "password": "PASSWORD",
+    "passwordPlaceholder": "Enter password",
+    "forgotPassword": "Forgot password?",
+    "registerButton": "REGISTER →",
+    "loginButton": "LOGIN →",
+    "alreadyHaveAccount": "Already have an account? ",
+    "dontHaveAccount": "Don't have an account? ",
+    "signInLink": "Sign In",
+    "registerLink": "Register",
+    "validationError": "Username and password are required.",
+    "genericError": "Something went wrong. Try again."
+  },
+  "profile": {
+    "title": "Profile",
+    "levelUpPill": "LEVEL UP",
+    "levelLabel": "LEVEL",
+    "missions": "Missions",
+    "dayStreak": "Day Streak",
+    "locations": "Locations",
+    "activeStreak": "ACTIVE STREAK",
+    "todayPending": "TODAY PENDING",
+    "streakReminder": "Complete 1 mission today to maintain your {{count}}-day streak",
+    "settings": "SETTINGS",
+    "appearance": "Appearance",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode — Haze",
+    "language": "Language",
+    "languageDesc": "Display language",
+    "autoTracking": "Auto-Tracking",
+    "autoTrackingOn": "Missions complete automatically",
+    "autoTrackingOff": "Tap to enable background location",
+    "signOut": "Sign Out",
+    "signOutDesc": "End your current session",
+    "signOutConfirmTitle": "Sign Out",
+    "signOutConfirmMsg": "Are you sure you want to sign out?",
+    "developer": "DEVELOPER",
+    "resetStats": "Reset Stats",
+    "resetStatsDesc": "Wipe completed missions, XP and level",
+    "resetStatsConfirmTitle": "Reset Stats",
+    "resetStatsConfirmMsg": "This wipes all completed missions and resets XP/level to zero. Dev use only.",
+    "reset": "Reset",
+    "resetStatsFailed": "Failed to reset stats.",
+    "xpProgress": " / {{xp}} XP to Lv {{level}}"
+  },
+  "history": {
+    "title": "Mission Log",
+    "thisWeek": "THIS WEEK",
+    "xpEarned": "{{xp}} XP earned",
+    "today": "TODAY",
+    "yesterday": "YESTERDAY",
+    "routeMap": "ROUTE MAP",
+    "noMissionsToday": "No missions today yet.",
+    "noMissionsYet": "No completed missions yet.",
+    "goToMap": "GO TO MAP →",
+    "notCompleted": "Not completed",
+    "missed": "MISSED",
+    "pending": "PENDING"
+  },
+  "bgPrompt": {
+    "title": "ALMOST THERE",
+    "missionComplete": "Mission Complete!",
+    "xpPreview": "+100 XP",
+    "bodyPrefix": "To complete missions automatically when you arrive, Itera needs location access",
+    "bodyHighlight": "all the time",
+    "caption": "Without this, you'll need to open the app at each location to check in manually.",
+    "enableButton": "ENABLE AUTO-TRACKING",
+    "skipButton": "I'll do it manually"
+  },
+  "createMission": {
+    "title": "New Mission",
+    "subtitle": "Set a routine at a real-world location",
+    "missionNameLabel": "MISSION NAME",
+    "missionNamePlaceholder": "e.g., Deep Work Block",
+    "locationTypeLabel": "LOCATION TYPE",
+    "locationLabel": "LOCATION",
+    "timeWindowLabel": "TIME WINDOW",
+    "launchButton": "LAUNCH MISSION →",
+    "locationRequiredTitle": "Location required",
+    "gpsWaiting": "Waiting for GPS to determine your position. Try again in a moment.",
+    "createFailedMsg": "Failed to create mission."
+  },
+  "levelUp": {
+    "congratulations": "CONGRATULATIONS",
+    "title": "LEVEL UP!",
+    "reachedPrefix": "You reached",
+    "levelDisplay": "Level {{level}}",
+    "xpEarned": "XP EARNED",
+    "newLevel": "NEW LEVEL",
+    "continueButton": "CONTINUE →",
+    "backToMap": "Back to Map"
+  },
+  "topHud": {
+    "levelLabel": "LEVEL {{level}}",
+    "streakAtRisk": "STREAK AT RISK",
+    "autoTrackingOff": "AUTO-TRACKING OFF",
+    "fix": "FIX"
+  },
+  "bottomSheet": {
+    "title": "Active Missions",
+    "activeCount": "{{count}} ACTIVE",
+    "empty": "No missions yet. Tap the + button to add your first."
+  },
+  "locationSearch": {
+    "placeholder": "Search a place..."
+  },
+  "xpReward": {
+    "label": "XP REWARD",
+    "tierInfo": "Tier {{tier}} · {{distance}} away",
+    "pickLocation": "Pick a location to classify tier.",
+    "locating": "Locating you…"
+  }
+}

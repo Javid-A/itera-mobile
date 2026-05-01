@@ -3,6 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import type { ColorScheme } from "../../constants/colors";
@@ -167,6 +168,7 @@ export default function TopHud({
   onFixBackground,
 }: Props) {
   const { colors: C, isDark } = useTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
 
   const xpForLevel = (profile?.currentLevel ?? 1) * XP_PER_LEVEL;
@@ -272,7 +274,7 @@ export default function TopHud({
             <View style={styles.detailsWrap}>
               <View style={styles.hudLabelRow}>
                 <Text style={styles.hudLevelLabel}>
-                  LEVEL {profile?.currentLevel ?? 1}
+                  {t("topHud.levelLabel", { level: profile?.currentLevel ?? 1 })}
                 </Text>
                 <Text style={[Typography.statSM, { color: C.accent }]}>
                   {(profile?.currentXP ?? 0).toLocaleString()} /{" "}
@@ -305,7 +307,7 @@ export default function TopHud({
               experimentalBlurMethod="dimezisBlurView"
             >
               <Text style={styles.hudPillFlame}>🔥</Text>
-              <Text style={styles.hudPillText}>STREAK AT RISK</Text>
+              <Text style={styles.hudPillText}>{t("topHud.streakAtRisk")}</Text>
               <View style={styles.hudPillBadge}>
                 <Text style={styles.hudPillBadgeText}>7D</Text>
               </View>
@@ -328,9 +330,9 @@ export default function TopHud({
                   color={C.orange}
                 />
                 <Text style={[styles.hudPillText, { color: C.orange }]}>
-                  AUTO-TRACKING OFF
+                  {t("topHud.autoTrackingOff")}
                 </Text>
-                <Text style={styles.hudPillEnable}>FIX</Text>
+                <Text style={styles.hudPillEnable}>{t("topHud.fix")}</Text>
               </BlurView>
             </Pressable>
           )}

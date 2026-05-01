@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useTranslation } from 'react-i18next';
 import { Spacing, Typography } from '../constants';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorScheme } from '../constants/colors';
@@ -134,6 +135,7 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
 
 function PromptContent({ onEnable, onSkip }: { onEnable: () => void; onSkip: () => void }) {
   const { colors: C, isDark } = useTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
 
   const player = useVideoPlayer(bgVideoSource, (p) => {
@@ -159,7 +161,7 @@ function PromptContent({ onEnable, onSkip }: { onEnable: () => void; onSkip: () 
       <Pressable style={styles.content} onPress={(e) => e.stopPropagation()}>
         <View style={styles.titleRow}>
           <Text style={[Typography.displayLG, { color: C.textPrimary, fontSize: 28 }]}>
-            ALMOST THERE
+            {t('bgPrompt.title')}
           </Text>
           <Pressable style={styles.closeButton} onPress={onSkip} hitSlop={12}>
             <Ionicons name="close" size={20} color={C.textSecondary} />
@@ -174,33 +176,33 @@ function PromptContent({ onEnable, onSkip }: { onEnable: () => void; onSkip: () 
             contentFit="cover"
           />
           <View style={styles.previewTooltip}>
-            <Text style={styles.previewTooltipTitle}>Mission Complete!</Text>
-            <Text style={styles.previewTooltipXP}>+100 XP</Text>
+            <Text style={styles.previewTooltipTitle}>{t('bgPrompt.missionComplete')}</Text>
+            <Text style={styles.previewTooltipXP}>{t('bgPrompt.xpPreview')}</Text>
           </View>
           <View style={styles.previewXpChip}>
-            <Text style={styles.previewXpChipText}>+100 XP</Text>
+            <Text style={styles.previewXpChipText}>{t('bgPrompt.xpPreview')}</Text>
           </View>
         </View>
 
         <Text style={[Typography.bodyLg, { color: C.textSecondary, textAlign: 'center', marginTop: Spacing.md }]}>
-          To complete missions automatically when you arrive, Itera needs location access{' '}
-          <Text style={{ color: C.textPrimary, fontFamily: 'Inter_700Bold' }}>all the time</Text>.
+          {t('bgPrompt.bodyPrefix')}{' '}
+          <Text style={{ color: C.textPrimary, fontFamily: 'Inter_700Bold' }}>{t('bgPrompt.bodyHighlight')}</Text>.
         </Text>
 
         <Text style={[Typography.caption, { color: C.textSecondary, textAlign: 'center', marginTop: Spacing.sm }]}>
-          Without this, you'll need to open the app at each location to check in manually.
+          {t('bgPrompt.caption')}
         </Text>
 
         <Pressable style={styles.enableButton} onPress={onEnable}>
           <Ionicons name="shield-checkmark" size={18} color={C.background} />
           <Text style={[Typography.cta, { color: C.background, marginLeft: Spacing.sm }]}>
-            ENABLE AUTO-TRACKING
+            {t('bgPrompt.enableButton')}
           </Text>
         </Pressable>
 
         <Pressable style={styles.skipButton} onPress={onSkip}>
           <Text style={[Typography.bodyMedium, { color: C.textSecondary }]}>
-            I'll do it manually
+            {t('bgPrompt.skipButton')}
           </Text>
         </Pressable>
       </Pressable>

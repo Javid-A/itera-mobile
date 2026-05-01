@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Dimensions, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Spacing, Typography } from '../constants';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorScheme } from '../constants/colors';
@@ -335,6 +336,7 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
 
 export default function LevelUpModal({ visible, level, earnedXP, onClose }: Props) {
   const { colors: C, isDark } = useTheme();
+  const { t } = useTranslation();
   const { styles, iconFill } = useMemo(() => makeStyles(C, isDark), [C, isDark]);
 
   const particlePalette = useMemo(
@@ -447,10 +449,13 @@ export default function LevelUpModal({ visible, level, earnedXP, onClose }: Prop
             </Svg>
           </Animated.View>
 
-          <Animated.Text style={[styles.congrats, { opacity: titleOpacity }]}>CONGRATULATIONS</Animated.Text>
-          <Text style={styles.bigTitle}>LEVEL UP!</Text>
+          <Animated.Text style={[styles.congrats, { opacity: titleOpacity }]}>{t('levelUp.congratulations')}</Animated.Text>
+          <Text style={styles.bigTitle}>{t('levelUp.title')}</Text>
           <Text style={styles.reachedText}>
-            You reached <Text style={{ color: C.accent, fontFamily: 'Inter_700Bold' }}>Level {level}</Text>
+            {t('levelUp.reachedPrefix')}{' '}
+            <Text style={{ color: C.accent, fontFamily: 'Inter_700Bold' }}>
+              {t('levelUp.levelDisplay', { level })}
+            </Text>
           </Text>
 
           <View style={styles.rewardRow}>
@@ -462,7 +467,7 @@ export default function LevelUpModal({ visible, level, earnedXP, onClose }: Prop
                 delay={300}
                 style={styles.rewardValue}
               />
-              <Text style={styles.rewardLabel}>XP EARNED</Text>
+              <Text style={styles.rewardLabel}>{t('levelUp.xpEarned')}</Text>
             </View>
             <View style={styles.rewardCard}>
               <XPCountUp
@@ -471,19 +476,19 @@ export default function LevelUpModal({ visible, level, earnedXP, onClose }: Prop
                 delay={500}
                 style={[styles.rewardValue, { color: C.textPrimary }]}
               />
-              <Text style={styles.rewardLabel}>NEW LEVEL</Text>
+              <Text style={styles.rewardLabel}>{t('levelUp.newLevel')}</Text>
             </View>
           </View>
 
           <Pressable style={styles.cta} onPress={onClose}>
             <Text style={[Typography.cta, { color: C.background, fontSize: 18, letterSpacing: 2 }]}>
-              CONTINUE →
+              {t('levelUp.continueButton')}
             </Text>
           </Pressable>
 
           <Pressable style={styles.backLink} onPress={onClose}>
             <Ionicons name="arrow-back" size={14} color={C.textSecondary} />
-            <Text style={[Typography.body, { color: C.textSecondary }]}>Back to Map</Text>
+            <Text style={[Typography.body, { color: C.textSecondary }]}>{t('levelUp.backToMap')}</Text>
           </Pressable>
         </View>
       </View>

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { GestureResponderHandlers } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../../constants";
 import { useTheme, useTierColors } from "../../context/ThemeContext";
 import type { ColorScheme } from "../../constants/colors";
@@ -150,6 +151,7 @@ export default function MissionsBottomSheet({
   onMissionDelete,
 }: Props) {
   const { colors: C, isDark } = useTheme();
+  const { t } = useTranslation();
   const tierColors = useTierColors();
   const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
   const activeMissions = missions.filter((m) => m.status !== "completed");
@@ -170,11 +172,11 @@ export default function MissionsBottomSheet({
           <View style={styles.sheetHandle} />
           <View style={styles.sheetTitleRow}>
             <Text style={[Typography.displaySM, { color: C.textPrimary }]}>
-              Active Missions
+              {t("bottomSheet.title")}
             </Text>
             <View style={styles.countPill}>
               <Text style={[Typography.label, { color: C.accent }]}>
-                {activeMissions.length} ACTIVE
+                {t("bottomSheet.activeCount", { count: activeMissions.length })}
               </Text>
             </View>
           </View>
@@ -192,7 +194,7 @@ export default function MissionsBottomSheet({
                   { color: C.textSecondary, textAlign: "center" },
                 ]}
               >
-                No missions yet. Tap the + button to add your first.
+                {t("bottomSheet.empty")}
               </Text>
             </View>
           ) : (

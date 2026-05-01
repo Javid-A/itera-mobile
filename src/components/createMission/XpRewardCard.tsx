@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../../constants";
 import { useTheme, useTierColors } from "../../context/ThemeContext";
 import type { ColorScheme } from "../../constants/colors";
@@ -54,6 +55,7 @@ export default function XpRewardCard({
   anchorError,
 }: Props) {
   const { colors: C } = useTheme();
+  const { t } = useTranslation();
   const tierColors = useTierColors();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -61,7 +63,7 @@ export default function XpRewardCard({
     <View style={styles.xpCard}>
       <View style={{ flex: 1 }}>
         <Text style={[Typography.label, { color: C.textSecondary }]}>
-          XP REWARD
+          {t("xpReward.label")}
         </Text>
         {tierPreview ? (
           <>
@@ -104,8 +106,8 @@ export default function XpRewardCard({
               {anchorError
                 ? anchorError
                 : anchorCoords
-                  ? "Pick a location to classify tier."
-                  : "Locating you…"}
+                  ? t("xpReward.pickLocation")
+                  : t("xpReward.locating")}
             </Text>
             <View style={styles.baseChip}>
               <Text style={styles.baseChipText}>A · B · C</Text>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { useTheme } from '../src/context/ThemeContext';
 import { Spacing, Typography } from '../src/constants';
@@ -105,6 +106,7 @@ function makeStyles(C: ColorScheme) {
 export default function LoginScreen() {
   const { login, register } = useAuth();
   const { colors: C } = useTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const [username, setUsername] = useState('');
@@ -116,7 +118,7 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     if (!username.trim() || !password.trim()) {
-      setError('Username and password are required.');
+      setError(t('login.validationError'));
       return;
     }
     setError('');
@@ -129,7 +131,7 @@ export default function LoginScreen() {
       }
       router.replace('/(tabs)/map');
     } catch (e: any) {
-      const msg = e?.response?.data?.error ?? 'Something went wrong. Try again.';
+      const msg = e?.response?.data?.error ?? t('login.genericError');
       setError(msg);
     } finally {
       setLoading(false);
@@ -148,13 +150,13 @@ export default function LoginScreen() {
 
       <View style={styles.card}>
         <Text style={[Typography.displayMD, styles.cardTitle]}>
-          {showRegister ? 'CREATE ACCOUNT' : 'SIGN IN'}
+          {showRegister ? t('login.createAccount') : t('login.signIn')}
         </Text>
 
-        <Text style={[Typography.label, styles.fieldLabel]}>USERNAME</Text>
+        <Text style={[Typography.label, styles.fieldLabel]}>{t('login.username')}</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter username"
+          placeholder={t('login.usernamePlaceholder')}
           placeholderTextColor={C.textSecondary}
           autoCapitalize="none"
           value={username}
@@ -163,10 +165,10 @@ export default function LoginScreen() {
 
         {showRegister && (
           <>
-            <Text style={[Typography.label, styles.fieldLabel, { marginTop: Spacing.md }]}>EMAIL</Text>
+            <Text style={[Typography.label, styles.fieldLabel, { marginTop: Spacing.md }]}>{t('login.email')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter email"
+              placeholder={t('login.emailPlaceholder')}
               placeholderTextColor={C.textSecondary}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -176,10 +178,10 @@ export default function LoginScreen() {
           </>
         )}
 
-        <Text style={[Typography.label, styles.fieldLabel, { marginTop: Spacing.md }]}>PASSWORD</Text>
+        <Text style={[Typography.label, styles.fieldLabel, { marginTop: Spacing.md }]}>{t('login.password')}</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter password"
+          placeholder={t('login.passwordPlaceholder')}
           placeholderTextColor={C.textSecondary}
           secureTextEntry
           value={password}
@@ -188,7 +190,7 @@ export default function LoginScreen() {
 
         {!showRegister && (
           <Pressable style={styles.forgot} hitSlop={6}>
-            <Text style={styles.forgotText}>Forgot password?</Text>
+            <Text style={styles.forgotText}>{t('login.forgotPassword')}</Text>
           </Pressable>
         )}
 
@@ -201,16 +203,16 @@ export default function LoginScreen() {
             <ActivityIndicator color={C.background} />
           ) : (
             <Text style={[Typography.cta, { color: C.background }]}>
-              {showRegister ? 'REGISTER →' : 'LOGIN →'}
+              {showRegister ? t('login.registerButton') : t('login.loginButton')}
             </Text>
           )}
         </Pressable>
 
         <Pressable onPress={() => { setShowRegister((v) => !v); setError(''); }} style={styles.toggle}>
           <Text style={[Typography.body, { color: C.textSecondary }]}>
-            {showRegister ? 'Already have an account? ' : "Don't have an account? "}
+            {showRegister ? t('login.alreadyHaveAccount') : t('login.dontHaveAccount')}
             <Text style={{ color: C.accent, fontFamily: 'Inter_700Bold' }}>
-              {showRegister ? 'Sign In' : 'Register'}
+              {showRegister ? t('login.signInLink') : t('login.registerLink')}
             </Text>
           </Text>
         </Pressable>

@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../constants";
 import { useTheme } from "../context/ThemeContext";
 import type { ColorScheme } from "../constants/colors";
@@ -126,6 +127,7 @@ export default function CreateMissionModal({
   onCreated,
 }: Props) {
   const { colors: C } = useTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const [loading, setLoading] = useState(false);
@@ -219,9 +221,8 @@ export default function CreateMissionModal({
     if (!missionName.trim()) return;
     if (!anchorCoords) {
       Alert.alert(
-        "Location required",
-        anchorError ??
-          "Waiting for GPS to determine your position. Try again in a moment.",
+        t("createMission.locationRequiredTitle"),
+        anchorError ?? t("createMission.gpsWaiting"),
       );
       return;
     }
@@ -250,8 +251,8 @@ export default function CreateMissionModal({
       onCreated?.();
     } catch (e: any) {
       Alert.alert(
-        "Error",
-        e?.response?.data?.error ?? "Failed to create mission.",
+        t("common.error"),
+        e?.response?.data?.error ?? t("createMission.createFailedMsg"),
       );
     } finally {
       setLoading(false);
@@ -293,7 +294,7 @@ export default function CreateMissionModal({
                   <Text
                     style={[Typography.displayLG, { color: C.textPrimary }]}
                   >
-                    New Mission
+                    {t("createMission.title")}
                   </Text>
                   <Text
                     style={[
@@ -301,30 +302,30 @@ export default function CreateMissionModal({
                       { color: C.textSecondary, marginTop: 2 },
                     ]}
                   >
-                    Set a routine at a real-world location
+                    {t("createMission.subtitle")}
                   </Text>
                 </View>
               </View>
 
-              <Text style={styles.fieldLabel}>MISSION NAME</Text>
+              <Text style={styles.fieldLabel}>{t("createMission.missionNameLabel")}</Text>
               <View style={styles.inputWrap}>
                 <Ionicons name="create-outline" size={16} color={C.accent} />
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., Deep Work Block"
+                  placeholder={t("createMission.missionNamePlaceholder")}
                   placeholderTextColor={C.textSecondary}
                   value={missionName}
                   onChangeText={setMissionName}
                 />
               </View>
 
-              <Text style={styles.fieldLabel}>LOCATION TYPE</Text>
+              <Text style={styles.fieldLabel}>{t("createMission.locationTypeLabel")}</Text>
               <MissionTypePicker
                 selected={selectedType}
                 onSelect={setSelectedType}
               />
 
-              <Text style={styles.fieldLabel}>LOCATION</Text>
+              <Text style={styles.fieldLabel}>{t("createMission.locationLabel")}</Text>
               <LocationSearchField
                 selectedName={locationName}
                 query={search.query}
@@ -339,7 +340,7 @@ export default function CreateMissionModal({
                 onPress={() => setShowMapModal(true)}
               />
 
-              <Text style={styles.fieldLabel}>TIME WINDOW</Text>
+              <Text style={styles.fieldLabel}>{t("createMission.timeWindowLabel")}</Text>
               <TimeWindowPicker
                 state={timeWindow}
                 onChange={setTimeWindow}
@@ -367,7 +368,7 @@ export default function CreateMissionModal({
                   <ActivityIndicator color={C.background} />
                 ) : (
                   <Text style={[Typography.cta, { color: C.background }]}>
-                    LAUNCH MISSION →
+                    {t("createMission.launchButton")}
                   </Text>
                 )}
               </Pressable>

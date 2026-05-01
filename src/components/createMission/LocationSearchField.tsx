@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import type { ColorScheme } from "../../constants/colors";
@@ -80,6 +81,7 @@ export default function LocationSearchField({
   onClear,
 }: Props) {
   const { colors: C } = useTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
 
   return (
@@ -88,7 +90,7 @@ export default function LocationSearchField({
         <Ionicons name="search" size={16} color={C.textSecondary} />
         <TextInput
           style={styles.locationInput}
-          placeholder="Search a place..."
+          placeholder={t("locationSearch.placeholder")}
           placeholderTextColor={C.textSecondary}
           value={selectedName || query}
           onChangeText={(t) => {

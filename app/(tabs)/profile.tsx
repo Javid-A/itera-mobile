@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import ScreenContainer from '../../src/components/ScreenContainer';
 import BackgroundLocationPrompt from '../../src/components/BackgroundLocationPrompt';
 import LevelUpModal from '../../src/components/LevelUpModal';
@@ -12,6 +13,7 @@ import XPCountUp from '../../src/components/XPCountUp';
 import { Spacing, Typography } from '../../src/constants';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useLanguage, AVAILABLE_LANGUAGES } from '../../src/context/LanguageContext';
 import { resetProfileStats } from '../../src/api/profile';
 import { useProfile } from '../../src/state/queries/useProfile';
 import { useMissionHistory } from '../../src/state/queries/useMissionHistory';
@@ -26,7 +28,6 @@ const RING_STROKE = 8;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRC = 2 * Math.PI * RING_RADIUS;
 
-const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -273,7 +274,10 @@ function makeStyles(C: ColorScheme) {
 export default function ProfileScreen() {
   const { username, logout } = useAuth();
   const { colors: C, isDark, toggleTheme } = useTheme();
+  const { language, changeLanguage } = useLanguage();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const dayLabels = t('common.dayLabels', { returnObjects: true }) as string[];
   const { data: profileData } = useProfile();
   const { data: historyData } = useMissionHistory();
   const stats = profileData ?? PROFILE_FALLBACK;
@@ -392,28 +396,42 @@ export default function ProfileScreen() {
   const dashOffset = RING_CIRC * (1 - xpProgress);
 
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: logout },
+    Alert.alert(t('profile.signOutConfirmTitle'), t('profile.signOutConfirmMsg'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('profile.signOut'), style: 'destructive', onPress: logout },
     ]);
   };
 
   const handleResetStats = () => {
-    Alert.alert('Reset Stats', 'This wipes all completed missions and resets XP/level to zero. Dev use only.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('profile.resetStatsConfirmTitle'), t('profile.resetStatsConfirmMsg'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Reset',
+        text: t('profile.reset'),
         style: 'destructive',
         onPress: async () => {
           try {
             await resetProfileStats();
             refresh();
           } catch {
-            Alert.alert('Error', 'Failed to reset stats.');
+            Alert.alert(t('common.error'), t('profile.resetStatsFailed'));
           }
         },
       },
     ]);
+  };
+
+  const handleLanguagePress = () => {
+    Alert.alert(
+      t('profile.language'),
+      undefined,
+      [
+        ...AVAILABLE_LANGUAGES.map((lang) => ({
+          text: lang.label,
+          onPress: () => changeLanguage(lang.code),
+        })),
+        { text: t('common.cancel'), style: 'cancel' as const },
+      ],
+    );
   };
 
   const tier = stats.currentLevel >= 10 ? 'Elite Operative' : stats.currentLevel >= 5 ? 'Operative' : 'Recruit';
@@ -422,10 +440,10 @@ export default function ProfileScreen() {
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
         <View style={styles.titleRow}>
-          <Text style={[Typography.displayXL, { color: C.textPrimary }]}>Profile</Text>
+          <Text style={[Typography.displayXL, { color: C.textPrimary }]}>{t('profile.title')}</Text>
           <Pressable style={styles.levelUpPill} onPress={() => setShowLevelUp(true)}>
             <Ionicons name="flash" size={14} color={C.accent} />
-            <Text style={styles.levelUpPillText}>LEVEL UP</Text>
+            <Text style={styles.levelUpPillText}>{t('profile.levelUpPill')}</Text>
           </Pressable>
         </View>
 
@@ -454,7 +472,7 @@ export default function ProfileScreen() {
               />
             </Svg>
             <View style={styles.ringCenter}>
-              <Text style={[Typography.label, { color: C.textSecondary }]}>LEVEL</Text>
+              <Text style={[Typography.label, { color: C.textSecondary }]}>{t('profile.levelLabel')}</Text>
               <XPCountUp
                 target={stats.currentLevel}
                 duration={900}
@@ -480,7 +498,7 @@ export default function ProfileScreen() {
                 style={[Typography.caption, { color: C.textSecondary }]}
               />
               <Text style={[Typography.caption, { color: C.textSecondary }]}>
-                {` / ${xpTarget.toLocaleString()} XP to Lv ${stats.currentLevel + 1}`}
+                {t('profile.xpProgress', { xp: xpTarget.toLocaleString(), level: stats.currentLevel + 1 })}
               </Text>
             </View>
           </View>
@@ -494,7 +512,7 @@ export default function ProfileScreen() {
               delay={100}
               style={[Typography.statXL, { color: C.accent }]}
             />
-            <Text style={styles.statCardLabel}>Missions</Text>
+            <Text style={styles.statCardLabel}>{t('profile.missions')}</Text>
           </View>
           <View style={styles.statCard}>
             <XPCountUp
@@ -503,7 +521,7 @@ export default function ProfileScreen() {
               delay={250}
               style={[Typography.statXL, { color: C.accent }]}
             />
-            <Text style={styles.statCardLabel}>Day Streak</Text>
+            <Text style={styles.statCardLabel}>{t('profile.dayStreak')}</Text>
           </View>
           <View style={styles.statCard}>
             <XPCountUp
@@ -512,13 +530,13 @@ export default function ProfileScreen() {
               delay={400}
               style={[Typography.statXL, { color: C.accent }]}
             />
-            <Text style={styles.statCardLabel}>Locations</Text>
+            <Text style={styles.statCardLabel}>{t('profile.locations')}</Text>
           </View>
         </View>
 
         <View style={styles.streakCard}>
           <View style={styles.streakCardHeader}>
-            <Text style={styles.streakCardTitle}>ACTIVE STREAK</Text>
+            <Text style={styles.streakCardTitle}>{t('profile.activeStreak')}</Text>
             {!todayDone && (
               <Animated.View
                 style={[
@@ -529,7 +547,7 @@ export default function ProfileScreen() {
                 <Animated.Text style={[styles.todayPendingFlame, { transform: [{ scale: flameScale }] }]}>
                   🔥
                 </Animated.Text>
-                <Text style={styles.todayPendingText}>TODAY PENDING</Text>
+                <Text style={styles.todayPendingText}>{t('profile.todayPending')}</Text>
               </Animated.View>
             )}
           </View>
@@ -559,7 +577,7 @@ export default function ProfileScreen() {
                     </View>
                   )}
                   <Text style={[styles.weekDotLabel, isTodayIdx && { color: C.textPrimary }]}>
-                    {DAY_LABELS[i]}
+                    {dayLabels[i]}
                   </Text>
                 </View>
               );
@@ -569,13 +587,13 @@ export default function ProfileScreen() {
             <View style={styles.reminderBanner}>
               <Ionicons name="flash" size={14} color={C.orange} />
               <Text style={styles.reminderText}>
-                Complete 1 mission today to maintain your {streakDays}-day streak
+                {t('profile.streakReminder', { count: streakDays })}
               </Text>
             </View>
           )}
         </View>
 
-        <Text style={styles.sectionLabel}>SETTINGS</Text>
+        <Text style={styles.sectionLabel}>{t('profile.settings')}</Text>
 
         <Pressable style={styles.settingsRow} onPress={toggleTheme}>
           <View style={[styles.settingsIcon, !isDark && { backgroundColor: C.accentSoft, borderColor: C.accent }]}>
@@ -586,9 +604,9 @@ export default function ProfileScreen() {
             />
           </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
-            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Appearance</Text>
+            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>{t('profile.appearance')}</Text>
             <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
-              {isDark ? 'Dark mode' : 'Light mode — Haze'}
+              {isDark ? t('profile.darkMode') : t('profile.lightMode')}
             </Text>
           </View>
           <Switch
@@ -599,14 +617,27 @@ export default function ProfileScreen() {
           />
         </Pressable>
 
+        <Pressable style={[styles.settingsRow, { marginTop: Spacing.sm }]} onPress={handleLanguagePress}>
+          <View style={styles.settingsIcon}>
+            <Ionicons name="language-outline" size={18} color={C.textSecondary} />
+          </View>
+          <View style={{ flex: 1, marginLeft: Spacing.md }}>
+            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>{t('profile.language')}</Text>
+            <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
+              {AVAILABLE_LANGUAGES.find((l) => l.code === language)?.label ?? 'English'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+        </Pressable>
+
         <Pressable style={[styles.settingsRow, { marginTop: Spacing.sm }]} onPress={handleAutoTrackingToggle}>
           <View style={[styles.settingsIcon, isAutoTrackingOn && { backgroundColor: C.accentSoft, borderColor: C.accent }]}>
             <Ionicons name="star-outline" size={18} color={isAutoTrackingOn ? C.accent : C.textSecondary} />
           </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
-            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Auto-Tracking</Text>
+            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>{t('profile.autoTracking')}</Text>
             <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
-              {isAutoTrackingOn ? 'Missions complete automatically' : 'Tap to enable background location'}
+              {isAutoTrackingOn ? t('profile.autoTrackingOn') : t('profile.autoTrackingOff')}
             </Text>
           </View>
           <Switch
@@ -622,9 +653,9 @@ export default function ProfileScreen() {
             <Ionicons name="log-out-outline" size={18} color={C.danger} />
           </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
-            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Sign Out</Text>
+            <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>{t('profile.signOut')}</Text>
             <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
-              End your current session
+              {t('profile.signOutDesc')}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
@@ -632,15 +663,15 @@ export default function ProfileScreen() {
 
         {__DEV__ && (
           <>
-            <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>DEVELOPER</Text>
+            <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>{t('profile.developer')}</Text>
             <Pressable style={styles.settingsRow} onPress={handleResetStats}>
               <View style={styles.settingsIcon}>
                 <Ionicons name="refresh-outline" size={18} color={C.orange} />
               </View>
               <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>Reset Stats</Text>
+                <Text style={[Typography.bodyBold, { color: C.textPrimary }]}>{t('profile.resetStats')}</Text>
                 <Text style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}>
-                  Wipe completed missions, XP and level
+                  {t('profile.resetStatsDesc')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />

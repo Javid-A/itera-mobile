@@ -1,11 +1,13 @@
 import { Tabs } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Typography } from '../../src/constants';
 import { useTheme } from '../../src/context/ThemeContext';
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   return (
     <Tabs
       screenOptions={{
@@ -28,7 +30,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          title: 'Map',
+          title: t('tabs.map'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="location-outline" color={color} focused={focused} />
           ),
@@ -37,7 +39,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="history"
         options={{
-          title: 'Log',
+          title: t('tabs.log'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="document-text-outline" color={color} focused={focused} />
           ),
@@ -46,7 +48,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="person-outline" color={color} focused={focused} />
           ),

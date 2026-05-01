@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import ScreenContainer from "../../src/components/ScreenContainer";
 import RouteMapModal from "../../src/components/RouteMapModal";
 import { Spacing, Typography } from "../../src/constants";
@@ -20,8 +21,6 @@ import { useTierColors } from "../../src/context/ThemeContext";
 import { getMissionIconName } from "../../src/config/missionIcons";
 import type { DaySummary } from "../../src/types/DaySummary";
 import type { ColorScheme } from "../../src/constants/colors";
-
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
@@ -35,13 +34,17 @@ function formatTime(iso: string): string {
   });
 }
 
-function formatSectionLabel(sectionDate: string, todayDate: string): string {
-  if (sectionDate === todayDate) return "TODAY";
+function formatSectionLabel(
+  sectionDate: string,
+  todayDate: string,
+  t: (key: string) => string,
+): string {
+  if (sectionDate === todayDate) return t("history.today");
   const today = parseLocalDate(todayDate);
   const target = parseLocalDate(sectionDate);
   const dayMs = 86400000;
   const diffDays = Math.round((today.getTime() - target.getTime()) / dayMs);
-  if (diffDays === 1) return "YESTERDAY";
+  if (diffDays === 1) return t("history.yesterday");
   return target
     .toLocaleDateString("en-US", {
       weekday: "short",
@@ -341,6 +344,7 @@ function MissionCard({
   C: ColorScheme;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const { t } = useTranslation();
   const tierColors = useTierColors();
   const missed = row.status === "missed";
   const pending = row.status === "pending";
@@ -392,7 +396,7 @@ function MissionCard({
           numberOfLines={1}
         >
           {missed
-            ? `${row.location} · Not completed`
+            ? `${row.location} · ${t("history.notCompleted")}`
             : pending
               ? row.location
               : `${row.location} · ${row.time}`}
@@ -400,11 +404,11 @@ function MissionCard({
       </View>
       {missed ? (
         <View style={styles.missedPill}>
-          <Text style={styles.missedPillText}>MISSED</Text>
+          <Text style={styles.missedPillText}>{t("history.missed")}</Text>
         </View>
       ) : pending ? (
         <View style={styles.pendingPill}>
-          <Text style={styles.pendingPillText}>PENDING</Text>
+          <Text style={styles.pendingPillText}>{t("history.pending")}</Text>
         </View>
       ) : (
         <View style={{ alignItems: "flex-end" }}>
@@ -438,7 +442,9 @@ interface DaySection {
 export default function HistoryScreen() {
   const router = useRouter();
   const { colors: C } = useTheme();
+  const { t } = useTranslation();
   const { data: summary } = useDaySummary();
+  const dayLabels = t("common.dayLabels", { returnObjects: true }) as string[];
   const [routeMapSection, setRouteMapSection] = useState<{
     date: Date;
     dayMissions: DayMission[];
@@ -519,7 +525,7 @@ export default function HistoryScreen() {
 
       return {
         key: day.date,
-        label: formatSectionLabel(day.date, summary.today.date),
+        label: formatSectionLabel(day.date, summary.today.date, t),
         date: parseLocalDate(day.date),
         rows,
         dayMissions: [...completedDayMissions, ...pendingDayMissions],
@@ -535,7 +541,7 @@ export default function HistoryScreen() {
       yesterdaySection: buildSection(summary.yesterday, false),
       todayIndex: tIdx >= 0 ? tIdx : 0,
     };
-  }, [summary]);
+  }, [summary, t]);
 
   const maxBar = Math.max(...weekTotals, 1);
 
@@ -605,7 +611,7 @@ export default function HistoryScreen() {
             }
           >
             <Ionicons name="git-network-outline" size={14} color={C.accent} />
-            <Text style={styles.routeMapButtonText}>ROUTE MAP</Text>
+            <Text style={styles.routeMapButtonText}>{t("history.routeMap")}</Text>
           </Pressable>
         </View>
         <View style={styles.sectionDivider} />
@@ -621,7 +627,7 @@ export default function HistoryScreen() {
                 },
               ]}
             >
-              No missions today yet.
+              {t("history.noMissionsToday")}
             </Text>
           ) : (
             section.rows.map((row) => (
@@ -643,13 +649,13 @@ export default function HistoryScreen() {
         }}
       >
         <Text style={[Typography.displayXL, { color: C.textPrimary }]}>
-          Mission Log
+          {t("history.title")}
         </Text>
 
         <View style={styles.weekChipRow}>
           <View style={styles.weekChip}>
             <Ionicons name="arrow-up" size={11} color={C.accent} />
-            <Text style={styles.weekChipText}>THIS WEEK</Text>
+            <Text style={styles.weekChipText}>{t("history.thisWeek")}</Text>
           </View>
           <Text
             style={[
@@ -657,13 +663,13 @@ export default function HistoryScreen() {
               { color: C.textSecondary, marginLeft: Spacing.sm },
             ]}
           >
-            {weekTotalXP.toLocaleString()} XP earned
+            {t("history.xpEarned", { xp: weekTotalXP.toLocaleString() })}
           </Text>
         </View>
 
         <View style={styles.chartCard}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>THIS WEEK</Text>
+            <Text style={styles.chartTitle}>{t("history.thisWeek")}</Text>
             <Text style={[Typography.statMD, { color: C.accent }]}>
               {weekTotalXP.toLocaleString()} XP
             </Text>
@@ -721,7 +727,7 @@ export default function HistoryScreen() {
                       isToday && { color: C.accent },
                     ]}
                   >
-                    {DAY_LABELS[i]}
+                    {dayLabels[i]}
                   </Text>
                   {isToday && <View style={styles.todayDot} />}
                 </View>
@@ -749,7 +755,7 @@ export default function HistoryScreen() {
                   { color: C.textSecondary, textAlign: "center" },
                 ]}
               >
-                No completed missions yet.
+                {t("history.noMissionsYet")}
               </Text>
               <Pressable
                 onPress={() => router.push("/(tabs)/map")}
@@ -758,7 +764,7 @@ export default function HistoryScreen() {
                 <Text
                   style={[Typography.cta, { color: C.accent, fontSize: 13 }]}
                 >
-                  GO TO MAP →
+                  {t("history.goToMap")}
                 </Text>
               </Pressable>
             </View>

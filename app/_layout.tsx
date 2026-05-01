@@ -1,4 +1,5 @@
 import '../src/services/GeofenceTask';
+import '../src/i18n';
 import { Redirect, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
@@ -17,6 +18,7 @@ import {
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
+import { LanguageProvider } from '../src/context/LanguageContext';
 import { queryClient } from '../src/state/queryClient';
 import { LightColors } from '../src/constants/colors';
 
@@ -77,9 +79,11 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthProvider>
-          <RootNavigator />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <RootNavigator />
+          </AuthProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
