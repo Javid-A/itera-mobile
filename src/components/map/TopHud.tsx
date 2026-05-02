@@ -27,11 +27,15 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 function makeStyles(C: ColorScheme, isDark: boolean) {
-  const hudCardBg = isDark ? "rgba(11, 14, 26, 0.45)" : "rgba(255, 255, 255, 0.55)";
+  const hudCardBg = isDark
+    ? "rgba(11, 14, 26, 0.45)"
+    : "rgba(255, 255, 255, 0.55)";
   const hudCardBorder = isDark
     ? "rgba(255, 255, 255, 0.15)"
     : "rgba(14, 15, 42, 0.18)";
-  const hudPillBg = isDark ? "rgba(20, 14, 8, 0.4)" : "rgba(255, 255, 255, 0.65)";
+  const hudPillBg = isDark
+    ? "rgba(20, 14, 8, 0.4)"
+    : "rgba(255, 255, 255, 0.65)";
   const hudPillWarningBg = isDark
     ? "rgba(11, 14, 26, 0.4)"
     : "rgba(255, 255, 255, 0.65)";
@@ -190,6 +194,7 @@ export default function TopHud({
   const todayCompleted = missions.some((m) => m.status === "completed");
   const showStreak = currentStreak > 0;
   const streakSafe = todayCompleted;
+  const streakLabel = currentStreak > 99 ? "99+" : `${currentStreak}D`;
 
   const blurTint = isDark ? "dark" : "light";
 
@@ -252,11 +257,21 @@ export default function TopHud({
               experimentalBlurMethod="dimezisBlurView"
             >
               <Text style={styles.hudPillFlame}>🔥</Text>
-              <Text style={[styles.hudPillText, streakSafe && styles.hudPillTextSafe]}>
+              <Text
+                style={[
+                  styles.hudPillText,
+                  streakSafe && styles.hudPillTextSafe,
+                ]}
+              >
                 {streakSafe ? t("topHud.streakSafe") : t("topHud.streakAtRisk")}
               </Text>
-              <View style={[styles.hudPillBadge, streakSafe && styles.hudPillBadgeSafe]}>
-                <Text style={styles.hudPillBadgeText}>{currentStreak}D</Text>
+              <View
+                style={[
+                  styles.hudPillBadge,
+                  streakSafe && styles.hudPillBadgeSafe,
+                ]}
+              >
+                <Text style={styles.hudPillBadgeText}>{streakLabel}</Text>
               </View>
             </BlurView>
           )}
@@ -271,11 +286,7 @@ export default function TopHud({
                 style={[styles.hudPill, styles.hudPillWarning]}
                 experimentalBlurMethod="dimezisBlurView"
               >
-                <Ionicons
-                  name="warning-outline"
-                  size={13}
-                  color={C.orange}
-                />
+                <Ionicons name="warning-outline" size={13} color={C.orange} />
                 <Text style={[styles.hudPillText, { color: C.orange }]}>
                   {t("topHud.autoTrackingOff")}
                 </Text>

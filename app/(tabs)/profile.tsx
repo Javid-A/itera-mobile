@@ -23,7 +23,7 @@ import { qk } from '../../src/state/queryKeys';
 import { requestBackgroundLocation } from '../../src/services/locationSettings';
 import { LocationService } from '../../src/services/LocationService';
 import { useBackgroundPermission } from '../../src/hooks/useBackgroundPermission';
-import { STORAGE_KEYS, XP_PER_LEVEL } from '../../src/config/gameConfig';
+import { STORAGE_KEYS, STREAK_BONUS_TIERS, XP_PER_LEVEL } from '../../src/config/gameConfig';
 import type { ColorScheme } from '../../src/constants/colors';
 
 const RING_SIZE = 128;
@@ -244,6 +244,26 @@ function makeStyles(C: ColorScheme) {
       fontSize: 12,
       color: C.orange,
     },
+    streakBonusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: Spacing.md,
+      paddingTop: Spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: C.border,
+    },
+    streakBonusText: {
+      fontFamily: 'Rajdhani_700Bold',
+      fontSize: 12,
+      letterSpacing: 1,
+      color: C.success,
+    },
+    streakBonusNoneText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      color: C.textSecondary,
+    },
     sectionLabel: {
       fontFamily: 'Rajdhani_700Bold',
       fontSize: 11,
@@ -419,7 +439,13 @@ export default function ProfileScreen() {
 
   const handleLanguagePress = () => setShowLanguagePicker(true);
 
-  const tier = stats.currentLevel >= 10 ? 'Elite Operative' : stats.currentLevel >= 5 ? 'Operative' : 'Recruit';
+  const tier =
+    stats.currentLevel >= 10
+      ? t('profile.tierElite')
+      : stats.currentLevel >= 5
+      ? t('profile.tierOperative')
+      : t('profile.tierRecruit');
+  const activeBonusTier = STREAK_BONUS_TIERS.find((tier) => streakDays >= tier.minDays);
 
   return (
     <ScreenContainer>
@@ -576,6 +602,23 @@ export default function ProfileScreen() {
               </Text>
             </View>
           )}
+          <View style={styles.streakBonusRow}>
+            {activeBonusTier ? (
+              <>
+                <Ionicons name="flash" size={13} color={C.success} />
+                <Text style={styles.streakBonusText}>
+                  {t('profile.streakBonusActive', { xp: activeBonusTier.bonusXP })}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="flash-outline" size={13} color={C.textSecondary} />
+                <Text style={styles.streakBonusNoneText}>
+                  {t('profile.streakBonusNone')}
+                </Text>
+              </>
+            )}
+          </View>
         </View>
 
         <Text style={styles.sectionLabel}>{t('profile.settings')}</Text>

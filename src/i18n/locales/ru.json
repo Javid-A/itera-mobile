@@ -59,7 +59,12 @@
     "resetStatsConfirmMsg": "Это удалит все выполненные миссии и сбросит XP/уровень до нуля. Только для разработчиков.",
     "reset": "Сбросить",
     "resetStatsFailed": "Не удалось сбросить статистику.",
-    "xpProgress": " / {{xp}} XP до ур. {{level}}"
+    "xpProgress": " / {{xp}} XP до ур. {{level}}",
+    "tierRecruit": "Новобранец",
+    "tierOperative": "Оперативник",
+    "tierElite": "Элитный оперативник",
+    "streakBonusActive": "+{{xp}} XP / МИССИЯ",
+    "streakBonusNone": "Серия из 3 дней даёт бонусный XP"
   },
   "history": {
     "title": "Журнал миссий",

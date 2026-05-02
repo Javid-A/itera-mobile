@@ -59,7 +59,12 @@
     "resetStatsConfirmMsg": "This wipes all completed missions and resets XP/level to zero. Dev use only.",
     "reset": "Reset",
     "resetStatsFailed": "Failed to reset stats.",
-    "xpProgress": " / {{xp}} XP to Lv {{level}}"
+    "xpProgress": " / {{xp}} XP to Lv {{level}}",
+    "tierRecruit": "Recruit",
+    "tierOperative": "Operative",
+    "tierElite": "Elite Operative",
+    "streakBonusActive": "+{{xp}} XP / MISSION",
+    "streakBonusNone": "Reach a 3-day streak for bonus XP"
   },
   "history": {
     "title": "Mission Log",

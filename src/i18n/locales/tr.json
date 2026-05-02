@@ -59,7 +59,12 @@
     "resetStatsConfirmMsg": "Bu işlem tüm tamamlanan görevleri siler ve XP/seviyeyi sıfıra döndürür. Yalnızca geliştirici kullanımı içindir.",
     "reset": "Sıfırla",
     "resetStatsFailed": "İstatistikler sıfırlanamadı.",
-    "xpProgress": " / {{xp}} XP → Sv {{level}}"
+    "xpProgress": " / {{xp}} XP → Sv {{level}}",
+    "tierRecruit": "Acemi",
+    "tierOperative": "Operatif",
+    "tierElite": "Elit Operatif",
+    "streakBonusActive": "+{{xp}} XP / GÖREV",
+    "streakBonusNone": "Bonus XP için 3 günlük seri yap"
   },
   "history": {
     "title": "Görev Kaydı",

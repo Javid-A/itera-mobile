@@ -59,7 +59,12 @@
     "resetStatsConfirmMsg": "Dies löscht alle abgeschlossenen Missionen und setzt XP/Level auf null zurück. Nur für Entwickler.",
     "reset": "Zurücksetzen",
     "resetStatsFailed": "Zurücksetzen fehlgeschlagen.",
-    "xpProgress": " / {{xp}} XP bis Lv {{level}}"
+    "xpProgress": " / {{xp}} XP bis Lv {{level}}",
+    "tierRecruit": "Rekrut",
+    "tierOperative": "Operative",
+    "tierElite": "Elite-Operative",
+    "streakBonusActive": "+{{xp}} XP / MISSION",
+    "streakBonusNone": "Erreiche einen 3-Tage-Streak für Bonus-XP"
   },
   "history": {
     "title": "Missionsprotokoll",
