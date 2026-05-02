@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Modal,
   Pressable,
@@ -351,6 +352,7 @@ export default function RouteMapModal({
 }: Props) {
   const { colors: C, isDark } = useTheme();
   const tierColors = useTierColors();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
 
   const colorForMission = (m: DayMission): string => {
@@ -449,11 +451,11 @@ export default function RouteMapModal({
                 style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
               >
                 <Text style={[Typography.displayMD, { color: C.textPrimary }]}>
-                  Today
+                  {t("routeMap.today")}
                 </Text>
                 <View style={styles.dot} />
                 <Text style={[Typography.displayMD, { color: C.textPrimary }]}>
-                  Route Map
+                  {t("routeMap.title")}
                 </Text>
               </View>
               <Text
@@ -462,7 +464,7 @@ export default function RouteMapModal({
                   { color: C.textSecondary, marginTop: 2 },
                 ]}
               >
-                {date ? formatDate(date) : ""} · {total} missions
+                {date ? formatDate(date) : ""} · {t("routeMap.missionCount", { count: total })}
               </Text>
             </View>
             <Pressable style={styles.closeButton} onPress={onClose} hitSlop={8}>
@@ -476,7 +478,7 @@ export default function RouteMapModal({
                 <View
                   style={[styles.legendDot, { backgroundColor: C.accent }]}
                 />
-                <Text style={styles.legendText}>DONE</Text>
+                <Text style={styles.legendText}>{t("routeMap.done")}</Text>
               </View>
               {pending > 0 && (
                 <View
@@ -489,7 +491,7 @@ export default function RouteMapModal({
                     style={[styles.legendDot, { backgroundColor: C.orange }]}
                   />
                   <Text style={[styles.legendText, { color: C.orange }]}>
-                    PENDING
+                    {t("history.pending")}
                   </Text>
                 </View>
               )}
@@ -504,7 +506,7 @@ export default function RouteMapModal({
                     style={[styles.legendDot, { backgroundColor: C.danger }]}
                   />
                   <Text style={[styles.legendText, { color: C.danger }]}>
-                    MISSED
+                    {t("history.missed")}
                   </Text>
                 </View>
               )}
@@ -591,7 +593,7 @@ export default function RouteMapModal({
                 size={12}
                 color={C.textSecondary}
               />
-              <Text style={styles.dailyRouteText}>DAILY ROUTE</Text>
+              <Text style={styles.dailyRouteText}>{t("routeMap.dailyRoute")}</Text>
             </View>
           </View>
 
@@ -600,34 +602,34 @@ export default function RouteMapModal({
               <Text style={[Typography.statLG, { color: C.textPrimary }]}>
                 {total}
               </Text>
-              <Text style={styles.statLabel}>TOTAL</Text>
+              <Text style={styles.statLabel}>{t("routeMap.total")}</Text>
             </View>
             <View style={styles.statCol}>
               <Text style={[Typography.statLG, { color: C.accent }]}>
                 {completed}
               </Text>
-              <Text style={styles.statLabel}>DONE</Text>
+              <Text style={styles.statLabel}>{t("routeMap.done")}</Text>
             </View>
             {pending > 0 ? (
               <View style={styles.statCol}>
                 <Text style={[Typography.statLG, { color: C.orange }]}>
                   {pending}
                 </Text>
-                <Text style={styles.statLabel}>PENDING</Text>
+                <Text style={styles.statLabel}>{t("history.pending")}</Text>
               </View>
             ) : (
               <View style={styles.statCol}>
                 <Text style={[Typography.statLG, { color: C.danger }]}>
                   {missed}
                 </Text>
-                <Text style={styles.statLabel}>MISSED</Text>
+                <Text style={styles.statLabel}>{t("history.missed")}</Text>
               </View>
             )}
             <View style={styles.statCol}>
               <Text style={[Typography.statLG, { color: C.accent }]}>
                 +{xp}
               </Text>
-              <Text style={styles.statLabel}>XP EARNED</Text>
+              <Text style={styles.statLabel}>{t("routeMap.xpEarned")}</Text>
             </View>
           </View>
 
@@ -679,8 +681,8 @@ export default function RouteMapModal({
                         {m.status === "completed" && m.completedAt
                           ? formatTime(m.completedAt)
                           : m.status === "pending"
-                            ? "Not completed yet"
-                            : "Not completed"}
+                            ? t("routeMap.notCompletedYet")
+                            : t("history.notCompleted")}
                       </Text>
                     </View>
                     {m.status === "completed" ? (
@@ -689,11 +691,11 @@ export default function RouteMapModal({
                       </Text>
                     ) : m.status === "pending" ? (
                       <View style={styles.pendingPill}>
-                        <Text style={styles.pendingPillText}>PENDING</Text>
+                        <Text style={styles.pendingPillText}>{t("history.pending")}</Text>
                       </View>
                     ) : (
                       <View style={styles.missedPill}>
-                        <Text style={styles.missedPillText}>MISSED</Text>
+                        <Text style={styles.missedPillText}>{t("history.missed")}</Text>
                       </View>
                     )}
                   </Pressable>

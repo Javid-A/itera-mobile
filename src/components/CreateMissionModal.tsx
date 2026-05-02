@@ -16,7 +16,7 @@ import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../constants";
 import { useTheme } from "../context/ThemeContext";
 import type { ColorScheme } from "../constants/colors";
-import { createMission, getMissionsToday } from "../api/missions";
+import { createMission } from "../api/missions";
 import { LocationService } from "../services/LocationService";
 import { classifyDistance, haversineMeters } from "../config/tierConfig";
 import ChooseOnMapModal from "./ChooseOnMapModal";
@@ -200,22 +200,10 @@ export default function CreateMissionModal({
     onClose();
   };
 
-  const syncGeofences = async () => {
-    try {
-      const data = await getMissionsToday();
-      const granted = await LocationService.requestPermissions();
-      if (granted && data.length > 0) {
-        await LocationService.registerGeofences(
-          data.map((m) => ({
-            id: m.id,
-            latitude: m.latitude,
-            longitude: m.longitude,
-            radius: m.radiusMeters,
-          })),
-        );
-      }
-    } catch {}
-  };
+  // Yeni mission yaratıldıktan sonra geofence listesini güncelle. Helper
+  // autoTrackingEnabled flag'ini ve permission'ı kendi içinde kontrol ediyor —
+  // switch off ise OS dinlemesin diye no-op döner.
+  const syncGeofences = () => LocationService.syncTodayGeofences();
 
   const handleSubmit = async () => {
     if (!missionName.trim()) return;

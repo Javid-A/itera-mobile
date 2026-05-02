@@ -1,6 +1,9 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GEOFENCE_TASK_NAME } from './GeofenceTask';
+import { getMissionsToday } from '../api/missions';
+import { STORAGE_KEYS } from '../config/gameConfig';
 
 export interface GeofenceRegion {
   id: string;
@@ -51,8 +54,44 @@ async function registerGeofences(regions: GeofenceRegion[]): Promise<void> {
 
 async function stopGeofences(): Promise<void> {
   const isRunning = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TASK_NAME);
+  console.log(`[LocationService] stopGeofences called, taskRegistered=${isRunning}`);
   if (isRunning) {
-    await Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
+    try {
+      await Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
+      console.log('[LocationService] Geofencing stopped at OS level');
+    } catch (e) {
+      console.warn('[LocationService] stopGeofencingAsync failed', e);
+    }
+  }
+}
+
+// Switch ON yapılınca / yeni mission yaratılınca çağrılır: bugünün mission'larını
+// fetch'leyip OS'a geofence olarak kaydeder. autoTrackingEnabled false ise OS
+// dinlemesin diye no-op döner; permission yoksa zaten registerGeofences sessizce
+// başarısız olur.
+async function syncTodayGeofences(): Promise<void> {
+  const flag = await AsyncStorage.getItem(STORAGE_KEYS.autoTrackingEnabled);
+  if (flag !== 'true') {
+    await stopGeofences();
+    return;
+  }
+  if (!(await hasPermissions())) return;
+  try {
+    const missions = await getMissionsToday();
+    if (missions.length === 0) {
+      await stopGeofences();
+      return;
+    }
+    await registerGeofences(
+      missions.map((m) => ({
+        id: m.id,
+        latitude: m.latitude,
+        longitude: m.longitude,
+        radius: m.radiusMeters,
+      })),
+    );
+  } catch {
+    // Network/permission hatası — geofence'ler eski haliyle kalır
   }
 }
 
@@ -60,4 +99,5 @@ export const LocationService = {
   requestPermissions,
   registerGeofences,
   stopGeofences,
+  syncTodayGeofences,
 };

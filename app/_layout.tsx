@@ -1,8 +1,12 @@
 import '../src/services/GeofenceTask';
 import '../src/i18n';
+import { useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Redirect, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
+import { LocationService } from '../src/services/LocationService';
+import { STORAGE_KEYS } from '../src/config/gameConfig';
 import {
   Rajdhani_500Medium,
   Rajdhani_600SemiBold,
@@ -67,6 +71,16 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+
+  // Boot hijyeni: kullanıcı önceki session'da auto-tracking'i kapatmış olsa
+  // bile OS'ta zombi bir geofence registration kalmış olabilir (eski build'ler,
+  // crash sırasında yarım kalmış stop, vs.). Flag false ise OS-level dinlemeyi
+  // garanti şekilde durdur — privacy ve battery için ekstra savunma.
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEYS.autoTrackingEnabled).then((flag) => {
+      if (flag !== 'true') LocationService.stopGeofences();
+    });
+  }, []);
 
   if (!fontsLoaded) {
     return (

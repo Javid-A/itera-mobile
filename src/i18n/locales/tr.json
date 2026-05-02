@@ -1,0 +1,144 @@
+{
+  "common": {
+    "cancel": "İptal",
+    "error": "Hata",
+    "xp": "XP",
+    "dayLabels": ["P", "S", "Ç", "P", "C", "C", "P"]
+  },
+  "tabs": {
+    "map": "Harita",
+    "log": "Kayıt",
+    "profile": "Profil"
+  },
+  "login": {
+    "createAccount": "HESAP OLUŞTUR",
+    "signIn": "GİRİŞ YAP",
+    "username": "KULLANICI ADI",
+    "usernamePlaceholder": "Kullanıcı adı girin",
+    "email": "E-POSTA",
+    "emailPlaceholder": "E-posta girin",
+    "password": "ŞİFRE",
+    "passwordPlaceholder": "Şifre girin",
+    "forgotPassword": "Şifremi unuttum?",
+    "registerButton": "KAYIT OL →",
+    "loginButton": "GİRİŞ YAP →",
+    "alreadyHaveAccount": "Zaten hesabın var mı? ",
+    "dontHaveAccount": "Hesabın yok mu? ",
+    "signInLink": "Giriş Yap",
+    "registerLink": "Kayıt Ol",
+    "validationError": "Kullanıcı adı ve şifre zorunludur.",
+    "genericError": "Bir şeyler ters gitti. Tekrar dene."
+  },
+  "profile": {
+    "title": "Profil",
+    "levelUpPill": "SEVİYE ATLA",
+    "levelLabel": "SEVİYE",
+    "missions": "Görevler",
+    "dayStreak": "Günlük Seri",
+    "locations": "Konumlar",
+    "activeStreak": "AKTİF SERİ",
+    "todayPending": "BUGÜN BEKLEMEDE",
+    "streakReminder": "{{count}} günlük serini korumak için bugün 1 görev tamamla",
+    "settings": "AYARLAR",
+    "appearance": "Görünüm",
+    "darkMode": "Karanlık mod",
+    "lightMode": "Aydınlık mod — Haze",
+    "language": "Dil",
+    "languageDesc": "Arayüz dili",
+    "autoTracking": "Otomatik Takip",
+    "autoTrackingOn": "Görevler otomatik tamamlanır",
+    "autoTrackingOff": "Arka plan konumunu etkinleştirmek için dokun",
+    "signOut": "Çıkış Yap",
+    "signOutDesc": "Mevcut oturumu sonlandır",
+    "signOutConfirmTitle": "Çıkış Yap",
+    "signOutConfirmMsg": "Çıkış yapmak istediğinden emin misin?",
+    "developer": "GELİŞTİRİCİ",
+    "resetStats": "İstatistikleri Sıfırla",
+    "resetStatsDesc": "Tamamlanan görevleri, XP ve seviyeyi sil",
+    "resetStatsConfirmTitle": "İstatistikleri Sıfırla",
+    "resetStatsConfirmMsg": "Bu işlem tüm tamamlanan görevleri siler ve XP/seviyeyi sıfıra döndürür. Yalnızca geliştirici kullanımı içindir.",
+    "reset": "Sıfırla",
+    "resetStatsFailed": "İstatistikler sıfırlanamadı.",
+    "xpProgress": " / {{xp}} XP → Sv {{level}}"
+  },
+  "history": {
+    "title": "Görev Kaydı",
+    "thisWeek": "BU HAFTA",
+    "xpEarned": "{{xp}} XP kazanıldı",
+    "today": "BUGÜN",
+    "yesterday": "DÜN",
+    "routeMap": "ROTA HARİTASI",
+    "noMissionsToday": "Bugün henüz görev yok.",
+    "noMissionsYet": "Henüz tamamlanan görev yok.",
+    "goToMap": "HARİTAYA GİT →",
+    "notCompleted": "Tamamlanmadı",
+    "missed": "KAÇIRILDI",
+    "pending": "BEKLEMEDE"
+  },
+  "bgPrompt": {
+    "title": "NEREDEYSE TAMAM",
+    "missionComplete": "Görev Tamamlandı!",
+    "xpPreview": "+100 XP",
+    "bodyPrefix": "Varışında görevleri otomatik tamamlamak için Itera'nın konuma erişmesi gerekiyor",
+    "bodyHighlight": "her zaman",
+    "caption": "Bu olmadan, her konumda manuel olarak giriş yapmak için uygulamayı açman gerekecek.",
+    "enableButton": "OTOMATİK TAKİBİ ETKİNLEŞTİR",
+    "skipButton": "Manuel yapacağım"
+  },
+  "createMission": {
+    "title": "Yeni Görev",
+    "subtitle": "Gerçek bir konumda rutin belirle",
+    "missionNameLabel": "GÖREV ADI",
+    "missionNamePlaceholder": "Örn: Derin Çalışma Bloğu",
+    "locationTypeLabel": "KONUM TÜRÜ",
+    "locationLabel": "KONUM",
+    "timeWindowLabel": "ZAMAN DİLİMİ",
+    "launchButton": "GÖREVİ BAŞLAT →",
+    "locationRequiredTitle": "Konum gerekli",
+    "gpsWaiting": "Konumunu belirlemek için GPS bekleniyor. Bir an sonra tekrar dene.",
+    "createFailedMsg": "Görev oluşturulamadı."
+  },
+  "levelUp": {
+    "congratulations": "TEBRİKLER",
+    "title": "SEVİYE ATLADI!",
+    "reachedPrefix": "Ulaştın",
+    "levelDisplay": "Seviye {{level}}",
+    "xpEarned": "KAZANILAN XP",
+    "newLevel": "YENİ SEVİYE",
+    "continueButton": "DEVAM ET →",
+    "backToMap": "Haritaya Dön"
+  },
+  "topHud": {
+    "levelLabel": "SEVİYE {{level}}",
+    "streakAtRisk": "SERİ TEHLİKEDE",
+    "autoTrackingOff": "OTOMATİK TAKİP KAPALI",
+    "fix": "DÜZELT"
+  },
+  "xpToast": {
+    "streakBonus": "🔥 +{{xp}} SERİ BONUSU"
+  },
+  "bottomSheet": {
+    "title": "Aktif Görevler",
+    "activeCount": "{{count}} AKTİF",
+    "empty": "Henüz görev yok. İlkini eklemek için + düğmesine dokun."
+  },
+  "locationSearch": {
+    "placeholder": "Yer ara..."
+  },
+  "routeMap": {
+    "today": "Bugün",
+    "title": "Rota Haritası",
+    "missionCount": "{{count}} görev",
+    "done": "TAMAMLANDI",
+    "dailyRoute": "GÜNLÜK ROTA",
+    "total": "TOPLAM",
+    "xpEarned": "KAZANILAN XP",
+    "notCompletedYet": "Henüz tamamlanmadı"
+  },
+  "xpReward": {
+    "label": "XP ÖDÜLÜ",
+    "tierInfo": "Kademe {{tier}} · {{distance}} uzakta",
+    "pickLocation": "Kademeyi belirlemek için bir konum seç.",
+    "locating": "Konumun bulunuyor…"
+  }
+}

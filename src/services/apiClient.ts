@@ -7,6 +7,15 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
+// AuthContext bu callback'i mount'ta register ediyor; 401'de React state'i
+// (isAuthenticated) flip'lemek için tetiklenir, böylece RootNavigator login'e
+// yönlendirir. Modül seviyesinde tutuluyor çünkü interceptor React tree dışında.
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 // Attach JWT to every request
 apiClient.interceptors.request.use(async (config) => {
   const token = await getToken();
@@ -16,12 +25,13 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// On 401, clear credentials so auth guard redirects to login
+// On 401, clear credentials AND notify AuthContext so the guard redirects.
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       await clearAuthData();
+      onUnauthorized?.();
     }
     return Promise.reject(error);
   }

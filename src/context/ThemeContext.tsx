@@ -23,7 +23,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY).then((val) => {
-      if (val === 'light') setIsDark(false);
+      if (val === 'dark') setIsDark(true);
+      // no saved value → stay light (default)
     });
   }, []);
 

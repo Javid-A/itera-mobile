@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Animated,
   Dimensions,
@@ -12,11 +13,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { Colors, Spacing, Typography } from "../../src/constants";
+import { useTheme } from "../../src/context/ThemeContext";
 import { deleteMission as deleteMissionRequest } from "../../src/api/missions";
 import { useMissionsToday } from "../../src/state/queries/useMissionsToday";
 import { useProfile } from "../../src/state/queries/useProfile";
 import { qk } from "../../src/state/queryKeys";
 import { requestBackgroundLocation } from "../../src/services/locationSettings";
+import { LocationService } from "../../src/services/LocationService";
 import {
   MapboxAvailable,
   MapView,
@@ -25,6 +28,8 @@ import {
 } from "../../src/services/mapbox";
 import CharacterSprite from "../../src/components/CharacterSprite";
 import CreateMissionModal from "../../src/components/CreateMissionModal";
+import BackgroundLocationPrompt from "../../src/components/BackgroundLocationPrompt";
+import { BG_PROMPT_TRIGGER_COUNTS, STORAGE_KEYS } from "../../src/config/gameConfig";
 import TopHud from "../../src/components/map/TopHud";
 import MissionBadge from "../../src/components/map/MissionBadge";
 import XpToast from "../../src/components/map/XpToast";
@@ -58,6 +63,7 @@ const FOG_TOP_PX = Math.max(
 );
 
 export default function MapScreen() {
+  const { colors, isDark } = useTheme();
   const queryClient = useQueryClient();
   const { data: missionsData } = useMissionsToday();
   const { data: profileData } = useProfile();
@@ -67,6 +73,19 @@ export default function MapScreen() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const profile = profileData ?? null;
   const [createVisible, setCreateVisible] = useState(false);
+  const [showBgPrompt, setShowBgPrompt] = useState(false);
+  // Profile'daki switch state'i. Permission verili olsa bile kullanıcı switch'i
+  // kapatmış olabilir — banner her iki durumu da yansıtmalı.
+  const [autoTrackingEnabled, setAutoTrackingEnabled] = useState(false);
+
+  const loadAutoTrackingFlag = useCallback(async () => {
+    try {
+      const value = await AsyncStorage.getItem(STORAGE_KEYS.autoTrackingEnabled);
+      setAutoTrackingEnabled(value === "true");
+    } catch {
+      setAutoTrackingEnabled(false);
+    }
+  }, []);
 
   // Karakter zoom-bazlı ölçeklendirme: pinch sırasında her frame setState
   // tetiklememek için native transform üzerinden Animated.Value ile sürüyoruz.
@@ -82,7 +101,9 @@ export default function MapScreen() {
     refresh: checkBg,
     setGranted: setBgGranted,
   } = useBackgroundPermission();
-  const bgDenied = !bgGranted;
+  // Banner permission YA DA switch eksikse görünmeli — effective auto-tracking
+  // durumu ikisinin AND'i. İsim "bgDenied" tarihsel; semantiği genişletildi.
+  const bgDenied = !bgGranted || !autoTrackingEnabled;
 
   const {
     userCoords,
@@ -154,6 +175,35 @@ export default function MapScreen() {
     queryClient.invalidateQueries({ queryKey: qk.missionsToday });
   }, [queryClient]);
 
+  // 1/3/7 escalation: kullanıcı görev oluşturduğunda bg izni yoksa kademeli
+  // olarak prompt göster. Counter her görev oluşturulduğunda artar; trigger
+  // listesindeki sayılara denk gelirse modal açılır. İzin verildiyse prompt
+  // hiç tetiklenmez ama counter yine de artar (idempotent).
+  const handleMissionCreated = useCallback(async () => {
+    refreshMissions();
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEYS.missionCreatedCount);
+      const count = (raw ? parseInt(raw, 10) : 0) + 1;
+      await AsyncStorage.setItem(STORAGE_KEYS.missionCreatedCount, String(count));
+      if (!bgGranted && (BG_PROMPT_TRIGGER_COUNTS as readonly number[]).includes(count)) {
+        setShowBgPrompt(true);
+      }
+    } catch {
+      // AsyncStorage erişimi başarısız — escalation atla, fonksiyonel değil
+    }
+  }, [bgGranted, refreshMissions]);
+
+  const handleEnableBgFromPrompt = useCallback(async () => {
+    setShowBgPrompt(false);
+    const granted = await requestBackgroundLocation();
+    if (granted) {
+      setBgGranted(true);
+      await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, "true");
+      setAutoTrackingEnabled(true);
+      await LocationService.syncTodayGeofences();
+    }
+  }, [setBgGranted]);
+
   // Server verisi → lokal state senkronu. Arrival animasyonu sırasında ezmemek için
   // completingMissionId yokken kopyalıyoruz; animasyon biter bitmez (markCompleted
   // sonrası) bir sonraki refetch'te doğal akışla senkronize olur.
@@ -194,16 +244,25 @@ export default function MapScreen() {
       refreshMissions();
       refreshProfile();
       checkBg();
-    }, [checkBg, refreshMissions, refreshProfile]),
+      loadAutoTrackingFlag();
+    }, [checkBg, refreshMissions, refreshProfile, loadAutoTrackingFlag]),
   );
 
   // App açık kaldığı sırada gece yarısı geçerse missionları yenile.
   useDayTick(refreshMissions);
 
   const handleBannerPress = useCallback(async () => {
-    const granted = await requestBackgroundLocation();
-    if (granted) setBgGranted(true);
-  }, [setBgGranted]);
+    // İki olası eksik: (1) OS izni yok → request, (2) izin var ama switch off
+    // → switch'i tekrar aç. İkisi birden eksikse önce izni alıp sonra flag'i yaz.
+    if (!bgGranted) {
+      const granted = await requestBackgroundLocation();
+      if (!granted) return;
+      setBgGranted(true);
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, "true");
+    setAutoTrackingEnabled(true);
+    await LocationService.syncTodayGeofences();
+  }, [bgGranted, setBgGranted]);
 
   const handleCameraChanged = useCallback(
     (state: any) => {
@@ -256,7 +315,7 @@ export default function MapScreen() {
         logoEnabled={false}
         attributionEnabled={false}
         scaleBarEnabled={false}
-        pitchEnabled={true}
+        pitchEnabled={false}
         rotateEnabled={true}
         onCameraChanged={handleCameraChanged}
       >
@@ -268,7 +327,7 @@ export default function MapScreen() {
             pitch: MAP_PITCH,
             heading: 0,
           }}
-          minZoomLevel={2}
+          minZoomLevel={MAP_ZOOM_MIN}
           maxZoomLevel={MAP_ZOOM_MAX}
         />
 
@@ -381,8 +440,20 @@ export default function MapScreen() {
         style={styles.recenterButtonWrapper}
         pointerEvents={isSheetExpanded ? "none" : "auto"}
       >
-        <Pressable style={styles.recenterButton} onPress={recenter} hitSlop={8}>
-          <Ionicons name="locate" size={22} color={Colors.textPrimary} />
+        <Pressable
+          style={[
+            styles.recenterButton,
+            {
+              backgroundColor: isDark
+                ? "rgba(11, 14, 26, 0.9)"
+                : "rgba(239, 240, 255, 0.92)",
+              borderColor: colors.borderBright,
+            },
+          ]}
+          onPress={recenter}
+          hitSlop={8}
+        >
+          <Ionicons name="locate" size={22} color={colors.textPrimary} />
         </Pressable>
       </View>
 
@@ -413,7 +484,13 @@ export default function MapScreen() {
       <CreateMissionModal
         visible={createVisible}
         onClose={() => setCreateVisible(false)}
-        onCreated={refreshMissions}
+        onCreated={handleMissionCreated}
+      />
+
+      <BackgroundLocationPrompt
+        visible={showBgPrompt}
+        onEnable={handleEnableBgFromPrompt}
+        onSkip={() => setShowBgPrompt(false)}
       />
     </View>
   );
@@ -443,9 +520,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: "rgba(11, 14, 26, 0.9)",
     borderWidth: 1,
-    borderColor: Colors.borderBright,
     alignItems: "center",
     justifyContent: "center",
   },

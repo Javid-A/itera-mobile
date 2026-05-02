@@ -1,0 +1,144 @@
+{
+  "common": {
+    "cancel": "Отмена",
+    "error": "Ошибка",
+    "xp": "XP",
+    "dayLabels": ["П", "В", "С", "Ч", "П", "С", "В"]
+  },
+  "tabs": {
+    "map": "Карта",
+    "log": "Журнал",
+    "profile": "Профиль"
+  },
+  "login": {
+    "createAccount": "СОЗДАТЬ АККАУНТ",
+    "signIn": "ВОЙТИ",
+    "username": "ИМЯ ПОЛЬЗОВАТЕЛЯ",
+    "usernamePlaceholder": "Введите имя пользователя",
+    "email": "ЭЛЕКТРОННАЯ ПОЧТА",
+    "emailPlaceholder": "Введите email",
+    "password": "ПАРОЛЬ",
+    "passwordPlaceholder": "Введите пароль",
+    "forgotPassword": "Забыли пароль?",
+    "registerButton": "ЗАРЕГИСТРИРОВАТЬСЯ →",
+    "loginButton": "ВОЙТИ →",
+    "alreadyHaveAccount": "Уже есть аккаунт? ",
+    "dontHaveAccount": "Нет аккаунта? ",
+    "signInLink": "Войти",
+    "registerLink": "Зарегистрироваться",
+    "validationError": "Имя пользователя и пароль обязательны.",
+    "genericError": "Что-то пошло не так. Попробуйте снова."
+  },
+  "profile": {
+    "title": "Профиль",
+    "levelUpPill": "ПОВЫШЕНИЕ УРОВНЯ",
+    "levelLabel": "УРОВЕНЬ",
+    "missions": "Миссии",
+    "dayStreak": "Дней подряд",
+    "locations": "Места",
+    "activeStreak": "АКТИВНАЯ СЕРИЯ",
+    "todayPending": "СЕГОДНЯ В ОЖИДАНИИ",
+    "streakReminder": "Выполни 1 миссию сегодня, чтобы сохранить серию в {{count}} дней",
+    "settings": "НАСТРОЙКИ",
+    "appearance": "Внешний вид",
+    "darkMode": "Тёмный режим",
+    "lightMode": "Светлый режим — Haze",
+    "language": "Язык",
+    "languageDesc": "Язык интерфейса",
+    "autoTracking": "Авто-трекинг",
+    "autoTrackingOn": "Миссии завершаются автоматически",
+    "autoTrackingOff": "Нажмите, чтобы включить фоновое местоположение",
+    "signOut": "Выйти",
+    "signOutDesc": "Завершить текущую сессию",
+    "signOutConfirmTitle": "Выход",
+    "signOutConfirmMsg": "Вы уверены, что хотите выйти?",
+    "developer": "РАЗРАБОТЧИК",
+    "resetStats": "Сбросить статистику",
+    "resetStatsDesc": "Удалить выполненные миссии, XP и уровень",
+    "resetStatsConfirmTitle": "Сбросить статистику",
+    "resetStatsConfirmMsg": "Это удалит все выполненные миссии и сбросит XP/уровень до нуля. Только для разработчиков.",
+    "reset": "Сбросить",
+    "resetStatsFailed": "Не удалось сбросить статистику.",
+    "xpProgress": " / {{xp}} XP до ур. {{level}}"
+  },
+  "history": {
+    "title": "Журнал миссий",
+    "thisWeek": "НА ЭТОЙ НЕДЕЛЕ",
+    "xpEarned": "{{xp}} XP заработано",
+    "today": "СЕГОДНЯ",
+    "yesterday": "ВЧЕРА",
+    "routeMap": "КАРТА МАРШРУТА",
+    "noMissionsToday": "Сегодня ещё нет миссий.",
+    "noMissionsYet": "Нет выполненных миссий.",
+    "goToMap": "НА КАРТУ →",
+    "notCompleted": "Не выполнено",
+    "missed": "ПРОПУЩЕНО",
+    "pending": "В ОЖИДАНИИ"
+  },
+  "bgPrompt": {
+    "title": "ПОЧТИ ГОТОВО",
+    "missionComplete": "Миссия выполнена!",
+    "xpPreview": "+100 XP",
+    "bodyPrefix": "Чтобы автоматически завершать миссии по прибытии, Itera нужен доступ к местоположению",
+    "bodyHighlight": "всегда",
+    "caption": "Без этого вам нужно будет открывать приложение в каждом месте для ручной регистрации.",
+    "enableButton": "ВКЛЮЧИТЬ АВТО-ТРЕКИНГ",
+    "skipButton": "Буду делать вручную"
+  },
+  "createMission": {
+    "title": "Новая миссия",
+    "subtitle": "Создайте распорядок в реальном месте",
+    "missionNameLabel": "НАЗВАНИЕ МИССИИ",
+    "missionNamePlaceholder": "Например, Глубокая работа",
+    "locationTypeLabel": "ТИП МЕСТА",
+    "locationLabel": "МЕСТО",
+    "timeWindowLabel": "ВРЕМЕННОЕ ОКНО",
+    "launchButton": "ЗАПУСТИТЬ МИССИЮ →",
+    "locationRequiredTitle": "Требуется место",
+    "gpsWaiting": "Ожидание GPS для определения вашего местоположения. Попробуйте через момент.",
+    "createFailedMsg": "Не удалось создать миссию."
+  },
+  "levelUp": {
+    "congratulations": "ПОЗДРАВЛЯЕМ",
+    "title": "ПОВЫШЕНИЕ УРОВНЯ!",
+    "reachedPrefix": "Вы достигли",
+    "levelDisplay": "Уровень {{level}}",
+    "xpEarned": "XP ЗАРАБОТАНО",
+    "newLevel": "НОВЫЙ УРОВЕНЬ",
+    "continueButton": "ПРОДОЛЖИТЬ →",
+    "backToMap": "Назад на карту"
+  },
+  "topHud": {
+    "levelLabel": "УРОВЕНЬ {{level}}",
+    "streakAtRisk": "СЕРИЯ ПОД УГРОЗОЙ",
+    "autoTrackingOff": "АВТО-ТРЕКИНГ ВЫКЛ",
+    "fix": "ИСПРАВИТЬ"
+  },
+  "xpToast": {
+    "streakBonus": "🔥 +{{xp}} БОНУС СЕРИИ"
+  },
+  "bottomSheet": {
+    "title": "Активные миссии",
+    "activeCount": "{{count}} АКТИВНЫХ",
+    "empty": "Нет миссий. Нажмите кнопку +, чтобы добавить первую."
+  },
+  "locationSearch": {
+    "placeholder": "Найти место..."
+  },
+  "routeMap": {
+    "today": "Сегодня",
+    "title": "Карта маршрута",
+    "missionCount": "{{count}} миссий",
+    "done": "ГОТОВО",
+    "dailyRoute": "ДНЕВНОЙ МАРШРУТ",
+    "total": "ВСЕГО",
+    "xpEarned": "XP ЗАРАБОТАНО",
+    "notCompletedYet": "Ещё не выполнено"
+  },
+  "xpReward": {
+    "label": "НАГРАДА XP",
+    "tierInfo": "Уровень {{tier}} · {{distance}} от вас",
+    "pickLocation": "Выберите место для определения уровня.",
+    "locating": "Определение местоположения…"
+  }
+}

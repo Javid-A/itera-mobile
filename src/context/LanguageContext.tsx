@@ -7,6 +7,9 @@ const LANGUAGE_KEY = 'app_language';
 
 export const AVAILABLE_LANGUAGES = [
   { code: 'en', label: 'English' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'tr', label: 'Türkçe' },
 ] as const;
 
 export type LanguageCode = (typeof AVAILABLE_LANGUAGES)[number]['code'];

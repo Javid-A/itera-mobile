@@ -125,6 +125,16 @@
   "locationSearch": {
     "placeholder": "Search a place..."
   },
+  "routeMap": {
+    "today": "Today",
+    "title": "Route Map",
+    "missionCount": "{{count}} missions",
+    "done": "DONE",
+    "dailyRoute": "DAILY ROUTE",
+    "total": "TOTAL",
+    "xpEarned": "XP EARNED",
+    "notCompletedYet": "Not completed yet"
+  },
   "xpReward": {
     "label": "XP REWARD",
     "tierInfo": "Tier {{tier}} · {{distance}} away",

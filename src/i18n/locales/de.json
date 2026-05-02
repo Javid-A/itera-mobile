@@ -1,0 +1,144 @@
+{
+  "common": {
+    "cancel": "Abbrechen",
+    "error": "Fehler",
+    "xp": "XP",
+    "dayLabels": ["M", "D", "M", "D", "F", "S", "S"]
+  },
+  "tabs": {
+    "map": "Karte",
+    "log": "Protokoll",
+    "profile": "Profil"
+  },
+  "login": {
+    "createAccount": "KONTO ERSTELLEN",
+    "signIn": "ANMELDEN",
+    "username": "BENUTZERNAME",
+    "usernamePlaceholder": "Benutzername eingeben",
+    "email": "E-MAIL",
+    "emailPlaceholder": "E-Mail eingeben",
+    "password": "PASSWORT",
+    "passwordPlaceholder": "Passwort eingeben",
+    "forgotPassword": "Passwort vergessen?",
+    "registerButton": "REGISTRIEREN →",
+    "loginButton": "ANMELDEN →",
+    "alreadyHaveAccount": "Bereits ein Konto? ",
+    "dontHaveAccount": "Noch kein Konto? ",
+    "signInLink": "Anmelden",
+    "registerLink": "Registrieren",
+    "validationError": "Benutzername und Passwort sind erforderlich.",
+    "genericError": "Etwas ist schiefgelaufen. Bitte erneut versuchen."
+  },
+  "profile": {
+    "title": "Profil",
+    "levelUpPill": "LEVEL UP",
+    "levelLabel": "LEVEL",
+    "missions": "Missionen",
+    "dayStreak": "Tage-Streak",
+    "locations": "Orte",
+    "activeStreak": "AKTIVER STREAK",
+    "todayPending": "HEUTE AUSSTEHEND",
+    "streakReminder": "Schließe heute 1 Mission ab, um deinen {{count}}-Tage-Streak zu erhalten",
+    "settings": "EINSTELLUNGEN",
+    "appearance": "Erscheinungsbild",
+    "darkMode": "Dunkler Modus",
+    "lightMode": "Heller Modus — Haze",
+    "language": "Sprache",
+    "languageDesc": "Anzeigesprache",
+    "autoTracking": "Auto-Tracking",
+    "autoTrackingOn": "Missionen werden automatisch abgeschlossen",
+    "autoTrackingOff": "Tippen, um Standortzugriff zu aktivieren",
+    "signOut": "Abmelden",
+    "signOutDesc": "Aktuelle Sitzung beenden",
+    "signOutConfirmTitle": "Abmelden",
+    "signOutConfirmMsg": "Möchtest du dich wirklich abmelden?",
+    "developer": "ENTWICKLER",
+    "resetStats": "Statistiken zurücksetzen",
+    "resetStatsDesc": "Abgeschlossene Missionen, XP und Level löschen",
+    "resetStatsConfirmTitle": "Statistiken zurücksetzen",
+    "resetStatsConfirmMsg": "Dies löscht alle abgeschlossenen Missionen und setzt XP/Level auf null zurück. Nur für Entwickler.",
+    "reset": "Zurücksetzen",
+    "resetStatsFailed": "Zurücksetzen fehlgeschlagen.",
+    "xpProgress": " / {{xp}} XP bis Lv {{level}}"
+  },
+  "history": {
+    "title": "Missionsprotokoll",
+    "thisWeek": "DIESE WOCHE",
+    "xpEarned": "{{xp}} XP verdient",
+    "today": "HEUTE",
+    "yesterday": "GESTERN",
+    "routeMap": "ROUTENKARTE",
+    "noMissionsToday": "Heute noch keine Missionen.",
+    "noMissionsYet": "Noch keine abgeschlossenen Missionen.",
+    "goToMap": "ZUR KARTE →",
+    "notCompleted": "Nicht abgeschlossen",
+    "missed": "VERPASST",
+    "pending": "AUSSTEHEND"
+  },
+  "bgPrompt": {
+    "title": "FAST GESCHAFFT",
+    "missionComplete": "Mission abgeschlossen!",
+    "xpPreview": "+100 XP",
+    "bodyPrefix": "Um Missionen automatisch abzuschließen, wenn du ankommst, benötigt Itera Standortzugriff",
+    "bodyHighlight": "immer",
+    "caption": "Ohne dies musst du die App an jedem Ort öffnen, um manuell einzuchecken.",
+    "enableButton": "AUTO-TRACKING AKTIVIEREN",
+    "skipButton": "Ich mache es manuell"
+  },
+  "createMission": {
+    "title": "Neue Mission",
+    "subtitle": "Erstelle eine Routine an einem realen Ort",
+    "missionNameLabel": "MISSIONSNAME",
+    "missionNamePlaceholder": "z. B. Deep-Work-Block",
+    "locationTypeLabel": "ORTSTYP",
+    "locationLabel": "ORT",
+    "timeWindowLabel": "ZEITFENSTER",
+    "launchButton": "MISSION STARTEN →",
+    "locationRequiredTitle": "Ort erforderlich",
+    "gpsWaiting": "Warte auf GPS zur Standortbestimmung. Bitte einen Moment warten.",
+    "createFailedMsg": "Mission konnte nicht erstellt werden."
+  },
+  "levelUp": {
+    "congratulations": "GLÜCKWUNSCH",
+    "title": "LEVEL UP!",
+    "reachedPrefix": "Du hast erreicht",
+    "levelDisplay": "Level {{level}}",
+    "xpEarned": "XP VERDIENT",
+    "newLevel": "NEUES LEVEL",
+    "continueButton": "WEITER →",
+    "backToMap": "Zurück zur Karte"
+  },
+  "topHud": {
+    "levelLabel": "LEVEL {{level}}",
+    "streakAtRisk": "STREAK GEFÄHRDET",
+    "autoTrackingOff": "AUTO-TRACKING AUS",
+    "fix": "BEHEBEN"
+  },
+  "xpToast": {
+    "streakBonus": "🔥 +{{xp}} STREAK-BONUS"
+  },
+  "bottomSheet": {
+    "title": "Aktive Missionen",
+    "activeCount": "{{count}} AKTIV",
+    "empty": "Noch keine Missionen. Tippe auf +, um deine erste hinzuzufügen."
+  },
+  "locationSearch": {
+    "placeholder": "Ort suchen..."
+  },
+  "routeMap": {
+    "today": "Heute",
+    "title": "Routenkarte",
+    "missionCount": "{{count}} Missionen",
+    "done": "ERLEDIGT",
+    "dailyRoute": "TAGESROUTE",
+    "total": "GESAMT",
+    "xpEarned": "XP VERDIENT",
+    "notCompletedYet": "Noch nicht abgeschlossen"
+  },
+  "xpReward": {
+    "label": "XP-BELOHNUNG",
+    "tierInfo": "Stufe {{tier}} · {{distance}} entfernt",
+    "pickLocation": "Wähle einen Ort, um die Stufe zu bestimmen.",
+    "locating": "Standort wird ermittelt…"
+  }
+}

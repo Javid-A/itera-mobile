@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import ScreenContainer from '../../src/components/ScreenContainer';
 import BackgroundLocationPrompt from '../../src/components/BackgroundLocationPrompt';
 import LevelUpModal from '../../src/components/LevelUpModal';
+import LanguagePickerModal from '../../src/components/LanguagePickerModal';
+import SignOutModal from '../../src/components/SignOutModal';
 import XPCountUp from '../../src/components/XPCountUp';
 import { Spacing, Typography } from '../../src/constants';
 import { useAuth } from '../../src/context/AuthContext';
@@ -19,6 +21,7 @@ import { useProfile } from '../../src/state/queries/useProfile';
 import { useMissionHistory } from '../../src/state/queries/useMissionHistory';
 import { qk } from '../../src/state/queryKeys';
 import { requestBackgroundLocation } from '../../src/services/locationSettings';
+import { LocationService } from '../../src/services/LocationService';
 import { useBackgroundPermission } from '../../src/hooks/useBackgroundPermission';
 import { STORAGE_KEYS, XP_PER_LEVEL } from '../../src/config/gameConfig';
 import type { ColorScheme } from '../../src/constants/colors';
@@ -285,6 +288,8 @@ export default function ProfileScreen() {
   const [isAutoTrackingOn, setIsAutoTrackingOn] = useState(false);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const [showSignOut, setShowSignOut] = useState(false);
 
   const { granted: bgGranted, refresh: checkBgPermission, setGranted: setBgGranted } =
     useBackgroundPermission();
@@ -366,17 +371,22 @@ export default function ProfileScreen() {
       setBgGranted(true);
       setIsAutoTrackingOn(true);
       await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'true');
+      await LocationService.syncTodayGeofences();
     }
   };
 
   const handleAutoTrackingToggle = async () => {
     if (isAutoTrackingOn) {
+      // OS-level geofencing'i de durdur — flag'i ignore etmek yetmiyor, OS
+      // hâlâ konum dinlerse battery + privacy maliyeti devam ediyor.
       setIsAutoTrackingOn(false);
       await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'false');
+      await LocationService.stopGeofences();
     } else {
       if (bgGranted) {
         setIsAutoTrackingOn(true);
         await AsyncStorage.setItem(STORAGE_KEYS.autoTrackingEnabled, 'true');
+        await LocationService.syncTodayGeofences();
       } else {
         setShowBgPrompt(true);
       }
@@ -387,12 +397,7 @@ export default function ProfileScreen() {
   const xpProgress = Math.min(1, stats.currentXP / xpTarget);
   const dashOffset = RING_CIRC * (1 - xpProgress);
 
-  const handleLogout = () => {
-    Alert.alert(t('profile.signOutConfirmTitle'), t('profile.signOutConfirmMsg'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('profile.signOut'), style: 'destructive', onPress: logout },
-    ]);
-  };
+  const handleLogout = () => setShowSignOut(true);
 
   const handleResetStats = () => {
     Alert.alert(t('profile.resetStatsConfirmTitle'), t('profile.resetStatsConfirmMsg'), [
@@ -412,19 +417,7 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleLanguagePress = () => {
-    Alert.alert(
-      t('profile.language'),
-      undefined,
-      [
-        ...AVAILABLE_LANGUAGES.map((lang) => ({
-          text: lang.label,
-          onPress: () => changeLanguage(lang.code),
-        })),
-        { text: t('common.cancel'), style: 'cancel' as const },
-      ],
-    );
-  };
+  const handleLanguagePress = () => setShowLanguagePicker(true);
 
   const tier = stats.currentLevel >= 10 ? 'Elite Operative' : stats.currentLevel >= 5 ? 'Operative' : 'Recruit';
 
@@ -588,11 +581,11 @@ export default function ProfileScreen() {
         <Text style={styles.sectionLabel}>{t('profile.settings')}</Text>
 
         <Pressable style={styles.settingsRow} onPress={toggleTheme}>
-          <View style={[styles.settingsIcon, !isDark && { backgroundColor: C.accentSoft, borderColor: C.accent }]}>
+          <View style={[styles.settingsIcon, isDark && { backgroundColor: C.accentSoft, borderColor: C.accent }]}>
             <Ionicons
               name={isDark ? 'moon-outline' : 'sunny-outline'}
               size={18}
-              color={isDark ? C.textSecondary : C.accent}
+              color={isDark ? C.accent : C.textSecondary}
             />
           </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
@@ -602,10 +595,10 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Switch
-            value={!isDark}
+            value={isDark}
             onValueChange={toggleTheme}
             trackColor={{ false: C.surface3, true: C.accent }}
-            thumbColor={!isDark ? '#ffffff' : '#c9d2e6'}
+            thumbColor={isDark ? '#ffffff' : '#c9d2e6'}
           />
         </Pressable>
 
@@ -682,6 +675,17 @@ export default function ProfileScreen() {
         level={stats.currentLevel}
         earnedXP={stats.currentXP}
         onClose={() => setShowLevelUp(false)}
+      />
+      <LanguagePickerModal
+        visible={showLanguagePicker}
+        current={language}
+        onSelect={changeLanguage}
+        onClose={() => setShowLanguagePicker(false)}
+      />
+      <SignOutModal
+        visible={showSignOut}
+        onConfirm={logout}
+        onClose={() => setShowSignOut(false)}
       />
     </ScreenContainer>
   );

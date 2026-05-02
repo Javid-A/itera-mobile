@@ -94,6 +94,11 @@ export function useUserLocation({
   const dirCandidateCountRef = useRef(0);
   // Walk hysteresis: +1 per walk-evidence sample, -1 per idle-evidence sample.
   const walkCandidateRef = useRef(0);
+  // Cold-start gürültüsünü yutmak için: confident-speed shortcut'ı tek fix'te
+  // tetiklenmez, üst üste 2 yüksek-speed fix gerekir. İlk fix seed olduğu için
+  // shortcut zaten atlanır; bu sayaç ikinci fix'teki tek seferlik glitch'i de
+  // (örn. uygulama açılışında reposition sırasında reported 0.8 m/s) filtreler.
+  const confidentSpeedStreakRef = useRef(0);
 
   const watchSubRef = useRef<Location.LocationSubscription | null>(null);
   const watchStartingRef = useRef(false);
@@ -209,6 +214,7 @@ export function useUserLocation({
             dirCandidateRef.current = null;
             dirCandidateCountRef.current = 0;
             walkCandidateRef.current = 0;
+            confidentSpeedStreakRef.current = 0;
             return;
           }
 
@@ -224,6 +230,7 @@ export function useUserLocation({
               setIsWalking(false);
               positionHistory.current = [];
               walkCandidateRef.current = 0;
+              confidentSpeedStreakRef.current = 0;
             }, STATIONARY_TIMEOUT_MS);
             return;
           }
@@ -290,8 +297,14 @@ export function useUserLocation({
             ? Math.min(walkCandidateRef.current + 1, 3)
             : Math.max(walkCandidateRef.current - 2, -3);
 
-          // Confident GPS-reported speed bypasses the integrator entirely.
+          // Confident GPS-reported speed bypasses the integrator — ancak cold-start'taki
+          // tek seferlik yüksek-speed glitch'ini yutmak için üst üste 2 fix şart.
           if (reportedSpeed >= CONFIDENT_WALK_SPEED_MS) {
+            confidentSpeedStreakRef.current++;
+          } else {
+            confidentSpeedStreakRef.current = 0;
+          }
+          if (confidentSpeedStreakRef.current >= 2) {
             walkCandidateRef.current = Math.max(walkCandidateRef.current, 2);
             setIsWalking(true);
           } else if (walkCandidateRef.current >= 1) {
@@ -411,6 +424,8 @@ export function useUserLocation({
         watchSubRef.current = null;
         lastAccepted.current = null;
         positionHistory.current = [];
+        walkCandidateRef.current = 0;
+        confidentSpeedStreakRef.current = 0;
         // Drop the chase target so the loop doesn't dead-reckon from a stale
         // velocity while we wait for the first fresh fix.
         lastFixRef.current = null;
@@ -441,6 +456,8 @@ export function useUserLocation({
       // anında fresh konuma snap'le ve watcher'ı temiz olarak yeniden başlat.
       lastAccepted.current = null;
       positionHistory.current = [];
+      walkCandidateRef.current = 0;
+      confidentSpeedStreakRef.current = 0;
       lastFixRef.current = { coords: next, t: Date.now(), velocity: [0, 0] };
       displayedCoordsRef.current = next;
       setDisplayedCoords(next);
