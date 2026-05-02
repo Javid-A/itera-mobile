@@ -111,6 +111,7 @@
   "topHud": {
     "levelLabel": "LEVEL {{level}}",
     "streakAtRisk": "STREAK GEFÄHRDET",
+    "streakSafe": "STREAK GESICHERT",
     "autoTrackingOff": "AUTO-TRACKING AUS",
     "fix": "BEHEBEN"
   },

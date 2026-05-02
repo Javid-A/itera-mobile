@@ -111,6 +111,7 @@
   "topHud": {
     "levelLabel": "УРОВЕНЬ {{level}}",
     "streakAtRisk": "СЕРИЯ ПОД УГРОЗОЙ",
+    "streakSafe": "СЕРИЯ В БЕЗОПАСНОСТИ",
     "autoTrackingOff": "АВТО-ТРЕКИНГ ВЫКЛ",
     "fix": "ИСПРАВИТЬ"
   },

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { useMemo } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -39,7 +39,7 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
     ? "rgba(255, 255, 255, 0.08)"
     : "rgba(14, 15, 42, 0.10)";
   const levelChipBg = hexToRgba(C.accent, 0.16);
-  const levelChipBorder = hexToRgba(C.accent, 0.8); // Increased opacity for a glowing ring effect
+  const levelChipBorder = hexToRgba(C.accent, 0.8);
   const badgeTextColor = isDark ? "#1a0f06" : "#ffffff";
 
   return StyleSheet.create({
@@ -50,21 +50,31 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       zIndex: 10,
       alignItems: "flex-start",
     },
+    hudPressable: {
+      borderRadius: 25,
+      overflow: "hidden",
+    },
+    hudPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.98 }],
+    },
     hudContainer: {
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: hudCardBg,
-      borderRadius: 25,
+      borderRadius: 21,
       borderWidth: 1,
       borderColor: hudCardBorder,
-      padding: 4, // 4px padding + 1px border on each side = 10px. 50 - 10 = 40px for the inner chip
+      padding: 3,
+      paddingRight: 10,
+      height: 42,
+      width: 180,
       overflow: "hidden",
-      height: 50,
     },
     levelChip: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: levelChipBg,
@@ -72,33 +82,22 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       borderColor: levelChipBorder,
       overflow: "hidden",
     },
-    expandedContent: {
-      flexDirection: "row",
-      alignItems: "center",
-      width: 210, 
-      paddingLeft: 12,
-      paddingRight: 8,
-    },
     detailsWrap: {
       flex: 1,
       justifyContent: "center",
+      paddingLeft: 9,
     },
-    hudLabelRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "baseline", // Baseline aligns different font sizes perfectly
-      marginBottom: 6,
-    },
-    hudLevelLabel: {
+    hudXpText: {
       fontFamily: "Rajdhani_700Bold",
-      fontSize: 12, // Increased slightly for better legibility
-      letterSpacing: 1.6,
-      color: C.textSecondary,
+      fontSize: 11,
+      letterSpacing: 0.5,
+      color: C.accent,
+      marginBottom: 3,
     },
     xpTrack: {
-      height: 6, // Slightly thicker track
+      height: 4,
       backgroundColor: xpTrackBg,
-      borderRadius: 3,
+      borderRadius: 2,
       overflow: "hidden",
     },
     xpFill: {
@@ -109,6 +108,9 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.8,
       shadowRadius: 8,
+    },
+    chevron: {
+      marginLeft: 4,
     },
     hudPillRow: {
       flexDirection: "row",
@@ -127,6 +129,9 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       paddingVertical: 6,
       overflow: "hidden",
     },
+    hudPillSafe: {
+      borderColor: hexToRgba(C.success, 0.6),
+    },
     hudPillWarning: {
       backgroundColor: hudPillWarningBg,
       borderColor: hexToRgba(C.orange, 0.45),
@@ -140,11 +145,17 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       letterSpacing: 1.2,
       color: C.orange,
     },
+    hudPillTextSafe: {
+      color: C.success,
+    },
     hudPillBadge: {
       backgroundColor: C.orange,
       borderRadius: 4,
       paddingHorizontal: 5,
       paddingVertical: 1,
+    },
+    hudPillBadgeSafe: {
+      backgroundColor: C.success,
     },
     hudPillBadgeText: {
       fontFamily: "Rajdhani_700Bold",
@@ -171,90 +182,34 @@ export default function TopHud({
   const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
 
-  const xpForLevel = (profile?.currentLevel ?? 1) * XP_PER_LEVEL;
-  const xpProgress = profile ? Math.min(1, profile.currentXP / xpForLevel) : 0;
+  const level = profile?.currentLevel ?? 1;
+  const xpForLevel = level * XP_PER_LEVEL;
+  const currentXP = profile?.currentXP ?? 0;
+  const xpProgress = profile ? Math.min(1, currentXP / xpForLevel) : 0;
   const currentStreak = profile?.currentStreak ?? 0;
-  const showStreak =
-    currentStreak > 0 &&
-    missions.length > 0 &&
-    missions.every((m) => m.status !== "completed");
+  const todayCompleted = missions.some((m) => m.status === "completed");
+  const showStreak = currentStreak > 0;
+  const streakSafe = todayCompleted;
 
   const blurTint = isDark ? "dark" : "light";
 
-  const [isExpanded, setIsExpanded] = useState(false);
-  const expandAnim = useRef(new Animated.Value(0)).current;
-  const collapseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const containerWidth = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [50, 270], // Increased width slightly to accommodate adjusted paddings
-  });
-
-  const contentOpacity = expandAnim.interpolate({
-    inputRange: [0.15, 1],
-    outputRange: [0, 1],
-  });
-
-  const contentTranslateX = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-10, 0], // Adds a subtle slide-out effect to the text
-  });
-
-  const toggleExpand = useCallback(() => {
-    if (!isExpanded) {
-      setIsExpanded(true);
-      Animated.spring(expandAnim, {
-        toValue: 1,
-        useNativeDriver: false,
-        friction: 8,
-        tension: 60,
-      }).start();
-
-      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
-      collapseTimeoutRef.current = setTimeout(() => {
-        setIsExpanded(false);
-        Animated.spring(expandAnim, {
-          toValue: 0,
-          useNativeDriver: false,
-          friction: 8,
-          tension: 60,
-        }).start();
-      }, 4000);
-    } else {
-      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
-      router.push("/profile");
-    }
-  }, [isExpanded, expandAnim]);
-
-  useEffect(() => {
-    return () => {
-      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
-    };
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      // Runs on focus
-      return () => {
-        // Runs on blur
-        if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
-        setIsExpanded(false);
-        expandAnim.setValue(0); // Instantly collapse so it's ready for next focus
-      };
-    }, [expandAnim])
-  );
-
   return (
     <View style={styles.topHud} pointerEvents="box-none">
-      <Pressable onPress={toggleExpand}>
-        <Animated.View style={[styles.hudContainer, { width: containerWidth }]}>
+      <Pressable
+        onPress={() => router.push("/profile")}
+        style={({ pressed }) => [
+          styles.hudPressable,
+          pressed && styles.hudPressed,
+        ]}
+      >
+        <View style={styles.hudContainer}>
           <BlurView
             intensity={45}
             tint={blurTint}
             style={StyleSheet.absoluteFill}
             experimentalBlurMethod="dimezisBlurView"
           />
-          
+
           <View style={styles.levelChip}>
             <BlurView
               intensity={30}
@@ -263,41 +218,28 @@ export default function TopHud({
               experimentalBlurMethod="dimezisBlurView"
             />
             <Text style={[Typography.statMD, { color: C.accent }]}>
-              {profile?.currentLevel ?? 1}
+              {level}
             </Text>
           </View>
 
-          <Animated.View 
-            style={[
-              styles.expandedContent, 
-              { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] }
-            ]} 
-            pointerEvents={isExpanded ? "auto" : "none"}
-          >
-            <View style={styles.detailsWrap}>
-              <View style={styles.hudLabelRow}>
-                <Text style={styles.hudLevelLabel}>
-                  {t("topHud.levelLabel", { level: profile?.currentLevel ?? 1 })}
-                </Text>
-                <Text style={[Typography.statSM, { color: C.accent }]}>
-                  {(profile?.currentXP ?? 0).toLocaleString()} /{" "}
-                  {xpForLevel.toLocaleString()} XP
-                </Text>
-              </View>
-              <View style={styles.xpTrack}>
-                <View
-                  style={[styles.xpFill, { width: `${xpProgress * 100}%` }]}
-                />
-              </View>
+          <View style={styles.detailsWrap}>
+            <Text style={styles.hudXpText} numberOfLines={1}>
+              {currentXP.toLocaleString()} / {xpForLevel.toLocaleString()} XP
+            </Text>
+            <View style={styles.xpTrack}>
+              <View
+                style={[styles.xpFill, { width: `${xpProgress * 100}%` }]}
+              />
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={C.textSecondary}
-              style={{ marginLeft: 6 }}
-            />
-          </Animated.View>
-        </Animated.View>
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={C.accent}
+            style={styles.chevron}
+          />
+        </View>
       </Pressable>
 
       {showStreak || bgDenied ? (
@@ -306,12 +248,14 @@ export default function TopHud({
             <BlurView
               intensity={45}
               tint={blurTint}
-              style={styles.hudPill}
+              style={[styles.hudPill, streakSafe && styles.hudPillSafe]}
               experimentalBlurMethod="dimezisBlurView"
             >
               <Text style={styles.hudPillFlame}>🔥</Text>
-              <Text style={styles.hudPillText}>{t("topHud.streakAtRisk")}</Text>
-              <View style={styles.hudPillBadge}>
+              <Text style={[styles.hudPillText, streakSafe && styles.hudPillTextSafe]}>
+                {streakSafe ? t("topHud.streakSafe") : t("topHud.streakAtRisk")}
+              </Text>
+              <View style={[styles.hudPillBadge, streakSafe && styles.hudPillBadgeSafe]}>
                 <Text style={styles.hudPillBadgeText}>{currentStreak}D</Text>
               </View>
             </BlurView>

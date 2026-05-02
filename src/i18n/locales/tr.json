@@ -111,6 +111,7 @@
   "topHud": {
     "levelLabel": "SEVİYE {{level}}",
     "streakAtRisk": "SERİ TEHLİKEDE",
+    "streakSafe": "SERİ GÜVENDE",
     "autoTrackingOff": "OTOMATİK TAKİP KAPALI",
     "fix": "DÜZELT"
   },
