@@ -548,7 +548,7 @@ export default function ProfileScreen() {
         <View style={styles.streakCard}>
           <View style={styles.streakCardHeader}>
             <Text style={styles.streakCardTitle}>{t('profile.activeStreak')}</Text>
-            {!todayDone && (
+            {!todayDone && streakDays > 0 && (
               <Animated.View
                 style={[
                   styles.todayPendingPill,
@@ -567,7 +567,7 @@ export default function ProfileScreen() {
               const isTodayIdx = i === (new Date().getDay() + 6) % 7;
               return (
                 <View key={i} style={styles.weekDotCol}>
-                  {isTodayIdx && !todayDone ? (
+                  {isTodayIdx && !todayDone && streakDays > 0 ? (
                     <Animated.View
                       style={[
                         styles.weekDot,

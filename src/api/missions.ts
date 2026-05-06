@@ -73,7 +73,7 @@ export async function arriveMission(payload: ArrivePayload): Promise<ArriveRespo
 // Mobile arm tetiklemeden önce mesafeyi kontrol ettiği için 400 sadece edge
 // case'lerde (race) olur — caller catch'te yutar.
 export async function armMission(id: string): Promise<Mission> {
-  const { data } = await apiClient.post<Mission>(`/missions/${id}/arm`);
+  const { data } = await apiClient.post<Mission>(`/missions/${id}/arm`, {});
   return data;
 }
 
