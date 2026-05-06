@@ -35,6 +35,12 @@ const CONFIDENT_WALK_SPEED_MS = 0.7;
 const FOLLOW_ALPHA = 0.18;
 const DR_CAP_MS = 1500;
 const LONG_PAUSE_MS = 5000;
+// Watchdog: GPS callback uzun süredir hiç gelmiyorsa (tünel, asansör, kapalı
+// otopark) walking'i kapat. Diğer kapanış path'leri (stationaryBySpeed,
+// MIN_MOVE_METERS, integrator) hep bir yeni fix gerektirdiği için sinyal
+// kaybında karakter "yürür halde donar". 4 sn normal 1-3 sn fix interval'ını
+// aşar ama yaya hızında makul bir tampon.
+const STALE_FIX_MS = 4000;
 // Skip setDisplayedCoords when the per-frame delta is below ~1 cm — saves
 // React reconciliation while the user is stationary or fully caught up.
 const SUBPIXEL_M = 0.01;
@@ -99,6 +105,9 @@ export function useUserLocation({
   // shortcut zaten atlanır; bu sayaç ikinci fix'teki tek seferlik glitch'i de
   // (örn. uygulama açılışında reposition sırasında reported 0.8 m/s) filtreler.
   const confidentSpeedStreakRef = useRef(0);
+  // RAF watchdog closure'ı isWalking'i state olarak okuyamıyor (effect bir
+  // kez kuruluyor); ref ile sync tutup oradan okuyoruz.
+  const isWalkingRef = useRef(false);
 
   const watchSubRef = useRef<Location.LocationSubscription | null>(null);
   const watchStartingRef = useRef(false);
@@ -107,6 +116,10 @@ export function useUserLocation({
   useEffect(() => {
     userCoordsRef.current = userCoords;
   }, [userCoords]);
+
+  useEffect(() => {
+    isWalkingRef.current = isWalking;
+  }, [isWalking]);
 
   // Update the chase target whenever a new fix arrives. Inferred velocity from
   // the previous fix lets the chase loop dead-reckon forward through the GPS
@@ -155,6 +168,17 @@ export function useUserLocation({
       const fix = lastFixRef.current;
       const displayed = displayedCoordsRef.current;
       if (fix && displayed) {
+        // Stale-fix watchdog: GPS callback uzun süredir hiç gelmediyse
+        // (tünel/asansör) walking'i kapat — yeni fix beklemeden tek
+        // tetiklenmeli kapanış noktası.
+        if (
+          isWalkingRef.current &&
+          Date.now() - fix.t > STALE_FIX_MS
+        ) {
+          setIsWalking(false);
+          walkCandidateRef.current = 0;
+          confidentSpeedStreakRef.current = 0;
+        }
         const elapsedMs = Math.min(Date.now() - fix.t, DR_CAP_MS);
         const projSec = elapsedMs / 1000;
         const targetLng = fix.coords[0] + fix.velocity[0] * projSec;
@@ -304,7 +328,15 @@ export function useUserLocation({
           } else {
             confidentSpeedStreakRef.current = 0;
           }
-          if (confidentSpeedStreakRef.current >= 2) {
+          // Speed shortcut'a fiili-hareket co-condition'ı: duran araç titreşimi
+          // (motor + multipath) veya urban canyon bounce'unda chip speed 0.7+
+          // raporlasa bile pozisyon hareket etmediği sürece walking'i tetikleme.
+          // Ratio kuralı (net/total >= 0.5) ileri-geri zigzag'ı eler; gerçek
+          // yürüyüşte windowDist ve netDisplacement birlikte yükselir, ratio
+          // ~1'e yaklaşır.
+          const movementConfirmsSpeed =
+            windowDist >= 1.0 && netDisplacement / windowDist >= 0.5;
+          if (confidentSpeedStreakRef.current >= 2 && movementConfirmsSpeed) {
             walkCandidateRef.current = Math.max(walkCandidateRef.current, 2);
             setIsWalking(true);
           } else if (walkCandidateRef.current >= 1) {

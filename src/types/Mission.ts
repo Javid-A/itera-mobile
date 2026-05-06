@@ -17,4 +17,5 @@ export interface Mission {
   status: MissionStatus;
   completedAt: string | null;
   earnedXP: number | null;
+  armed: boolean;
 }

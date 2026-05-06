@@ -79,10 +79,13 @@ export function useMissionArrival({
 
   const activeMission = useMemo(() => {
     if (!userCoords) return null;
+    // armed=false mission'lar için arrival flow'u tetikleme: backend zaten
+    // /arrive 400 dönerdi ama mobile da animasyon/POST'u hiç başlatmasın.
     return (
       missions.find(
         (m) =>
           m.status !== "completed" &&
+          m.armed &&
           haversineMeters(
             userCoords[1],
             userCoords[0],

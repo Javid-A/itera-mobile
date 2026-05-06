@@ -92,6 +92,7 @@
   },
   "createMission": {
     "title": "Новая миссия",
+    "editTitle": "Редактировать миссию",
     "subtitle": "Создайте распорядок в реальном месте",
     "missionNameLabel": "НАЗВАНИЕ МИССИИ",
     "missionNamePlaceholder": "Например, Глубокая работа",
@@ -99,9 +100,20 @@
     "locationLabel": "МЕСТО",
     "timeWindowLabel": "ВРЕМЕННОЕ ОКНО",
     "launchButton": "ЗАПУСТИТЬ МИССИЮ →",
+    "saveButton": "СОХРАНИТЬ ИЗМЕНЕНИЯ →",
     "locationRequiredTitle": "Требуется место",
     "gpsWaiting": "Ожидание GPS для определения вашего местоположения. Попробуйте через момент.",
     "createFailedMsg": "Не удалось создать миссию."
+  },
+  "chooseOnMap": {
+    "exclusionZoneError": "Слишком близко к другой миссии. Отойдите минимум на 50 м."
+  },
+  "mission": {
+    "armBadge": "АКТИВАЦИЯ: ОТОЙДИТЕ НА 100 М",
+    "notArmedBadge": "НЕАКТИВНА",
+    "editButton": "РЕДАКТИРОВАТЬ",
+    "armedToast": "🎯 Миссия активирована — вернитесь, чтобы завершить",
+    "armedToastMulti": "🎯 Активировано миссий: {{count}}"
   },
   "levelUp": {
     "congratulations": "ПОЗДРАВЛЯЕМ",

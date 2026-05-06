@@ -92,6 +92,7 @@
   },
   "createMission": {
     "title": "Yeni Görev",
+    "editTitle": "Görevi Düzenle",
     "subtitle": "Gerçek bir konumda rutin belirle",
     "missionNameLabel": "GÖREV ADI",
     "missionNamePlaceholder": "Örn: Derin Çalışma Bloğu",
@@ -99,9 +100,20 @@
     "locationLabel": "KONUM",
     "timeWindowLabel": "ZAMAN DİLİMİ",
     "launchButton": "GÖREVİ BAŞLAT →",
+    "saveButton": "DEĞİŞİKLİKLERİ KAYDET →",
     "locationRequiredTitle": "Konum gerekli",
     "gpsWaiting": "Konumunu belirlemek için GPS bekleniyor. Bir an sonra tekrar dene.",
     "createFailedMsg": "Görev oluşturulamadı."
+  },
+  "chooseOnMap": {
+    "exclusionZoneError": "Başka bir göreve çok yakın. En az 50 m uzaklaş."
+  },
+  "mission": {
+    "armBadge": "ETKİNLEŞTİR: 100 M UZAKLAŞ",
+    "notArmedBadge": "PASİF",
+    "editButton": "DÜZENLE",
+    "armedToast": "🎯 Görev etkinleşti — tamamlamak için geri dön",
+    "armedToastMulti": "🎯 {{count}} görev etkinleşti"
   },
   "levelUp": {
     "congratulations": "TEBRİKLER",

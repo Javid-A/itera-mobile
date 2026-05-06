@@ -78,12 +78,19 @@ async function syncTodayGeofences(): Promise<void> {
   if (!(await hasPermissions())) return;
   try {
     const missions = await getMissionsToday();
-    if (missions.length === 0) {
+    // armed=false mission'lar için OS-level geofence kaydı yapma: backend
+    // /arrive zaten reddederdi ama region register edilirse OS boşuna pil
+    // tüketir ve background task tetiklenir. armed=true olduğunda bir sonraki
+    // sync (refetch sonrası) region'ı geri ekler.
+    const armed = missions.filter(
+      (m) => m.armed && m.status !== 'completed',
+    );
+    if (armed.length === 0) {
       await stopGeofences();
       return;
     }
     await registerGeofences(
-      missions.map((m) => ({
+      armed.map((m) => ({
         id: m.id,
         latitude: m.latitude,
         longitude: m.longitude,

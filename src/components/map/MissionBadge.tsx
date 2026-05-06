@@ -1,24 +1,38 @@
 import { Animated, StyleSheet, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Colors, Spacing, Typography } from "../../constants";
 
 interface Props {
   missionName: string;
   opacity: Animated.Value;
+  armed?: boolean;
 }
 
-export default function MissionBadge({ missionName, opacity }: Props) {
+export default function MissionBadge({
+  missionName,
+  opacity,
+  armed = true,
+}: Props) {
+  const { t } = useTranslation();
+  // armed=false: kullanıcı pin'in 100 m içinde oluşturduğu mission'a yakın
+  // ama henüz "uzaklaşıp dön" yapmamış. Turuncu yerine soluk mute renkte ve
+  // kilit ikonuyla aksiyon yönlendirmesi ver.
+  const muted = "#9aa1ad";
+  const color = armed ? Colors.orange : muted;
+  const iconName = armed ? "radio-outline" : "lock-closed-outline";
+  const text = armed ? missionName.toUpperCase() : t("mission.armBadge");
   return (
-    <Animated.View pointerEvents="none" style={[styles.missionBadge, { opacity }]}>
-      <Ionicons name="radio-outline" size={12} color={Colors.orange} />
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.missionBadge, { opacity, borderColor: color }]}
+    >
+      <Ionicons name={iconName} size={12} color={color} />
       <Text
-        style={[
-          Typography.label,
-          { color: Colors.orange, marginLeft: Spacing.xs },
-        ]}
+        style={[Typography.label, { color, marginLeft: Spacing.xs }]}
         numberOfLines={1}
       >
-        {missionName.toUpperCase()}
+        {text}
       </Text>
     </Animated.View>
   );
@@ -27,7 +41,7 @@ export default function MissionBadge({ missionName, opacity }: Props) {
 const styles = StyleSheet.create({
   missionBadge: {
     position: "absolute",
-    top: 132,
+    top: 152,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
@@ -37,6 +51,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: Colors.orange,
   },
 });

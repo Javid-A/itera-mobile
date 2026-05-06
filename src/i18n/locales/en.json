@@ -92,6 +92,7 @@
   },
   "createMission": {
     "title": "New Mission",
+    "editTitle": "Edit Mission",
     "subtitle": "Set a routine at a real-world location",
     "missionNameLabel": "MISSION NAME",
     "missionNamePlaceholder": "e.g., Deep Work Block",
@@ -99,9 +100,20 @@
     "locationLabel": "LOCATION",
     "timeWindowLabel": "TIME WINDOW",
     "launchButton": "LAUNCH MISSION →",
+    "saveButton": "SAVE CHANGES →",
     "locationRequiredTitle": "Location required",
     "gpsWaiting": "Waiting for GPS to determine your position. Try again in a moment.",
     "createFailedMsg": "Failed to create mission."
+  },
+  "chooseOnMap": {
+    "exclusionZoneError": "Too close to another mission. Move at least 50 m away."
+  },
+  "mission": {
+    "armBadge": "ACTIVATE: STEP 100 M AWAY",
+    "notArmedBadge": "NOT ARMED",
+    "editButton": "EDIT",
+    "armedToast": "🎯 Mission armed — return to complete",
+    "armedToastMulti": "🎯 {{count}} missions armed"
   },
   "levelUp": {
     "congratulations": "CONGRATULATIONS",

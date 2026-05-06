@@ -12,4 +12,5 @@ export interface DayMission {
   completedAt?: string;
   earnedXP?: number;
   potentialXP?: number;
+  armed?: boolean;
 }

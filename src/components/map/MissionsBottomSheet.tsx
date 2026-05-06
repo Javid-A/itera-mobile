@@ -7,7 +7,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import type { GestureResponderHandlers } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../../constants";
@@ -23,7 +22,7 @@ interface Props {
   backdropOpacity: Animated.AnimatedInterpolation<number> | Animated.Value;
   onCollapse: () => void;
   onMissionPress: (mission: Mission) => void;
-  onMissionDelete: (id: string) => void;
+  onMissionEdit: (mission: Mission) => void;
 }
 
 const SHEET_COLLAPSED_HEIGHT = 82;
@@ -133,9 +132,35 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
     missionInfo: {
       flex: 1,
     },
-    deleteMissionBtn: {
+    editPill: {
       marginLeft: Spacing.sm,
-      padding: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+    },
+    notArmedPill: {
+      alignSelf: "flex-start",
+      marginTop: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 999,
+      backgroundColor: C.orangeSubtle,
+      borderWidth: 1,
+      borderColor: C.orangeBorder,
+    },
+    notArmedDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: C.orange,
+      marginRight: 6,
+    },
+    notArmedRow: {
+      flexDirection: "row",
+      alignItems: "center",
     },
   });
 }
@@ -148,7 +173,7 @@ export default function MissionsBottomSheet({
   backdropOpacity,
   onCollapse,
   onMissionPress,
-  onMissionDelete,
+  onMissionEdit,
 }: Props) {
   const { colors: C, isDark } = useTheme();
   const { t } = useTranslation();
@@ -200,6 +225,7 @@ export default function MissionsBottomSheet({
           ) : (
             activeMissions.map((mission, i) => {
               const tierColor = tierColors[mission.tier] ?? C.accent;
+              const notArmed = !mission.armed;
               return (
                 <Pressable
                   key={mission.id}
@@ -212,6 +238,7 @@ export default function MissionsBottomSheet({
                       {
                         backgroundColor: `${tierColor}1F`,
                         borderColor: `${tierColor}66`,
+                        opacity: notArmed ? 0.55 : 1,
                       },
                     ]}
                   >
@@ -226,35 +253,49 @@ export default function MissionsBottomSheet({
                     <Text
                       style={[
                         Typography.bodyMedium,
-                        { color: C.textPrimary },
+                        {
+                          color: C.textPrimary,
+                          opacity: notArmed ? 0.65 : 1,
+                        },
                       ]}
                       numberOfLines={1}
                     >
                       {mission.missionName}
                     </Text>
-                    <Text
-                      style={[
-                        Typography.caption,
-                        { color: C.textSecondary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {mission.locationName}
-                    </Text>
+                    {notArmed ? (
+                      <View style={styles.notArmedPill}>
+                        <View style={styles.notArmedRow}>
+                          <View style={styles.notArmedDot} />
+                          <Text
+                            style={[Typography.label, { color: C.orange }]}
+                          >
+                            {t("mission.notArmedBadge")}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text
+                        style={[
+                          Typography.caption,
+                          { color: C.textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {mission.locationName}
+                      </Text>
+                    )}
                   </View>
                   <Text style={[Typography.statSM, { color: tierColor }]}>
                     +{mission.potentialXP} XP
                   </Text>
                   <Pressable
-                    style={styles.deleteMissionBtn}
-                    onPress={() => onMissionDelete(mission.id)}
+                    style={styles.editPill}
+                    onPress={() => onMissionEdit(mission)}
                     hitSlop={8}
                   >
-                    <Ionicons
-                      name="trash-outline"
-                      size={16}
-                      color={C.textSecondary}
-                    />
+                    <Text style={[Typography.label, { color: C.accent }]}>
+                      {t("mission.editButton")}
+                    </Text>
                   </Pressable>
                 </Pressable>
               );

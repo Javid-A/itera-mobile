@@ -9,10 +9,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../constants";
 import { useTheme, useTierColors } from "../context/ThemeContext";
 import type { ColorScheme } from "../constants/colors";
 import { classifyDistance, haversineMeters } from "../config/tierConfig";
+import { MISSION_EXCLUSION_ZONE_M } from "../config/gameConfig";
+import type { Mission } from "../types/Mission";
 import {
   MapboxAvailable,
   MapView,
@@ -35,6 +38,9 @@ type Props = {
   onConfirm: (location: { name: string; lat: number; lng: number }) => void;
   recentResults: LocationResult[];
   initialLocation?: { name: string; lat: number; lng: number } | null;
+  // Aktif (status !== 'completed') mission'lar; pin'in 50 m içine yerleşmesi
+  // engellenecek. Edit mode'da düzenlenen mission kendi listesinden çıkarılmalı.
+  existingMissions?: Mission[];
 };
 
 // const TOKYO: [number, number] = [139.6917, 35.6895];
@@ -232,6 +238,25 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       fontSize: 15,
       letterSpacing: 1.5,
     },
+    exclusionWarning: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: `${C.danger}1F`,
+      borderWidth: 1,
+      borderColor: C.danger,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: Spacing.md,
+    },
+    exclusionWarningText: {
+      flex: 1,
+      fontFamily: "Inter_400Regular",
+      fontSize: 12.5,
+      lineHeight: 17,
+      color: C.danger,
+    },
   });
 }
 
@@ -241,8 +266,10 @@ export default function ChooseOnMapModal({
   onConfirm,
   recentResults,
   initialLocation,
+  existingMissions = [],
 }: Props) {
   const { colors: C, isDark } = useTheme();
+  const { t } = useTranslation();
   const tierColors = useTierColors();
   const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
 
@@ -289,6 +316,15 @@ export default function ChooseOnMapModal({
     () => (userCoord ? buildTierZones(userCoord) : null),
     [userCoord],
   );
+
+  const exclusionConflict = useMemo(() => {
+    if (!pinCoord) return false;
+    return existingMissions.some(
+      (m) =>
+        haversineMeters(pinCoord[1], pinCoord[0], m.latitude, m.longitude) <
+        MISSION_EXCLUSION_ZONE_M,
+    );
+  }, [pinCoord, existingMissions]);
 
   const pinTier = useMemo(
     () =>
@@ -378,7 +414,7 @@ export default function ChooseOnMapModal({
   }, []);
 
   const handleConfirm = () => {
-    if (!pinCoord) return;
+    if (!pinCoord || exclusionConflict) return;
     onConfirm({ name: pinName, lat: pinCoord[1], lng: pinCoord[0] });
     handleClose();
   };
@@ -572,23 +608,38 @@ export default function ChooseOnMapModal({
         </View>
 
         <View style={styles.bottomSheet}>
+          {exclusionConflict && (
+            <View style={styles.exclusionWarning}>
+              <Ionicons name="alert-circle" size={18} color={C.danger} />
+              <Text style={styles.exclusionWarningText}>
+                {t("chooseOnMap.exclusionZoneError")}
+              </Text>
+            </View>
+          )}
           <Pressable
             style={[
               styles.confirmButton,
-              !pinCoord && styles.confirmButtonDisabled,
+              (!pinCoord || exclusionConflict) && styles.confirmButtonDisabled,
             ]}
             onPress={handleConfirm}
-            disabled={!pinCoord}
+            disabled={!pinCoord || exclusionConflict}
           >
             <Ionicons
               name="location"
               size={18}
-              color={pinCoord ? C.background : C.textSecondary}
+              color={
+                pinCoord && !exclusionConflict ? C.background : C.textSecondary
+              }
             />
             <Text
               style={[
                 styles.confirmText,
-                { color: pinCoord ? C.background : C.textSecondary },
+                {
+                  color:
+                    pinCoord && !exclusionConflict
+                      ? C.background
+                      : C.textSecondary,
+                },
               ]}
             >
               CONFIRM LOCATION

@@ -12,9 +12,15 @@ interface Props {
   iconType: string;
   completed?: boolean;
   tier?: MissionTier;
+  armed?: boolean;
 }
 
-export default function MissionPin({ iconType, completed = false, tier }: Props) {
+export default function MissionPin({
+  iconType,
+  completed = false,
+  tier,
+  armed = true,
+}: Props) {
   const iconName = getMissionIconName(iconType);
   const baseAccent = tier ? TIER_COLORS[tier] : Colors.accent;
   const floatAnim = useRef(new Animated.Value(0)).current;
@@ -52,23 +58,39 @@ export default function MissionPin({ iconType, completed = false, tier }: Props)
     outputRange: [baseAccent, GREEN],
   });
 
+  // armed=false → mission'a yaklaşıldığında tamamlanmaz; pin soluk gözükür,
+  // çevresinde kesik kenar var ve sağ üstte kilit overlay'i sebep iletir.
+  const isLocked = !completed && !armed;
+  const pinColor = isLocked ? Colors.lockedPin : accentColor;
+
   return (
-    <Animated.View style={[styles.container, { transform: [{ translateY: floatAnim }] }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        { transform: [{ translateY: floatAnim }] },
+      ]}
+    >
       <Animated.View
         style={[
           styles.diamond,
+          isLocked && styles.diamondLocked,
           {
-            backgroundColor: accentColor,
-            shadowColor: completed ? GREEN : baseAccent,
+            backgroundColor: pinColor,
+            shadowColor: isLocked ? Colors.lockedPin : (completed ? GREEN : baseAccent),
           },
         ]}
       >
         <View style={styles.iconInner}>
-          <Ionicons name={iconName} size={12} color={Colors.textPrimary} />
+          <Ionicons name={iconName} size={12} color={isLocked ? Colors.lockedPinIcon : Colors.textPrimary} />
         </View>
       </Animated.View>
-      <Animated.View style={[styles.stem, { backgroundColor: accentColor }]} />
-      <Animated.View style={[styles.glow, { backgroundColor: accentColor }]} />
+      <Animated.View style={[styles.stem, { backgroundColor: pinColor }]} />
+      <Animated.View style={[styles.glow, { backgroundColor: pinColor }]} />
+      {isLocked && (
+        <View style={styles.lockBadge} pointerEvents="none">
+          <Ionicons name="lock-closed" size={8} color="#0b0d12" />
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -91,6 +113,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
+  // RN'de borderStyle: 'dashed' borderRadius ile her zaman uyumlu çalışmaz; bu
+  // yüzden locked diamond'da köşe yuvarlamasını sıfırlıyoruz ki kesik kenar
+  // hem iOS hem Android'de doğru çizilsin.
+  diamondLocked: {
+    borderRadius: 0,
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
   stem: {
     width: 2,
     height: 10,
@@ -105,5 +136,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     opacity: 0.3,
     marginTop: 2,
+  },
+  lockBadge: {
+    position: 'absolute',
+    top: -2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#0b0d12',
   },
 });

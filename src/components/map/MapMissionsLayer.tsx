@@ -23,11 +23,16 @@ export default function MapMissionsLayer({
   missions,
   completingMissionId,
 }: Props) {
+  // armed=false mission'lar için halka çizmiyoruz; pin opacity + kilit overlay'i
+  // zaten "henüz aktif değil" durumunu iletir, fazladan turuncu glow yanıltıcı olur.
   const geofenceGeoJSON = useMemo(
     () =>
       buildGeofenceGeoJSON(
         missions.filter(
-          (m) => m.id !== completingMissionId && m.status !== "completed",
+          (m) =>
+            m.id !== completingMissionId &&
+            m.status !== "completed" &&
+            m.armed,
         ),
       ),
     [missions, completingMissionId],
@@ -93,6 +98,7 @@ export default function MapMissionsLayer({
             iconType={mission.iconType}
             completed={mission.status === "completed"}
             tier={mission.tier}
+            armed={mission.armed}
           />
         </MarkerView>
       ))}

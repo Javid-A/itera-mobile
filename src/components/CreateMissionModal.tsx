@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,8 @@ import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../constants";
 import { useTheme } from "../context/ThemeContext";
 import type { ColorScheme } from "../constants/colors";
-import { createMission } from "../api/missions";
+import { createMission, updateMission } from "../api/missions";
+import type { Mission } from "../types/Mission";
 import { LocationService } from "../services/LocationService";
 import { classifyDistance, haversineMeters } from "../config/tierConfig";
 import ChooseOnMapModal from "./ChooseOnMapModal";
@@ -37,6 +38,11 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  // Edit mode: doluysa form bu mission'la pre-fill edilir, submit PATCH'e gider.
+  editMission?: Mission | null;
+  // Pin'in 50 m içine düşmemesi gereken aktif mission'lar. Edit mode'da
+  // editMission listeden parent'ta filtrelenmeli.
+  existingMissions?: Mission[];
 };
 
 const INITIAL_TIME_WINDOW: TimeWindowState = {
@@ -125,7 +131,10 @@ export default function CreateMissionModal({
   visible,
   onClose,
   onCreated,
+  editMission,
+  existingMissions = [],
 }: Props) {
+  const isEditMode = !!editMission;
   const { colors: C } = useTheme();
   const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -200,6 +209,22 @@ export default function CreateMissionModal({
     onClose();
   };
 
+  // Edit mode: modal her açıldığında form'u editMission verisinden doldur.
+  // Modal kapatılırken handleClose → resetForm zaten temizliyor; değişiklik
+  // gerektirmez. selectedType eşleşmezse "custom" tipine düşer (LOC_TYPES[4]).
+  useEffect(() => {
+    if (!visible || !editMission) return;
+    setMissionName(editMission.missionName);
+    setLocationName(editMission.locationName);
+    setLocationLat(editMission.latitude);
+    setLocationLng(editMission.longitude);
+    setRadiusMeters(editMission.radiusMeters);
+    const matchedType =
+      LOC_TYPES.find((t) => t.iconType === editMission.iconType) ??
+      LOC_TYPES[4];
+    setSelectedType(matchedType);
+  }, [visible, editMission]);
+
   // Yeni mission yaratıldıktan sonra geofence listesini güncelle. Helper
   // autoTrackingEnabled flag'ini ve permission'ı kendi içinde kontrol ediyor —
   // switch off ise OS dinlemesin diye no-op döner.
@@ -220,18 +245,32 @@ export default function CreateMissionModal({
 
     setLoading(true);
     try {
-      await createMission({
-        missionName: missionName.trim(),
-        locationName: locationName.trim() || "Unknown Location",
-        latitude,
-        longitude,
-        radiusMeters,
-        iconType: selectedType.iconType,
-        anchorLatitude: anchorCoords.lat,
-        anchorLongitude: anchorCoords.lng,
-        tier: tierPreview?.tier ?? null,
-        potentialXP: tierPreview?.potentialXP ?? null,
-      });
+      if (isEditMode && editMission) {
+        await updateMission(editMission.id, {
+          missionName: missionName.trim(),
+          locationName: locationName.trim() || "Unknown Location",
+          latitude,
+          longitude,
+          radiusMeters,
+          userLatitude: anchorCoords.lat,
+          userLongitude: anchorCoords.lng,
+        });
+      } else {
+        await createMission({
+          missionName: missionName.trim(),
+          locationName: locationName.trim() || "Unknown Location",
+          latitude,
+          longitude,
+          radiusMeters,
+          iconType: selectedType.iconType,
+          anchorLatitude: anchorCoords.lat,
+          anchorLongitude: anchorCoords.lng,
+          tier: tierPreview?.tier ?? null,
+          potentialXP: tierPreview?.potentialXP ?? null,
+          userLatitude: anchorCoords.lat,
+          userLongitude: anchorCoords.lng,
+        });
+      }
 
       resetForm();
       onClose();
@@ -282,7 +321,9 @@ export default function CreateMissionModal({
                   <Text
                     style={[Typography.displayLG, { color: C.textPrimary }]}
                   >
-                    {t("createMission.title")}
+                    {isEditMode
+                      ? t("createMission.editTitle")
+                      : t("createMission.title")}
                   </Text>
                   <Text
                     style={[
@@ -356,7 +397,9 @@ export default function CreateMissionModal({
                   <ActivityIndicator color={C.background} />
                 ) : (
                   <Text style={[Typography.cta, { color: C.background }]}>
-                    {t("createMission.launchButton")}
+                    {isEditMode
+                      ? t("createMission.saveButton")
+                      : t("createMission.launchButton")}
                   </Text>
                 )}
               </Pressable>
@@ -371,6 +414,7 @@ export default function CreateMissionModal({
         onConfirm={(loc) => handleSelectLocation(loc)}
         recentResults={search.results}
         initialLocation={initialLocationForMap}
+        existingMissions={existingMissions}
       />
     </>
   );

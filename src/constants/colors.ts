@@ -20,6 +20,8 @@ export type ColorScheme = {
   success: string;
   danger: string;
   tabBarBackground: string;
+  lockedPin: string;
+  lockedPinIcon: string;
 };
 
 export const DarkColors: ColorScheme = {
@@ -45,6 +47,8 @@ export const DarkColors: ColorScheme = {
   success: "#22c55e",
   danger: "#ef4444",
   tabBarBackground: "rgba(7, 8, 15, 0.96)",
+  lockedPin: "#6B7280",
+  lockedPinIcon: "#9CA3AF",
 };
 
 // Haze D — lavender-tinted whites
@@ -70,6 +74,8 @@ export const LightColors: ColorScheme = {
   success: "#15a058",
   danger: "#dc2626",
   tabBarBackground: "rgba(239, 240, 255, 0.96)",
+  lockedPin: "#8B949E",
+  lockedPinIcon: "#B0BAC5",
 };
 
 // Backward-compatible default (dark)

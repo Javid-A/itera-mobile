@@ -92,6 +92,7 @@
   },
   "createMission": {
     "title": "Neue Mission",
+    "editTitle": "Mission bearbeiten",
     "subtitle": "Erstelle eine Routine an einem realen Ort",
     "missionNameLabel": "MISSIONSNAME",
     "missionNamePlaceholder": "z. B. Deep-Work-Block",
@@ -99,9 +100,20 @@
     "locationLabel": "ORT",
     "timeWindowLabel": "ZEITFENSTER",
     "launchButton": "MISSION STARTEN →",
+    "saveButton": "ÄNDERUNGEN SPEICHERN →",
     "locationRequiredTitle": "Ort erforderlich",
     "gpsWaiting": "Warte auf GPS zur Standortbestimmung. Bitte einen Moment warten.",
     "createFailedMsg": "Mission konnte nicht erstellt werden."
+  },
+  "chooseOnMap": {
+    "exclusionZoneError": "Zu nah an einer anderen Mission. Mindestens 50 m Abstand halten."
+  },
+  "mission": {
+    "armBadge": "AKTIVIEREN: 100 M ENTFERNEN",
+    "notArmedBadge": "INAKTIV",
+    "editButton": "BEARBEITEN",
+    "armedToast": "🎯 Mission aktiviert — kehre zurück, um sie abzuschließen",
+    "armedToastMulti": "🎯 {{count}} Missionen aktiviert"
   },
   "levelUp": {
     "congratulations": "GLÜCKWUNSCH",

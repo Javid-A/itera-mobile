@@ -14,7 +14,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { Colors, Spacing, Typography } from "../../src/constants";
 import { useTheme } from "../../src/context/ThemeContext";
-import { deleteMission as deleteMissionRequest } from "../../src/api/missions";
 import { useMissionsToday } from "../../src/state/queries/useMissionsToday";
 import { useProfile } from "../../src/state/queries/useProfile";
 import { qk } from "../../src/state/queryKeys";
@@ -29,10 +28,14 @@ import {
 import CharacterSprite from "../../src/components/CharacterSprite";
 import CreateMissionModal from "../../src/components/CreateMissionModal";
 import BackgroundLocationPrompt from "../../src/components/BackgroundLocationPrompt";
-import { BG_PROMPT_TRIGGER_COUNTS, STORAGE_KEYS } from "../../src/config/gameConfig";
+import {
+  BG_PROMPT_TRIGGER_COUNTS,
+  STORAGE_KEYS,
+} from "../../src/config/gameConfig";
 import TopHud from "../../src/components/map/TopHud";
 import MissionBadge from "../../src/components/map/MissionBadge";
 import XpToast from "../../src/components/map/XpToast";
+import ArmToast from "../../src/components/map/ArmToast";
 import MapMissionsLayer from "../../src/components/map/MapMissionsLayer";
 import CompletionRingLayer from "../../src/components/map/CompletionRingLayer";
 import MissionsBottomSheet, {
@@ -43,6 +46,8 @@ import { useBottomSheet } from "../../src/hooks/useBottomSheet";
 import { useDayTick } from "../../src/hooks/useDayTick";
 import { useBackgroundPermission } from "../../src/hooks/useBackgroundPermission";
 import { useMissionArrival } from "../../src/hooks/useMissionArrival";
+import { useMissionArming } from "../../src/hooks/useMissionArming";
+import { haversineMeters } from "../../src/utils/geo";
 import type { Mission } from "../../src/types/Mission";
 
 const MAP_PITCH = 65;
@@ -73,6 +78,7 @@ export default function MapScreen() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const profile = profileData ?? null;
   const [createVisible, setCreateVisible] = useState(false);
+  const [editingMission, setEditingMission] = useState<Mission | null>(null);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
   // Profile'daki switch state'i. Permission verili olsa bile kullanıcı switch'i
   // kapatmış olabilir — banner her iki durumu da yansıtmalı.
@@ -80,7 +86,9 @@ export default function MapScreen() {
 
   const loadAutoTrackingFlag = useCallback(async () => {
     try {
-      const value = await AsyncStorage.getItem(STORAGE_KEYS.autoTrackingEnabled);
+      const value = await AsyncStorage.getItem(
+        STORAGE_KEYS.autoTrackingEnabled,
+      );
       setAutoTrackingEnabled(value === "true");
     } catch {
       setAutoTrackingEnabled(false);
@@ -92,6 +100,9 @@ export default function MapScreen() {
   // Translate, foot point'in 88px kutusunun altında sabit kalmasını sağlar.
   const characterScaleAnim = useRef(new Animated.Value(1)).current;
   const characterTranslateAnim = useRef(new Animated.Value(0)).current;
+  // Locked mission badge için sabit opacity. MissionBadge Animated.Value alıyor;
+  // armed=false durumunda nabız atışı yok, sadece statik gösterim.
+  const lockedBadgeOpacity = useRef(new Animated.Value(1)).current;
 
   const cameraRef = useRef<any>(null);
   const refreshMissionsRef = useRef<() => void>(() => {});
@@ -142,10 +153,40 @@ export default function MapScreen() {
     onProfileRefresh: refreshProfile,
   });
 
+  const {
+    armToastOpacity,
+    armToastTranslate,
+    armToastCount,
+  } = useMissionArming({
+    missions,
+    setMissions,
+    userCoords,
+  });
+
   const completingMission = useMemo(
     () => missions.find((m) => m.id === completingMissionId) ?? null,
     [missions, completingMissionId],
   );
+
+  // Kullanıcı pin'in radius'u içinde ama mission armed=false → arrival flow
+  // tetiklenmiyor (useMissionArrival filter'ı dışlıyor). Yine de görsel olarak
+  // "neden tamamlanmıyor?" sorusunu açıklayacak badge gösterelim.
+  const nearLockedMission = useMemo(() => {
+    if (!userCoords) return null;
+    return (
+      missions.find(
+        (m) =>
+          m.status !== "completed" &&
+          !m.armed &&
+          haversineMeters(
+            userCoords[1],
+            userCoords[0],
+            m.latitude,
+            m.longitude,
+          ) < m.radiusMeters,
+      ) ?? null
+    );
+  }, [missions, userCoords]);
 
   const {
     sheetY,
@@ -184,8 +225,14 @@ export default function MapScreen() {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.missionCreatedCount);
       const count = (raw ? parseInt(raw, 10) : 0) + 1;
-      await AsyncStorage.setItem(STORAGE_KEYS.missionCreatedCount, String(count));
-      if (!bgGranted && (BG_PROMPT_TRIGGER_COUNTS as readonly number[]).includes(count)) {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.missionCreatedCount,
+        String(count),
+      );
+      if (
+        !bgGranted &&
+        (BG_PROMPT_TRIGGER_COUNTS as readonly number[]).includes(count)
+      ) {
         setShowBgPrompt(true);
       }
     } catch {
@@ -227,12 +274,25 @@ export default function MapScreen() {
     }
   }, [missionsData, completingMissionId]);
 
-  const deleteMission = useCallback(
-    (id: string) => {
-      setMissions((prev) => prev.filter((m) => m.id !== id));
-      deleteMissionRequest(id).catch(() => refreshMissions());
-    },
-    [refreshMissions],
+  const handleMissionEdit = useCallback((mission: Mission) => {
+    setEditingMission(mission);
+    setCreateVisible(true);
+  }, []);
+
+  const handleCreateModalClose = useCallback(() => {
+    setCreateVisible(false);
+    setEditingMission(null);
+  }, []);
+
+  // CreateMissionModal'a ve dolayısıyla ChooseOnMapModal'a verilecek aktif
+  // mission listesi. Edit mode'da düzenlenen mission kendi exclusion zone'una
+  // takılmasın diye listeden çıkarılır.
+  const existingMissionsForCreate = useMemo(
+    () =>
+      missions.filter(
+        (m) => m.status !== "completed" && m.id !== editingMission?.id,
+      ),
+    [missions, editingMission],
   );
 
   useEffect(() => {
@@ -426,6 +486,15 @@ export default function MapScreen() {
         <MissionBadge
           missionName={activeMission.missionName}
           opacity={vignetteAnim}
+          armed={activeMission.armed}
+        />
+      )}
+
+      {!activeMission && !completingMissionId && nearLockedMission && (
+        <MissionBadge
+          missionName={nearLockedMission.missionName}
+          opacity={lockedBadgeOpacity}
+          armed={false}
         />
       )}
 
@@ -434,6 +503,12 @@ export default function MapScreen() {
         streakBonusXP={completionStreakBonus}
         opacity={xpToastOpacity}
         translateY={xpToastTranslate}
+      />
+
+      <ArmToast
+        count={armToastCount}
+        opacity={armToastOpacity}
+        translateY={armToastTranslate}
       />
 
       <View
@@ -478,13 +553,15 @@ export default function MapScreen() {
         backdropOpacity={backdropOpacity}
         onCollapse={() => snapSheet(false)}
         onMissionPress={flyToMission}
-        onMissionDelete={deleteMission}
+        onMissionEdit={handleMissionEdit}
       />
 
       <CreateMissionModal
         visible={createVisible}
-        onClose={() => setCreateVisible(false)}
+        onClose={handleCreateModalClose}
         onCreated={handleMissionCreated}
+        editMission={editingMission}
+        existingMissions={existingMissionsForCreate}
       />
 
       <BackgroundLocationPrompt
