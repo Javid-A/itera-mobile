@@ -68,6 +68,13 @@ interface MissionRowData {
   status: "completed" | "pending" | "missed";
   tier: MissionTier;
   iconType: string;
+  targetTime?: string | null;
+}
+
+function formatTargetTime(value: string): string {
+  const parts = value.split(":");
+  if (parts.length < 2) return value;
+  return `${parts[0]}:${parts[1]}`;
 }
 
 function makeStyles(C: ColorScheme) {
@@ -396,16 +403,44 @@ function MissionCard({
         >
           {row.name}
         </Text>
-        <Text
-          style={[Typography.caption, { color: C.textSecondary, marginTop: 2 }]}
-          numberOfLines={1}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 2,
+            gap: 6,
+          }}
         >
-          {missed
-            ? `${row.location} · ${t("history.notCompleted")}`
-            : pending
-              ? row.location
-              : `${row.location} · ${row.time}`}
-        </Text>
+          <Text
+            style={[Typography.caption, { color: C.textSecondary, flexShrink: 1 }]}
+            numberOfLines={1}
+          >
+            {missed
+              ? `${row.location} · ${t("history.notCompleted")}`
+              : pending
+                ? row.location
+                : `${row.location} · ${row.time}`}
+          </Text>
+          {row.targetTime && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 6,
+                paddingVertical: 1,
+                borderRadius: 999,
+                backgroundColor: C.accentSoft,
+                borderWidth: 1,
+                borderColor: C.accentBorder,
+              }}
+            >
+              <Ionicons name="time-outline" size={11} color={C.accent} />
+              <Text style={[Typography.label, { color: C.accent, marginLeft: 3 }]}>
+                {formatTargetTime(row.targetTime)}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
       {missed ? (
         <View style={styles.missedPill}>
@@ -500,6 +535,7 @@ export default function HistoryScreen() {
         status: "completed",
         tier: m.tier ?? "A",
         iconType: m.iconType ?? "location",
+        targetTime: m.targetTime,
       }));
 
       const pendingRows: MissionRowData[] = day.pending.map((p) => ({
@@ -511,6 +547,7 @@ export default function HistoryScreen() {
         status: isToday ? "pending" : "missed",
         tier: p.tier ?? "A",
         iconType: p.iconType ?? "location",
+        targetTime: p.targetTime,
       }));
 
       const rows: MissionRowData[] = [...completedRows, ...pendingRows];
@@ -526,6 +563,7 @@ export default function HistoryScreen() {
         status: "completed",
         completedAt: m.completedAt,
         earnedXP: m.earnedXP,
+        targetTime: m.targetTime,
       }));
 
       const pendingDayMissions: DayMission[] = day.pending.map((p) => ({
@@ -538,6 +576,7 @@ export default function HistoryScreen() {
         longitude: p.longitude,
         status: isToday ? "pending" : "missed",
         potentialXP: p.potentialXP,
+        targetTime: p.targetTime,
       }));
 
       return {
@@ -580,6 +619,7 @@ export default function HistoryScreen() {
           status: h.status,
           tier: h.tier ?? "A",
           iconType: h.iconType ?? "location",
+          targetTime: h.targetTime,
         }));
         const dayMissions: DayMission[] = items.map((h) => ({
           id: h.id,
@@ -592,6 +632,7 @@ export default function HistoryScreen() {
           status: h.status,
           completedAt: h.completedAt ?? undefined,
           earnedXP: h.earnedXP ?? undefined,
+          targetTime: h.targetTime,
         }));
         const doneCount = items.filter((h) => h.status === "completed").length;
         return {

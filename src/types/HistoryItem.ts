@@ -12,6 +12,7 @@ export interface HistoryItem {
   iconType: string;
   tier: MissionTier;
   locationName: string;
+  targetTime?: string | null;
 }
 
 export interface HistoryPage {

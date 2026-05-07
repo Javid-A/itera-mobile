@@ -18,4 +18,5 @@ export interface Mission {
   completedAt: string | null;
   earnedXP: number | null;
   armed: boolean;
+  targetTime?: string | null;
 }

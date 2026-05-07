@@ -214,8 +214,8 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
             <Switch
               value={state.use24h}
               onValueChange={toggle24h}
-              trackColor={{ false: C.surface2, true: C.accent }}
-              thumbColor={C.background}
+              trackColor={{ false: C.surface3, true: C.accent }}
+              thumbColor={state.use24h ? '#ffffff' : '#c9d2e6'}
             />
           </View>
 

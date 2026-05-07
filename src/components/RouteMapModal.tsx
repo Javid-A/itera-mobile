@@ -44,6 +44,12 @@ function formatTime(iso: string): string {
   });
 }
 
+function formatRouteTargetTime(value: string): string {
+  const parts = value.split(":");
+  if (parts.length < 2) return value;
+  return `${parts[0]}:${parts[1]}`;
+}
+
 type CameraSettings =
   | {
       kind: "point";
@@ -802,18 +808,51 @@ export default function RouteMapModal({
                       >
                         {m.missionName}
                       </Text>
-                      <Text
-                        style={[
-                          Typography.caption,
-                          { color: C.textSecondary, marginTop: 2 },
-                        ]}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginTop: 2,
+                          gap: 6,
+                        }}
                       >
-                        {m.status === "completed" && m.completedAt
-                          ? formatTime(m.completedAt)
-                          : m.status === "pending"
-                            ? t("routeMap.notCompletedYet")
-                            : t("history.notCompleted")}
-                      </Text>
+                        <Text
+                          style={[
+                            Typography.caption,
+                            { color: C.textSecondary, flexShrink: 1 },
+                          ]}
+                        >
+                          {m.status === "completed" && m.completedAt
+                            ? formatTime(m.completedAt)
+                            : m.status === "pending"
+                              ? t("routeMap.notCompletedYet")
+                              : t("history.notCompleted")}
+                        </Text>
+                        {m.targetTime && (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              paddingHorizontal: 6,
+                              paddingVertical: 1,
+                              borderRadius: 999,
+                              backgroundColor: C.accentSoft,
+                              borderWidth: 1,
+                              borderColor: C.accentBorder,
+                            }}
+                          >
+                            <Ionicons name="time-outline" size={11} color={C.accent} />
+                            <Text
+                              style={[
+                                Typography.label,
+                                { color: C.accent, marginLeft: 3 },
+                              ]}
+                            >
+                              {formatRouteTargetTime(m.targetTime)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                     {m.status === "completed" ? (
                       <Text style={[Typography.statMD, { color: rowColor }]}>

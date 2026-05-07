@@ -9,6 +9,7 @@ export interface DayCompletedItem {
   completedAt: string;
   latitude: number;
   longitude: number;
+  targetTime?: string | null;
 }
 
 export interface DayPendingItem {
@@ -20,6 +21,7 @@ export interface DayPendingItem {
   potentialXP: number;
   latitude: number;
   longitude: number;
+  targetTime?: string | null;
 }
 
 export interface DaySummary {

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import type { GestureResponderHandlers } from "react-native";
 import { useTranslation } from "react-i18next";
+import { Ionicons } from "@expo/vector-icons";
 import { Spacing, Typography } from "../../constants";
 import { useTheme, useTierColors } from "../../context/ThemeContext";
 import type { ColorScheme } from "../../constants/colors";
@@ -162,7 +163,29 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
       flexDirection: "row",
       alignItems: "center",
     },
+    locationRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 2,
+      gap: 6,
+    },
+    targetTimeChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: 999,
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.accentBorder,
+    },
   });
+}
+
+function formatTargetTime(value: string): string {
+  const parts = value.split(":");
+  if (parts.length < 2) return value;
+  return `${parts[0]}:${parts[1]}`;
 }
 
 export default function MissionsBottomSheet({
@@ -274,15 +297,34 @@ export default function MissionsBottomSheet({
                         </View>
                       </View>
                     ) : (
-                      <Text
-                        style={[
-                          Typography.caption,
-                          { color: C.textSecondary },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {mission.locationName}
-                      </Text>
+                      <View style={styles.locationRow}>
+                        <Text
+                          style={[
+                            Typography.caption,
+                            { color: C.textSecondary, flexShrink: 1 },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {mission.locationName}
+                        </Text>
+                        {mission.targetTime && (
+                          <View style={styles.targetTimeChip}>
+                            <Ionicons
+                              name="time-outline"
+                              size={11}
+                              color={C.accent}
+                            />
+                            <Text
+                              style={[
+                                Typography.label,
+                                { color: C.accent, marginLeft: 3 },
+                              ]}
+                            >
+                              {formatTargetTime(mission.targetTime)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     )}
                   </View>
                   <Text style={[Typography.statSM, { color: tierColor }]}>
