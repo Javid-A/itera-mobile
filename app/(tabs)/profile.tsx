@@ -19,6 +19,7 @@ import { useLanguage, AVAILABLE_LANGUAGES } from '../../src/context/LanguageCont
 import { resetProfileStats } from '../../src/api/profile';
 import { useProfile } from '../../src/state/queries/useProfile';
 import { useMissionHistory } from '../../src/state/queries/useMissionHistory';
+import { useDaySummary } from '../../src/state/queries/useDaySummary';
 import { qk } from '../../src/state/queryKeys';
 import { requestBackgroundLocation } from '../../src/services/locationSettings';
 import { LocationService } from '../../src/services/LocationService';
@@ -303,8 +304,12 @@ export default function ProfileScreen() {
   const dayLabels = t('common.dayLabels', { returnObjects: true }) as string[];
   const { data: profileData } = useProfile();
   const { data: historyData } = useMissionHistory();
+  const { data: summary } = useDaySummary();
   const stats = profileData ?? PROFILE_FALLBACK;
-  const history = historyData ?? [];
+  const history = useMemo(
+    () => historyData?.pages.flatMap((p) => p.items) ?? [],
+    [historyData],
+  );
   const [isAutoTrackingOn, setIsAutoTrackingOn] = useState(false);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
@@ -345,27 +350,20 @@ export default function ProfileScreen() {
   const streakDays = stats.currentStreak ?? 0;
 
   const { locationsCount, weekDots, todayDone } = useMemo(() => {
-    const dayKeys = new Set(history.map((m) => isoDateKey(new Date(m.completedAt))));
-    const uniqueRoutines = new Set(history.map((m) => m.id));
+    // Backend history endpoint excludes today + yesterday, so derive week dots
+    // from day-summary (week[] covers all 7 days with totalXP per day).
+    const dots = summary?.week.map((d) => d.totalXP > 0) ?? new Array(7).fill(false);
+    const todayHasCompletion = (summary?.today.doneCount ?? 0) > 0;
 
-    const today = startOfDay(new Date());
-    const weekStart = new Date(today);
-    const dayIdx = (today.getDay() + 6) % 7;
-    weekStart.setDate(today.getDate() - dayIdx);
-
-    const dots: boolean[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart);
-      d.setDate(weekStart.getDate() + i);
-      dots.push(dayKeys.has(isoDateKey(d)));
-    }
+    const completedHistory = history.filter((m) => m.status === "completed");
+    const uniqueRoutines = new Set(completedHistory.map((m) => m.id));
 
     return {
       locationsCount: uniqueRoutines.size,
       weekDots: dots,
-      todayDone: dayKeys.has(isoDateKey(today)),
+      todayDone: todayHasCompletion,
     };
-  }, [history]);
+  }, [history, summary]);
 
   const styles = useMemo(() => makeStyles(C), [C]);
 

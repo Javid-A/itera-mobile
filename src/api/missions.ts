@@ -1,7 +1,7 @@
 import apiClient from '../services/apiClient';
 import type { Mission, MissionTier } from '../types/Mission';
 import type { DaySummaryResponse } from '../types/DaySummary';
-import type { HistoryItem } from '../types/HistoryItem';
+import type { HistoryItem, HistoryPage } from '../types/HistoryItem';
 
 export interface CreateMissionPayload {
   missionName: string;
@@ -82,9 +82,22 @@ export async function armMission(id: string): Promise<Mission> {
   return data;
 }
 
-export async function getMissionHistory(): Promise<HistoryItem[]> {
-  const { data } = await apiClient.get<HistoryItem[]>('/missions/history');
-  return data;
+interface HistoryPageDto {
+  items: HistoryItem[];
+  nextCursor: string | null;
+}
+
+export async function getMissionHistory(params: {
+  cursor?: string | null;
+  limit?: number;
+}): Promise<HistoryPage> {
+  const { data } = await apiClient.get<HistoryPageDto>('/missions/history', {
+    params: {
+      cursor: params.cursor ?? undefined,
+      limit: params.limit ?? 30,
+    },
+  });
+  return { items: data.items, nextCursor: data.nextCursor };
 }
 
 export async function getDaySummary(): Promise<DaySummaryResponse> {

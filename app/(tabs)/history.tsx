@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +18,9 @@ import RouteMapModal from "../../src/components/RouteMapModal";
 import { Spacing, Typography } from "../../src/constants";
 import { useTheme } from "../../src/context/ThemeContext";
 import { useDaySummary } from "../../src/state/queries/useDaySummary";
+import { useMissionHistory } from "../../src/state/queries/useMissionHistory";
 import type { DayMission } from "../../src/types/DayMission";
+import type { HistoryItem } from "../../src/types/HistoryItem";
 import type { MissionTier } from "../../src/types/Mission";
 import { useTierColors } from "../../src/context/ThemeContext";
 import { getMissionIconName } from "../../src/config/missionIcons";
@@ -444,6 +449,16 @@ export default function HistoryScreen() {
   const { colors: C } = useTheme();
   const { t } = useTranslation();
   const { data: summary } = useDaySummary();
+  const {
+    data: historyData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useMissionHistory();
+  const history = useMemo(
+    () => historyData?.pages.flatMap((p) => p.items) ?? [],
+    [historyData],
+  );
   const dayLabels = t("common.dayLabels", { returnObjects: true }) as string[];
   const [routeMapSection, setRouteMapSection] = useState<{
     date: Date;
@@ -457,6 +472,7 @@ export default function HistoryScreen() {
     weekTotalXP,
     todaySection,
     yesterdaySection,
+    olderSections,
     todayIndex,
   } = useMemo(() => {
     if (!summary) {
@@ -465,6 +481,7 @@ export default function HistoryScreen() {
         weekTotalXP: 0,
         todaySection: null as DaySection | null,
         yesterdaySection: null as DaySection | null,
+        olderSections: [] as DaySection[],
         todayIndex: 0,
       };
     }
@@ -534,14 +551,69 @@ export default function HistoryScreen() {
       };
     };
 
+    const grouped = new Map<string, HistoryItem[]>();
+    for (const h of history ?? []) {
+      // Prefer backend-provided occurredOn; fall back to deriving from completedAt
+      // in user TZ if the field is missing (defensive against backend rollout lag).
+      const key =
+        h.occurredOn ??
+        (h.completedAt
+          ? new Date(h.completedAt).toLocaleDateString("en-CA", {
+              timeZone: summary.timeZone,
+            })
+          : null);
+      if (!key) continue;
+      const arr = grouped.get(key);
+      if (arr) arr.push(h);
+      else grouped.set(key, [h]);
+    }
+
+    const older: DaySection[] = Array.from(grouped.entries())
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([date, items]) => {
+        const rows: MissionRowData[] = items.map((h) => ({
+          id: h.id,
+          name: h.missionName,
+          location: h.locationName,
+          time: h.completedAt ? formatTime(h.completedAt) : "",
+          xp: h.earnedXP ?? 0,
+          status: h.status,
+          tier: h.tier ?? "A",
+          iconType: h.iconType ?? "location",
+        }));
+        const dayMissions: DayMission[] = items.map((h) => ({
+          id: h.id,
+          missionName: h.missionName,
+          locationName: h.locationName,
+          iconType: h.iconType ?? "location",
+          tier: h.tier ?? "A",
+          latitude: h.latitude,
+          longitude: h.longitude,
+          status: h.status,
+          completedAt: h.completedAt ?? undefined,
+          earnedXP: h.earnedXP ?? undefined,
+        }));
+        const doneCount = items.filter((h) => h.status === "completed").length;
+        return {
+          key: date,
+          label: formatSectionLabel(date, summary.today.date, t),
+          date: parseLocalDate(date),
+          rows,
+          dayMissions,
+          done: doneCount,
+          total: items.length,
+        };
+      });
+
     return {
       weekTotals: totals,
       weekTotalXP: totalXP,
       todaySection: buildSection(summary.today, true),
       yesterdaySection: buildSection(summary.yesterday, false),
+      olderSections: older,
       todayIndex: tIdx >= 0 ? tIdx : 0,
     };
-  }, [summary, t]);
+  }, [summary, history, t]);
 
   const maxBar = Math.max(...weekTotals, 1);
 
@@ -577,7 +649,7 @@ export default function HistoryScreen() {
     if (!section) return null;
     if (!isToday && section.rows.length === 0) return null;
     return (
-      <View style={{ marginTop: Spacing.lg }}>
+      <View key={section.key} style={{ marginTop: Spacing.lg }}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionLabelRow}>
             <Text style={styles.sectionLabel}>{section.label}</Text>
@@ -639,10 +711,20 @@ export default function HistoryScreen() {
     );
   };
 
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!hasNextPage || isFetchingNextPage) return;
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (distanceFromBottom < 400) fetchNextPage();
+  };
+
   return (
     <ScreenContainer>
       <ScrollView
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={200}
         contentContainerStyle={{
           paddingBottom: Spacing.xxl,
           paddingTop: Spacing.md,
@@ -738,10 +820,20 @@ export default function HistoryScreen() {
 
         {renderSection(todaySection, true)}
         {renderSection(yesterdaySection, false)}
+        {olderSections.map((section) => renderSection(section, false))}
+
+        {isFetchingNextPage && (
+          <View style={{ paddingVertical: Spacing.lg, alignItems: "center" }}>
+            <ActivityIndicator color={C.accent} />
+          </View>
+        )}
 
         {summary !== null &&
+          !hasNextPage &&
+          !isFetchingNextPage &&
           todaySection?.total === 0 &&
-          yesterdaySection?.total === 0 && (
+          yesterdaySection?.total === 0 &&
+          olderSections.length === 0 && (
             <View style={styles.empty}>
               <Ionicons
                 name="map-outline"
