@@ -27,7 +27,12 @@ import MapLocationPreview from "./createMission/MapLocationPreview";
 import TimeWindowPicker from "./createMission/TimeWindowPicker";
 import XpRewardCard from "./createMission/XpRewardCard";
 import AdvancedRadiusPicker from "./createMission/AdvancedRadiusPicker";
-import { LOC_TYPES, type TimeWindowState } from "./createMission/types";
+import {
+  LOC_TYPES,
+  isTargetTimeInPast,
+  toBackendTargetTime,
+  type TargetTimeState,
+} from "./createMission/types";
 import { useMissionAnchor } from "../hooks/useMissionAnchor";
 import {
   useLocationSearch,
@@ -45,14 +50,11 @@ type Props = {
   existingMissions?: Mission[];
 };
 
-const INITIAL_TIME_WINDOW: TimeWindowState = {
+const INITIAL_TIME_WINDOW: TargetTimeState = {
   enabled: false,
-  fromHour: 8,
-  fromMinute: 0,
-  fromAmPm: "AM",
-  toHour: 12,
-  toMinute: 0,
-  toAmPm: "PM",
+  hour: 12,
+  minute: 0,
+  use24h: false,
 };
 
 function makeStyles(C: ColorScheme) {
@@ -146,7 +148,7 @@ export default function CreateMissionModal({
   const [locationLng, setLocationLng] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState(LOC_TYPES[2]);
   const [timeWindow, setTimeWindow] =
-    useState<TimeWindowState>(INITIAL_TIME_WINDOW);
+    useState<TargetTimeState>(INITIAL_TIME_WINDOW);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [radiusMeters, setRadiusMeters] = useState(100);
@@ -239,9 +241,26 @@ export default function CreateMissionModal({
       );
       return;
     }
+    if (locationLat == null || locationLng == null) {
+      Alert.alert(
+        t("createMission.locationRequiredTitle"),
+        t("createMission.locationMustBePicked"),
+      );
+      return;
+    }
+    if (
+      timeWindow.enabled &&
+      isTargetTimeInPast(timeWindow.hour, timeWindow.minute)
+    ) {
+      Alert.alert(
+        t("createMission.timeInvalidTitle"),
+        t("createMission.timeMustBeFuture"),
+      );
+      return;
+    }
 
-    const latitude = locationLat ?? 52.52 + (Math.random() - 0.5) * 0.01;
-    const longitude = locationLng ?? 13.405 + (Math.random() - 0.5) * 0.01;
+    const latitude = locationLat;
+    const longitude = locationLng;
 
     setLoading(true);
     try {
@@ -252,6 +271,7 @@ export default function CreateMissionModal({
           latitude,
           longitude,
           radiusMeters,
+          iconType: selectedType.iconType,
           userLatitude: anchorCoords.lat,
           userLongitude: anchorCoords.lng,
         });
@@ -269,6 +289,9 @@ export default function CreateMissionModal({
           potentialXP: tierPreview?.potentialXP ?? null,
           userLatitude: anchorCoords.lat,
           userLongitude: anchorCoords.lng,
+          targetTime: timeWindow.enabled
+            ? toBackendTargetTime(timeWindow.hour, timeWindow.minute)
+            : undefined,
         });
       }
 
@@ -369,16 +392,23 @@ export default function CreateMissionModal({
                 onPress={() => setShowMapModal(true)}
               />
 
-              <Text style={styles.fieldLabel}>{t("createMission.timeWindowLabel")}</Text>
-              <TimeWindowPicker
-                state={timeWindow}
-                onChange={setTimeWindow}
-              />
+              {!isEditMode && (
+                <>
+                  <Text style={styles.fieldLabel}>
+                    {t("createMission.targetTimeLabel")}
+                  </Text>
+                  <TimeWindowPicker
+                    state={timeWindow}
+                    onChange={setTimeWindow}
+                  />
+                </>
+              )}
 
               <XpRewardCard
                 tierPreview={tierPreview}
                 anchorCoords={anchorCoords}
                 anchorError={anchorError}
+                punctualityEnabled={!isEditMode && timeWindow.enabled}
               />
 
               <AdvancedRadiusPicker
@@ -389,9 +419,20 @@ export default function CreateMissionModal({
               />
 
               <Pressable
-                style={[styles.submitButton, loading && { opacity: 0.6 }]}
+                style={[
+                  styles.submitButton,
+                  (loading ||
+                    !missionName.trim() ||
+                    locationLat == null ||
+                    locationLng == null) && { opacity: 0.5 },
+                ]}
                 onPress={handleSubmit}
-                disabled={loading}
+                disabled={
+                  loading ||
+                  !missionName.trim() ||
+                  locationLat == null ||
+                  locationLng == null
+                }
               >
                 {loading ? (
                   <ActivityIndicator color={C.background} />

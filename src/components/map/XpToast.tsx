@@ -6,11 +6,18 @@ import { Colors } from "../../constants";
 interface Props {
   xp: number;
   streakBonusXP?: number;
+  punctualityBonusXP?: number;
   opacity: Animated.Value;
   translateY: Animated.Value;
 }
 
-export default function XpToast({ xp, streakBonusXP = 0, opacity, translateY }: Props) {
+export default function XpToast({
+  xp,
+  streakBonusXP = 0,
+  punctualityBonusXP = 0,
+  opacity,
+  translateY,
+}: Props) {
   const { t } = useTranslation();
   return (
     <Animated.View
@@ -28,6 +35,13 @@ export default function XpToast({ xp, streakBonusXP = 0, opacity, translateY }: 
         <View style={styles.xpToastBonusBadge}>
           <Text style={styles.xpToastBonusText}>
             {t("xpToast.streakBonus", { xp: streakBonusXP })}
+          </Text>
+        </View>
+      )}
+      {punctualityBonusXP > 0 && (
+        <View style={styles.xpToastPunctualityBadge}>
+          <Text style={styles.xpToastPunctualityText}>
+            {t("xpToast.punctualityBonus", { xp: punctualityBonusXP })}
           </Text>
         </View>
       )}
@@ -81,6 +95,26 @@ const styles = StyleSheet.create({
   },
   xpToastBonusText: {
     color: "#ffb27a",
+    fontFamily: "Rajdhani_700Bold",
+    fontSize: 16,
+    letterSpacing: 1.5,
+  },
+  xpToastPunctualityBadge: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: "rgba(8, 16, 24, 0.92)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#3dd6ff",
+    shadowColor: "#3dd6ff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  xpToastPunctualityText: {
+    color: "#7adfff",
     fontFamily: "Rajdhani_700Bold",
     fontSize: 16,
     letterSpacing: 1.5,

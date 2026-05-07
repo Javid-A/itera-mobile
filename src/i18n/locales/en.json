@@ -98,10 +98,16 @@
     "missionNamePlaceholder": "e.g., Deep Work Block",
     "locationTypeLabel": "LOCATION TYPE",
     "locationLabel": "LOCATION",
-    "timeWindowLabel": "TIME WINDOW",
+    "targetTimeLabel": "TARGET TIME",
+    "targetTimeRowLabel": "Set a target time",
+    "use24h": "24-HOUR",
+    "targetTimeHelper": "Arrive within ±{{window}} min of {{time}} for +{{bonus}} XP. Outside that window, normal XP.",
+    "timeMustBeFuture": "Pick a time later than now (today only — max 23:59).",
+    "timeInvalidTitle": "Invalid time",
     "launchButton": "LAUNCH MISSION →",
     "saveButton": "SAVE CHANGES →",
     "locationRequiredTitle": "Location required",
+    "locationMustBePicked": "Pick a location on the map or from search before launching.",
     "gpsWaiting": "Waiting for GPS to determine your position. Try again in a moment.",
     "createFailedMsg": "Failed to create mission."
   },
@@ -133,7 +139,8 @@
     "fix": "FIX"
   },
   "xpToast": {
-    "streakBonus": "🔥 +{{xp}} STREAK BONUS"
+    "streakBonus": "🔥 +{{xp}} STREAK BONUS",
+    "punctualityBonus": "⏰ +{{xp}} ON-TIME BONUS"
   },
   "bottomSheet": {
     "title": "Active Missions",
@@ -157,6 +164,7 @@
     "label": "XP REWARD",
     "tierInfo": "Tier {{tier}} · {{distance}} away",
     "pickLocation": "Pick a location to classify tier.",
-    "locating": "Locating you…"
+    "locating": "Locating you…",
+    "punctualityChip": "ON TIME"
   }
 }

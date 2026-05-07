@@ -98,10 +98,16 @@
     "missionNamePlaceholder": "Например, Глубокая работа",
     "locationTypeLabel": "ТИП МЕСТА",
     "locationLabel": "МЕСТО",
-    "timeWindowLabel": "ВРЕМЕННОЕ ОКНО",
+    "targetTimeLabel": "ЦЕЛЕВОЕ ВРЕМЯ",
+    "targetTimeRowLabel": "Установить целевое время",
+    "use24h": "24 ЧАСА",
+    "targetTimeHelper": "Прибудь в течение ±{{window}} мин. от {{time}} для +{{bonus}} XP. За пределами окна — обычный XP.",
+    "timeMustBeFuture": "Выбери время позже текущего (только сегодня — максимум 23:59).",
+    "timeInvalidTitle": "Неверное время",
     "launchButton": "ЗАПУСТИТЬ МИССИЮ →",
     "saveButton": "СОХРАНИТЬ ИЗМЕНЕНИЯ →",
     "locationRequiredTitle": "Требуется место",
+    "locationMustBePicked": "Перед запуском выбери место на карте или через поиск.",
     "gpsWaiting": "Ожидание GPS для определения вашего местоположения. Попробуйте через момент.",
     "createFailedMsg": "Не удалось создать миссию."
   },
@@ -133,7 +139,8 @@
     "fix": "ИСПРАВИТЬ"
   },
   "xpToast": {
-    "streakBonus": "🔥 +{{xp}} БОНУС СЕРИИ"
+    "streakBonus": "🔥 +{{xp}} БОНУС СЕРИИ",
+    "punctualityBonus": "⏰ +{{xp}} БОНУС ВО ВРЕМЯ"
   },
   "bottomSheet": {
     "title": "Активные миссии",
@@ -157,6 +164,7 @@
     "label": "НАГРАДА XP",
     "tierInfo": "Уровень {{tier}} · {{distance}} от вас",
     "pickLocation": "Выберите место для определения уровня.",
-    "locating": "Определение местоположения…"
+    "locating": "Определение местоположения…",
+    "punctualityChip": "ВО ВРЕМЯ"
   }
 }

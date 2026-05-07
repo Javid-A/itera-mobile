@@ -6,6 +6,7 @@ const ICON_MAP: Record<string, IoniconName> = {
   briefcase: 'briefcase',
   barbell: 'barbell',
   cafe: 'cafe',
+  leaf: 'leaf',
   star: 'star',
   home: 'home',
   school: 'school',

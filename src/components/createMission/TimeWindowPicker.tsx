@@ -1,22 +1,26 @@
-import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Spacing, Typography } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import type { ColorScheme } from "../../constants/colors";
-import type { AmPm, TimeWindowState } from "./types";
+import {
+  formatTargetTime,
+  isTargetTimeInPast,
+  PUNCTUALITY_BONUS_XP,
+  PUNCTUALITY_WINDOW_MIN,
+  type TargetTimeState,
+} from "./types";
 
 interface Props {
-  state: TimeWindowState;
-  onChange: (next: TimeWindowState) => void;
+  state: TargetTimeState;
+  onChange: (next: TargetTimeState) => void;
 }
-
-const formatTime = (h: number, m: number, ap: AmPm) =>
-  `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`;
 
 function makeStyles(C: ColorScheme) {
   return StyleSheet.create({
-    timeWindowRow: {
+    row: {
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: C.surface,
@@ -26,18 +30,18 @@ function makeStyles(C: ColorScheme) {
       paddingHorizontal: Spacing.md,
       height: 50,
     },
-    timeWindowRowActive: {
+    rowActive: {
       borderColor: C.accent,
       backgroundColor: C.accentSoft,
     },
-    xpBonusText: {
+    bonusText: {
       fontFamily: "Rajdhani_700Bold",
       fontSize: 12,
       letterSpacing: 0.5,
       color: C.accent,
       marginRight: Spacing.sm,
     },
-    timePickerCard: {
+    card: {
       backgroundColor: C.surface,
       borderRadius: 14,
       borderWidth: 1,
@@ -45,67 +49,43 @@ function makeStyles(C: ColorScheme) {
       padding: Spacing.md,
       marginTop: Spacing.sm,
     },
-    timePickerRow: {
+    cardHeader: {
       flexDirection: "row",
-      alignItems: "flex-end",
-      gap: 10,
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: Spacing.md,
     },
-    timePickerLabel: {
+    label24h: {
       fontFamily: "Rajdhani_700Bold",
       fontSize: 11,
       letterSpacing: 1.4,
       color: C.textSecondary,
-      marginBottom: 6,
     },
-    timeButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: C.surface2,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: C.borderBright,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: 12,
-    },
-    timeButtonActive: {
-      borderColor: C.accent,
-    },
-    timeButtonText: {
-      fontFamily: "Inter_600SemiBold",
-      fontSize: 16,
-      color: C.textPrimary,
-    },
-    timeArrow: {
-      paddingBottom: 12,
-      paddingHorizontal: 4,
-    },
-    timeAdjuster: {
+    timeDisplay: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      marginTop: Spacing.md,
-      gap: 8,
-      paddingTop: Spacing.md,
-      borderTopWidth: 1,
-      borderTopColor: C.border,
-    },
-    timeAdjusterCol: {
-      alignItems: "center",
       gap: 6,
+      paddingVertical: Spacing.sm,
     },
-    timeAdjusterValue: {
+    timeColumn: {
+      alignItems: "center",
+      gap: 4,
+    },
+    chevronBtn: {
+      padding: 4,
+    },
+    timeValue: {
       fontFamily: "Inter_600SemiBold",
-      fontSize: 28,
+      fontSize: 36,
       color: C.textPrimary,
-      minWidth: 44,
+      minWidth: 56,
       textAlign: "center",
     },
-    timeAdjusterColon: {
+    timeColon: {
       fontFamily: "Inter_600SemiBold",
-      fontSize: 24,
+      fontSize: 30,
       color: C.textSecondary,
-      marginBottom: 4,
     },
     amPmButton: {
       backgroundColor: C.accentSoft,
@@ -114,13 +94,27 @@ function makeStyles(C: ColorScheme) {
       borderRadius: 10,
       paddingHorizontal: 14,
       paddingVertical: 8,
-      marginLeft: 8,
+      marginLeft: 10,
     },
     amPmText: {
       fontFamily: "Rajdhani_700Bold",
       fontSize: 15,
       letterSpacing: 1,
       color: C.accent,
+    },
+    helper: {
+      marginTop: Spacing.sm,
+      fontFamily: "Inter_400Regular",
+      fontSize: 12,
+      color: C.textSecondary,
+      textAlign: "center",
+    },
+    error: {
+      marginTop: Spacing.sm,
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 12,
+      color: C.danger,
+      textAlign: "center",
     },
     checkbox: {
       width: 22,
@@ -141,36 +135,48 @@ function makeStyles(C: ColorScheme) {
 
 export default function TimeWindowPicker({ state, onChange }: Props) {
   const { colors: C } = useTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
-  const [active, setActive] = useState<"from" | "to" | null>(null);
 
-  const adjustHour = (which: "from" | "to", delta: number) => {
-    const cur = which === "from" ? state.fromHour : state.toHour;
-    const next = ((cur - 1 + delta + 12) % 12) + 1;
-    onChange({ ...state, [which === "from" ? "fromHour" : "toHour"]: next });
+  // Seçim sırasında geçen dakikalarda "geçmiş" durumunun yenilenmesi için
+  // dakikada bir tetikleyici. UI sadece validation çıktısını kullanır.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!state.enabled) return;
+    const id = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [state.enabled]);
+
+  const inPast = state.enabled && isTargetTimeInPast(state.hour, state.minute);
+
+  const adjustHour = (delta: number) => {
+    const next = (state.hour + delta + 24) % 24;
+    onChange({ ...state, hour: next });
   };
-  const adjustMinute = (which: "from" | "to", delta: number) => {
-    const cur = which === "from" ? state.fromMinute : state.toMinute;
-    const next = (cur + delta * 5 + 60) % 60;
-    onChange({ ...state, [which === "from" ? "fromMinute" : "toMinute"]: next });
+  const adjustMinute = (delta: number) => {
+    // 5'er dakika adımları.
+    const next = (state.minute + delta * 5 + 60) % 60;
+    onChange({ ...state, minute: next });
   };
-  const toggleAmPm = (which: "from" | "to") => {
-    const key = which === "from" ? "fromAmPm" : "toAmPm";
-    const cur = state[key];
-    onChange({ ...state, [key]: cur === "AM" ? "PM" : "AM" });
+  const toggleAmPm = () => {
+    // 12 saatlik moda göre AM↔PM: 12 saat ekle/çıkar (mod 24).
+    const next = (state.hour + 12) % 24;
+    onChange({ ...state, hour: next });
   };
+  const toggle24h = (use24h: boolean) => {
+    onChange({ ...state, use24h });
+  };
+
+  const displayHour = state.use24h
+    ? String(state.hour).padStart(2, "0")
+    : String(state.hour % 12 === 0 ? 12 : state.hour % 12).padStart(2, "0");
+  const isPm = state.hour >= 12;
 
   return (
     <>
       <Pressable
-        style={[
-          styles.timeWindowRow,
-          state.enabled && styles.timeWindowRowActive,
-        ]}
-        onPress={() => {
-          onChange({ ...state, enabled: !state.enabled });
-          setActive(null);
-        }}
+        style={[styles.row, state.enabled && styles.rowActive]}
+        onPress={() => onChange({ ...state, enabled: !state.enabled })}
       >
         <View style={[styles.checkbox, state.enabled && styles.checkboxChecked]}>
           {state.enabled && (
@@ -187,9 +193,13 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
             },
           ]}
         >
-          Set a time window
+          {t("createMission.targetTimeRowLabel")}
         </Text>
-        {state.enabled && <Text style={styles.xpBonusText}>+25 XP bonus</Text>}
+        {state.enabled && (
+          <Text style={styles.bonusText}>
+            +{PUNCTUALITY_BONUS_XP} XP
+          </Text>
+        )}
         <Ionicons
           name="time-outline"
           size={18}
@@ -198,89 +208,77 @@ export default function TimeWindowPicker({ state, onChange }: Props) {
       </Pressable>
 
       {state.enabled && (
-        <View style={styles.timePickerCard}>
-          <View style={styles.timePickerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.timePickerLabel}>FROM</Text>
-              <Pressable
-                style={[
-                  styles.timeButton,
-                  active === "from" && styles.timeButtonActive,
-                ]}
-                onPress={() => setActive(active === "from" ? null : "from")}
-              >
-                <Text style={styles.timeButtonText}>
-                  {formatTime(state.fromHour, state.fromMinute, state.fromAmPm)}
-                </Text>
-                <Ionicons
-                  name="time-outline"
-                  size={16}
-                  color={active === "from" ? C.accent : C.textSecondary}
-                />
-              </Pressable>
-            </View>
-            <View style={styles.timeArrow}>
-              <Ionicons name="arrow-forward" size={16} color={C.textSecondary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.timePickerLabel}>TO</Text>
-              <Pressable
-                style={[
-                  styles.timeButton,
-                  active === "to" && styles.timeButtonActive,
-                ]}
-                onPress={() => setActive(active === "to" ? null : "to")}
-              >
-                <Text style={styles.timeButtonText}>
-                  {formatTime(state.toHour, state.toMinute, state.toAmPm)}
-                </Text>
-                <Ionicons
-                  name="time-outline"
-                  size={16}
-                  color={active === "to" ? C.accent : C.textSecondary}
-                />
-              </Pressable>
-            </View>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.label24h}>{t("createMission.use24h")}</Text>
+            <Switch
+              value={state.use24h}
+              onValueChange={toggle24h}
+              trackColor={{ false: C.surface2, true: C.accent }}
+              thumbColor={C.background}
+            />
           </View>
 
-          {active && (
-            <View style={styles.timeAdjuster}>
-              <View style={styles.timeAdjusterCol}>
-                <Pressable hitSlop={8} onPress={() => adjustHour(active, 1)}>
-                  <Ionicons name="chevron-up" size={18} color={C.accent} />
-                </Pressable>
-                <Text style={styles.timeAdjusterValue}>
-                  {String(
-                    active === "from" ? state.fromHour : state.toHour,
-                  ).padStart(2, "0")}
-                </Text>
-                <Pressable hitSlop={8} onPress={() => adjustHour(active, -1)}>
-                  <Ionicons name="chevron-down" size={18} color={C.accent} />
-                </Pressable>
-              </View>
-              <Text style={styles.timeAdjusterColon}>:</Text>
-              <View style={styles.timeAdjusterCol}>
-                <Pressable hitSlop={8} onPress={() => adjustMinute(active, 1)}>
-                  <Ionicons name="chevron-up" size={18} color={C.accent} />
-                </Pressable>
-                <Text style={styles.timeAdjusterValue}>
-                  {String(
-                    active === "from" ? state.fromMinute : state.toMinute,
-                  ).padStart(2, "0")}
-                </Text>
-                <Pressable hitSlop={8} onPress={() => adjustMinute(active, -1)}>
-                  <Ionicons name="chevron-down" size={18} color={C.accent} />
-                </Pressable>
-              </View>
+          <View style={styles.timeDisplay}>
+            <View style={styles.timeColumn}>
               <Pressable
-                style={styles.amPmButton}
-                onPress={() => toggleAmPm(active)}
+                hitSlop={8}
+                style={styles.chevronBtn}
+                onPress={() => adjustHour(1)}
               >
-                <Text style={styles.amPmText}>
-                  {active === "from" ? state.fromAmPm : state.toAmPm}
-                </Text>
+                <Ionicons name="chevron-up" size={20} color={C.accent} />
+              </Pressable>
+              <Text style={styles.timeValue}>{displayHour}</Text>
+              <Pressable
+                hitSlop={8}
+                style={styles.chevronBtn}
+                onPress={() => adjustHour(-1)}
+              >
+                <Ionicons name="chevron-down" size={20} color={C.accent} />
               </Pressable>
             </View>
+
+            <Text style={styles.timeColon}>:</Text>
+
+            <View style={styles.timeColumn}>
+              <Pressable
+                hitSlop={8}
+                style={styles.chevronBtn}
+                onPress={() => adjustMinute(1)}
+              >
+                <Ionicons name="chevron-up" size={20} color={C.accent} />
+              </Pressable>
+              <Text style={styles.timeValue}>
+                {String(state.minute).padStart(2, "0")}
+              </Text>
+              <Pressable
+                hitSlop={8}
+                style={styles.chevronBtn}
+                onPress={() => adjustMinute(-1)}
+              >
+                <Ionicons name="chevron-down" size={20} color={C.accent} />
+              </Pressable>
+            </View>
+
+            {!state.use24h && (
+              <Pressable style={styles.amPmButton} onPress={toggleAmPm}>
+                <Text style={styles.amPmText}>{isPm ? "PM" : "AM"}</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {inPast ? (
+            <Text style={styles.error}>
+              {t("createMission.timeMustBeFuture")}
+            </Text>
+          ) : (
+            <Text style={styles.helper}>
+              {t("createMission.targetTimeHelper", {
+                window: PUNCTUALITY_WINDOW_MIN,
+                bonus: PUNCTUALITY_BONUS_XP,
+                time: formatTargetTime(state.hour, state.minute, state.use24h),
+              })}
+            </Text>
           )}
         </View>
       )}

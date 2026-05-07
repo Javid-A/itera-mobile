@@ -98,10 +98,16 @@
     "missionNamePlaceholder": "z. B. Deep-Work-Block",
     "locationTypeLabel": "ORTSTYP",
     "locationLabel": "ORT",
-    "timeWindowLabel": "ZEITFENSTER",
+    "targetTimeLabel": "ZIELZEIT",
+    "targetTimeRowLabel": "Zielzeit festlegen",
+    "use24h": "24-STUNDEN",
+    "targetTimeHelper": "Triff ±{{window}} Min. um {{time}} ein für +{{bonus}} XP. Außerhalb dieses Fensters normales XP.",
+    "timeMustBeFuture": "Wähle eine Zeit nach jetzt (nur heute — max. 23:59).",
+    "timeInvalidTitle": "Ungültige Zeit",
     "launchButton": "MISSION STARTEN →",
     "saveButton": "ÄNDERUNGEN SPEICHERN →",
     "locationRequiredTitle": "Ort erforderlich",
+    "locationMustBePicked": "Wähle vor dem Start einen Ort auf der Karte oder aus der Suche.",
     "gpsWaiting": "Warte auf GPS zur Standortbestimmung. Bitte einen Moment warten.",
     "createFailedMsg": "Mission konnte nicht erstellt werden."
   },
@@ -133,7 +139,8 @@
     "fix": "BEHEBEN"
   },
   "xpToast": {
-    "streakBonus": "🔥 +{{xp}} STREAK-BONUS"
+    "streakBonus": "🔥 +{{xp}} STREAK-BONUS",
+    "punctualityBonus": "⏰ +{{xp}} PÜNKTLICHKEITS-BONUS"
   },
   "bottomSheet": {
     "title": "Aktive Missionen",
@@ -157,6 +164,7 @@
     "label": "XP-BELOHNUNG",
     "tierInfo": "Stufe {{tier}} · {{distance}} entfernt",
     "pickLocation": "Wähle einen Ort, um die Stufe zu bestimmen.",
-    "locating": "Standort wird ermittelt…"
+    "locating": "Standort wird ermittelt…",
+    "punctualityChip": "PÜNKTLICH"
   }
 }

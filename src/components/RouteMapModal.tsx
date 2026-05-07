@@ -68,6 +68,44 @@ function isValidCoord(m: DayMission): boolean {
   return m.latitude !== 0 && m.longitude !== 0;
 }
 
+type MissionCluster = {
+  id: string;
+  longitude: number;
+  latitude: number;
+  missions: DayMission[];
+};
+
+function clusterMissions(
+  missions: DayMission[],
+  thresholdM: number,
+): MissionCluster[] {
+  const clusters: MissionCluster[] = [];
+  for (const m of missions) {
+    if (!isValidCoord(m)) continue;
+    const found = clusters.find(
+      (c) =>
+        haversineMeters(c.latitude, c.longitude, m.latitude, m.longitude) <
+        thresholdM,
+    );
+    if (found) {
+      found.missions.push(m);
+      const n = found.missions.length;
+      found.latitude =
+        found.missions.reduce((s, x) => s + x.latitude, 0) / n;
+      found.longitude =
+        found.missions.reduce((s, x) => s + x.longitude, 0) / n;
+    } else {
+      clusters.push({
+        id: m.id,
+        latitude: m.latitude,
+        longitude: m.longitude,
+        missions: [m],
+      });
+    }
+  }
+  return clusters;
+}
+
 function calcCameraSettings(missions: DayMission[]): CameraSettings | null {
   const valid = missions.filter(isValidCoord);
   if (valid.length === 0) return null;
@@ -228,6 +266,27 @@ function makeStyles(C: ColorScheme, isDark: boolean) {
     numberedPinDim: {
       opacity: 0.65,
     },
+    countBadge: {
+      position: "absolute",
+      top: -6,
+      right: -6,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: C.accent,
+      borderWidth: 1.5,
+      borderColor: numberedPinBg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    countBadgeText: {
+      fontFamily: "Rajdhani_700Bold",
+      fontSize: 10,
+      lineHeight: 12,
+      color: isDark ? "#000" : "#fff",
+      letterSpacing: 0.5,
+    },
     dailyRouteChip: {
       position: "absolute",
       bottom: Spacing.sm,
@@ -367,6 +426,11 @@ export default function RouteMapModal({
   const total = missions.length;
   const xp = missions.reduce((sum, m) => sum + (m.earnedXP ?? 0), 0);
   const camera = useMemo(() => calcCameraSettings(missions), [missions]);
+  const clusters = useMemo(() => {
+    const spread = camera?.kind === "bounds" ? camera.spreadM : 0;
+    const threshold = Math.max(80, spread * 0.18);
+    return clusterMissions(missions, threshold);
+  }, [missions, camera]);
   const cameraRef = useRef<any>(null);
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(
     null,
@@ -546,22 +610,76 @@ export default function RouteMapModal({
                         }
                   }
                 />
-                {missions.map((m) => {
-                  if (!isValidCoord(m)) return null;
-                  const pinColor = colorForMission(m);
-                  const iconName = getMissionIconName(m.iconType);
-                  const showTooltip = tooltipMissionId === m.id;
-                  return (
+                {clusters.flatMap((cluster) => {
+                  const isExpanded =
+                    !!selectedMissionId &&
+                    cluster.missions.some(
+                      (x) => x.id === selectedMissionId,
+                    ) &&
+                    cluster.missions.length > 1;
+
+                  if (isExpanded) {
+                    return cluster.missions.map((m) => {
+                      const pinColor = colorForMission(m);
+                      const iconName = getMissionIconName(m.iconType);
+                      const showTooltip = tooltipMissionId === m.id;
+                      const isSelected = selectedMissionId === m.id;
+                      return (
+                        <MarkerView
+                          key={m.id}
+                          coordinate={[m.longitude, m.latitude]}
+                          anchor={{ x: 0.5, y: 0.5 }}
+                        >
+                          <View style={styles.pinWrapper}>
+                            {showTooltip && (
+                              <View style={styles.pinTooltip}>
+                                <Text style={styles.pinTooltipText}>
+                                  {m.missionName}
+                                </Text>
+                              </View>
+                            )}
+                            <View
+                              style={[
+                                styles.numberedPin,
+                                { borderColor: pinColor },
+                                m.status !== "completed" &&
+                                  !isSelected &&
+                                  styles.numberedPinDim,
+                              ]}
+                            >
+                              <Ionicons
+                                name={iconName}
+                                size={14}
+                                color={pinColor}
+                              />
+                            </View>
+                          </View>
+                        </MarkerView>
+                      );
+                    });
+                  }
+
+                  const display = cluster.missions[0];
+                  const pinColor = colorForMission(display);
+                  const iconName = getMissionIconName(display.iconType);
+                  const tooltipMission = cluster.missions.find(
+                    (x) => x.id === tooltipMissionId,
+                  );
+                  const count = cluster.missions.length;
+                  const allDim = cluster.missions.every(
+                    (x) => x.status !== "completed",
+                  );
+                  return [
                     <MarkerView
-                      key={m.id}
-                      coordinate={[m.longitude, m.latitude]}
+                      key={cluster.id}
+                      coordinate={[cluster.longitude, cluster.latitude]}
                       anchor={{ x: 0.5, y: 0.5 }}
                     >
                       <View style={styles.pinWrapper}>
-                        {showTooltip && (
+                        {tooltipMission && (
                           <View style={styles.pinTooltip}>
                             <Text style={styles.pinTooltipText}>
-                              {m.missionName}
+                              {tooltipMission.missionName}
                             </Text>
                           </View>
                         )}
@@ -569,7 +687,7 @@ export default function RouteMapModal({
                           style={[
                             styles.numberedPin,
                             { borderColor: pinColor },
-                            m.status !== "completed" && styles.numberedPinDim,
+                            allDim && styles.numberedPinDim,
                           ]}
                         >
                           <Ionicons
@@ -577,10 +695,22 @@ export default function RouteMapModal({
                             size={14}
                             color={pinColor}
                           />
+                          {count > 1 && (
+                            <View
+                              style={[
+                                styles.countBadge,
+                                { backgroundColor: pinColor },
+                              ]}
+                            >
+                              <Text style={styles.countBadgeText}>
+                                {count > 99 ? "99+" : count}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                       </View>
-                    </MarkerView>
-                  );
+                    </MarkerView>,
+                  ];
                 })}
               </MapView>
             ) : (

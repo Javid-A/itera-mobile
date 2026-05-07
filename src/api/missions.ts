@@ -17,6 +17,9 @@ export interface CreateMissionPayload {
   // Backend exclusion zone (50 m) ve armed (100 m) hesabı için kullanır.
   userLatitude: number;
   userLongitude: number;
+  // Punctuality bonus için hedef saat — "HH:mm:ss" (TimeOnly). Opsiyonel.
+  // Set edildiğinde arrival ±30 dk içindeyse +50 XP. Immutable (PATCH yok).
+  targetTime?: string;
 }
 
 export interface UpdateMissionPayload {
@@ -25,6 +28,7 @@ export interface UpdateMissionPayload {
   latitude?: number;
   longitude?: number;
   radiusMeters?: number;
+  iconType?: string;
   // Konum değiştirilirse backend exclusion zone + armed yeniden hesaplar.
   userLatitude?: number;
   userLongitude?: number;
@@ -45,6 +49,7 @@ export interface ArriveResponse {
   streakDays?: number;
   streakBonusXP?: number;
   streakIncreased?: boolean;
+  punctualityBonusXP?: number;
 }
 
 export async function getMissionsToday(): Promise<Mission[]> {

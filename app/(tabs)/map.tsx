@@ -139,6 +139,7 @@ export default function MapScreen() {
     completingMissionId,
     completionXP,
     completionStreakBonus,
+    completionPunctualityBonus,
     completionIsGreen,
     completionScale,
     vignetteAnim,
@@ -501,6 +502,7 @@ export default function MapScreen() {
       <XpToast
         xp={completionXP}
         streakBonusXP={completionStreakBonus}
+        punctualityBonusXP={completionPunctualityBonus}
         opacity={xpToastOpacity}
         translateY={xpToastTranslate}
       />

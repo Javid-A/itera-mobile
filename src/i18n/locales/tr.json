@@ -98,10 +98,16 @@
     "missionNamePlaceholder": "Örn: Derin Çalışma Bloğu",
     "locationTypeLabel": "KONUM TÜRÜ",
     "locationLabel": "KONUM",
-    "timeWindowLabel": "ZAMAN DİLİMİ",
+    "targetTimeLabel": "HEDEF SAAT",
+    "targetTimeRowLabel": "Hedef saat belirle",
+    "use24h": "24 SAAT",
+    "targetTimeHelper": "{{time}} saatinden ±{{window}} dk içinde varırsan +{{bonus}} XP. Aksi halde normal XP.",
+    "timeMustBeFuture": "Şu andan sonraki bir saat seç (sadece bugün — en geç 23:59).",
+    "timeInvalidTitle": "Geçersiz saat",
     "launchButton": "GÖREVİ BAŞLAT →",
     "saveButton": "DEĞİŞİKLİKLERİ KAYDET →",
     "locationRequiredTitle": "Konum gerekli",
+    "locationMustBePicked": "Başlatmadan önce haritadan veya aramadan bir konum seç.",
     "gpsWaiting": "Konumunu belirlemek için GPS bekleniyor. Bir an sonra tekrar dene.",
     "createFailedMsg": "Görev oluşturulamadı."
   },
@@ -133,7 +139,8 @@
     "fix": "DÜZELT"
   },
   "xpToast": {
-    "streakBonus": "🔥 +{{xp}} SERİ BONUSU"
+    "streakBonus": "🔥 +{{xp}} SERİ BONUSU",
+    "punctualityBonus": "⏰ +{{xp}} ZAMANINDA BONUSU"
   },
   "bottomSheet": {
     "title": "Aktif Görevler",
@@ -157,6 +164,7 @@
     "label": "XP ÖDÜLÜ",
     "tierInfo": "Kademe {{tier}} · {{distance}} uzakta",
     "pickLocation": "Kademeyi belirlemek için bir konum seç.",
-    "locating": "Konumun bulunuyor…"
+    "locating": "Konumun bulunuyor…",
+    "punctualityChip": "ZAMANINDA"
   }
 }

@@ -6,11 +6,13 @@ import { useTheme, useTierColors } from "../../context/ThemeContext";
 import type { ColorScheme } from "../../constants/colors";
 import { TIER_CONFIG, type TierPreview } from "../../config/tierConfig";
 import XPCountUp from "../XPCountUp";
+import { PUNCTUALITY_BONUS_XP } from "./types";
 
 interface Props {
   tierPreview: (TierPreview & { distanceMeters: number }) | null;
   anchorCoords: { lat: number; lng: number } | null;
   anchorError: string | null;
+  punctualityEnabled?: boolean;
 }
 
 function formatDistance(meters: number): string {
@@ -46,6 +48,14 @@ function makeStyles(C: ColorScheme) {
       letterSpacing: 1,
       color: C.accent,
     },
+    punctualityChip: {
+      marginTop: 4,
+      borderColor: "#3dd6ff",
+      backgroundColor: "rgba(61, 214, 255, 0.12)",
+    },
+    punctualityChipText: {
+      color: "#7adfff",
+    },
   });
 }
 
@@ -53,6 +63,7 @@ export default function XpRewardCard({
   tierPreview,
   anchorCoords,
   anchorError,
+  punctualityEnabled = false,
 }: Props) {
   const { colors: C } = useTheme();
   const { t } = useTranslation();
@@ -94,6 +105,13 @@ export default function XpRewardCard({
                 {TIER_CONFIG.baseXP} × {tierPreview.multiplier.toFixed(1)}
               </Text>
             </View>
+            {punctualityEnabled && (
+              <View style={[styles.baseChip, styles.punctualityChip]}>
+                <Text style={[styles.baseChipText, styles.punctualityChipText]}>
+                  +{PUNCTUALITY_BONUS_XP} {t("xpReward.punctualityChip")}
+                </Text>
+              </View>
+            )}
           </>
         ) : (
           <>
