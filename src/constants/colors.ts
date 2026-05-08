@@ -19,6 +19,7 @@ export type ColorScheme = {
   borderBright: string;
   success: string;
   danger: string;
+  dangerDim: string;
   tabBarBackground: string;
   lockedPin: string;
   lockedPinIcon: string;
@@ -46,6 +47,7 @@ export const DarkColors: ColorScheme = {
   borderBright: "rgba(255, 255, 255, 0.13)",
   success: "#22c55e",
   danger: "#ef4444",
+  dangerDim: "rgba(239, 68, 68, 0.16)",
   tabBarBackground: "rgba(7, 8, 15, 0.96)",
   lockedPin: "#6B7280",
   lockedPinIcon: "#9CA3AF",
@@ -73,6 +75,7 @@ export const LightColors: ColorScheme = {
   borderBright: "rgba(14, 15, 42, 0.14)",
   success: "#15a058",
   danger: "#dc2626",
+  dangerDim: "rgba(220, 38, 38, 0.14)",
   tabBarBackground: "rgba(239, 240, 255, 0.96)",
   lockedPin: "#8B949E",
   lockedPinIcon: "#B0BAC5",
