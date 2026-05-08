@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Itera",
-    "slug": "itera-mobile",
+    "slug": "itera",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,10 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["location", "fetch"],
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Itera needs your location to detect when you arrive at mission zones.",
         "NSLocationWhenInUseUsageDescription": "Itera needs your location to show missions near you."
       },
@@ -31,10 +34,12 @@
       "softwareKeyboardLayoutMode": "pan",
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.iteramobile",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -50,7 +55,21 @@
       ],
       "expo-video",
       "expo-secure-store",
-      "expo-font"
-    ]
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/adaptive-icon.png",
+          "color": "#E8EAF6"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b3cbd269-89cd-4d36-ac63-cacbcc0aec50"
+      }
+    },
+    "owner": "javid-organization"
   }
 }

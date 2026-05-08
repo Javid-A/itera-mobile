@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { login as loginRequest, register as registerRequest } from '../api/auth';
 import { saveAuthData, getStoredUser, clearAuthData } from '../services/tokenStorage';
 import { setUnauthorizedHandler } from '../services/apiClient';
+import { registerForPushNotificationsAsync, clearPushTokenCache } from '../services/pushNotifications';
+import { deletePushToken } from '../api/profile';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -33,6 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getStoredUser().then((user) => {
       if (user) {
         setState({ isAuthenticated: true, isLoading: false, userId: user.userId, username: user.username });
+        // Re-sync push token in case it rotated since last launch.
+        registerForPushNotificationsAsync().catch(() => {});
       } else {
         setState((s) => ({ ...s, isLoading: false }));
       }
@@ -55,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await loginRequest({ username, password, timeZone });
     await saveAuthData(data.token, data.userId, data.username);
     setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
+    registerForPushNotificationsAsync().catch(() => {});
   };
 
   const register = async (username: string, password: string) => {
@@ -62,9 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await registerRequest({ username, password, timeZone });
     await saveAuthData(data.token, data.userId, data.username);
     setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
+    registerForPushNotificationsAsync().catch(() => {});
   };
 
   const logout = async () => {
+    // Detach token server-side BEFORE clearing local creds — once the JWT is
+    // gone the DELETE would 401. Best-effort: never block logout on network.
+    await deletePushToken().catch(() => {});
+    await clearPushTokenCache();
     await clearAuthData();
     queryClient.clear();
     setState({ isAuthenticated: false, isLoading: false, userId: null, username: null });

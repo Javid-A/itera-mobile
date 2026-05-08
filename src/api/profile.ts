@@ -9,3 +9,11 @@ export async function getProfile(): Promise<Profile> {
 export async function resetProfileStats(): Promise<void> {
   await apiClient.delete('/profile/stats');
 }
+
+export async function registerPushToken(expoPushToken: string): Promise<void> {
+  await apiClient.post('/profile/push-token', { expoPushToken });
+}
+
+export async function deletePushToken(): Promise<void> {
+  await apiClient.delete('/profile/push-token');
+}

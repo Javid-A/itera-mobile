@@ -1,12 +1,15 @@
 import '../src/services/GeofenceTask';
+import '../src/services/pushNotifications';
 import '../src/i18n';
 import { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { Redirect, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
 import { LocationService } from '../src/services/LocationService';
 import { STORAGE_KEYS } from '../src/config/gameConfig';
+import { LevelUpProvider, useLevelUp } from '../src/context/LevelUpContext';
 import {
   Rajdhani_500Medium,
   Rajdhani_600SemiBold,
@@ -48,6 +51,35 @@ function ThemedStack() {
   );
 }
 
+function PendingLevelUpBridge() {
+  const { triggerLevelUp } = useLevelUp();
+
+  useEffect(() => {
+    const drain = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEYS.pendingLevelUp);
+        if (!raw) return;
+        await AsyncStorage.removeItem(STORAGE_KEYS.pendingLevelUp);
+        const { level, earnedXP } = JSON.parse(raw) as { level: number; earnedXP: number };
+        if (typeof level === 'number' && typeof earnedXP === 'number') {
+          triggerLevelUp({ level, earnedXP });
+        }
+      } catch (e) {
+        console.warn('[LevelUp] Failed to drain pending level-up', e);
+      }
+    };
+
+    drain();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') drain();
+    });
+    return () => sub.remove();
+  }, [triggerLevelUp]);
+
+  return null;
+}
+
 function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -56,6 +88,7 @@ function RootNavigator() {
   return (
     <>
       <ThemedStack />
+      {isAuthenticated && <PendingLevelUpBridge />}
       {isAuthenticated ? <Redirect href="/(tabs)/map" /> : <Redirect href="/login" />}
     </>
   );
@@ -82,6 +115,15 @@ export default function RootLayout() {
     });
   }, []);
 
+  // Notification tap handler — placeholder until per-payload routing lands.
+  // Logs the data payload so we can verify end-to-end delivery in dev.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('[push] tapped', response.notification.request.content.data);
+    });
+    return () => sub.remove();
+  }, []);
+
   if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: LightColors.background, alignItems: 'center', justifyContent: 'center' }}>
@@ -95,7 +137,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <LanguageProvider>
           <AuthProvider>
-            <RootNavigator />
+            <LevelUpProvider>
+              <RootNavigator />
+            </LevelUpProvider>
           </AuthProvider>
         </LanguageProvider>
       </ThemeProvider>

@@ -11,6 +11,8 @@ interface Args {
   userCoordsRef: React.MutableRefObject<[number, number] | null>;
   // Arrival animasyonu bittiğinde HUD XP/level senkronizasyonu için.
   onProfileRefresh: () => void;
+  // Backend leveledUp=true döndüğünde XP toast bittikten sonra çağrılır.
+  onLevelUp?: (level: number, earnedXP: number) => void;
 }
 
 // Mission'a girince çalışan tüm akışı kapsüller:
@@ -27,6 +29,7 @@ export function useMissionArrival({
   userCoords,
   userCoordsRef,
   onProfileRefresh,
+  onLevelUp,
 }: Args) {
   const [completingMissionId, setCompletingMissionId] = useState<string | null>(
     null,
@@ -232,6 +235,10 @@ export function useMissionArrival({
       isCompletingRef.current = false;
 
       onProfileRefresh();
+
+      if (apiResult.leveledUp && apiResult.currentLevel != null) {
+        onLevelUp?.(apiResult.currentLevel, earnedXP);
+      }
     },
     [
       completionRadiusAnim,
@@ -240,6 +247,7 @@ export function useMissionArrival({
       xpToastOpacity,
       markMissionCompleted,
       onProfileRefresh,
+      onLevelUp,
     ],
   );
 

@@ -8,12 +8,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import ScreenContainer from '../../src/components/ScreenContainer';
 import BackgroundLocationPrompt from '../../src/components/BackgroundLocationPrompt';
-import LevelUpModal from '../../src/components/LevelUpModal';
 import LanguagePickerModal from '../../src/components/LanguagePickerModal';
 import SignOutModal from '../../src/components/SignOutModal';
 import XPCountUp from '../../src/components/XPCountUp';
 import { Spacing, Typography } from '../../src/constants';
 import { useAuth } from '../../src/context/AuthContext';
+import { useLevelUp } from '../../src/context/LevelUpContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useLanguage, AVAILABLE_LANGUAGES } from '../../src/context/LanguageContext';
 import { resetProfileStats } from '../../src/api/profile';
@@ -312,8 +312,8 @@ export default function ProfileScreen() {
   );
   const [isAutoTrackingOn, setIsAutoTrackingOn] = useState(false);
   const [showBgPrompt, setShowBgPrompt] = useState(false);
-  const [showLevelUp, setShowLevelUp] = useState(false);
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const { triggerLevelUp } = useLevelUp();
   const [showSignOut, setShowSignOut] = useState(false);
 
   const { granted: bgGranted, refresh: checkBgPermission, setGranted: setBgGranted } =
@@ -450,10 +450,17 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
         <View style={styles.titleRow}>
           <Text style={[Typography.displayXL, { color: C.textPrimary }]}>{t('profile.title')}</Text>
-          <Pressable style={styles.levelUpPill} onPress={() => setShowLevelUp(true)}>
-            <Ionicons name="flash" size={14} color={C.accent} />
-            <Text style={styles.levelUpPillText}>{t('profile.levelUpPill')}</Text>
-          </Pressable>
+          {__DEV__ && (
+            <Pressable
+              style={styles.levelUpPill}
+              onPress={() =>
+                triggerLevelUp({ level: stats.currentLevel, earnedXP: stats.currentXP })
+              }
+            >
+              <Ionicons name="flash" size={14} color={C.accent} />
+              <Text style={styles.levelUpPillText}>{t('profile.levelUpPill')}</Text>
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.identityRow}>
@@ -710,12 +717,6 @@ export default function ProfileScreen() {
         visible={showBgPrompt}
         onEnable={handleEnableAutoTracking}
         onSkip={() => setShowBgPrompt(false)}
-      />
-      <LevelUpModal
-        visible={showLevelUp}
-        level={stats.currentLevel}
-        earnedXP={stats.currentXP}
-        onClose={() => setShowLevelUp(false)}
       />
       <LanguagePickerModal
         visible={showLanguagePicker}

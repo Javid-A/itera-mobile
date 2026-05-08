@@ -9,6 +9,7 @@ export const STREAK_BONUS_TIERS = [
 export const STORAGE_KEYS = {
   autoTrackingEnabled: 'autoTrackingEnabled',
   missionCreatedCount: 'itera_mission_created_count',
+  pendingLevelUp: 'itera_pending_level_up',
 } as const;
 
 // Görev oluşturma sayısı bu değerlere ulaşınca background-permission prompt'u

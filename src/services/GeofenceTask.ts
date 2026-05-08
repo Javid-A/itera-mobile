@@ -64,6 +64,20 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
 
     console.log(`[GeofenceTask] Completed: ${result.missionName} +${result.earnedXP} XP (Level ${result.currentLevel})`);
 
+    // Background'dan level-up tetiklendiğinde modal'ı doğrudan açamayız
+    // (JS context'inde React yok). AppState 'active' olduğunda PendingLevelUpBridge
+    // bu key'i okuyup modal'ı açar.
+    if (result.leveledUp && result.currentLevel != null) {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.pendingLevelUp,
+          JSON.stringify({ level: result.currentLevel, earnedXP: result.earnedXP }),
+        );
+      } catch (e) {
+        console.warn('[GeofenceTask] Failed to persist pending level-up', e);
+      }
+    }
+
     try {
       const Notifications = require('expo-notifications');
       await Notifications.scheduleNotificationAsync({

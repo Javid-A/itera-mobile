@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { Colors, Spacing, Typography } from "../../src/constants";
 import { useTheme } from "../../src/context/ThemeContext";
+import { useLevelUp } from "../../src/context/LevelUpContext";
 import { useMissionsToday } from "../../src/state/queries/useMissionsToday";
 import { useProfile } from "../../src/state/queries/useProfile";
 import { qk } from "../../src/state/queryKeys";
@@ -69,6 +70,7 @@ const FOG_TOP_PX = Math.max(
 
 export default function MapScreen() {
   const { colors, isDark } = useTheme();
+  const { triggerLevelUp } = useLevelUp();
   const queryClient = useQueryClient();
   const { data: missionsData } = useMissionsToday();
   const { data: profileData } = useProfile();
@@ -152,6 +154,7 @@ export default function MapScreen() {
     userCoords,
     userCoordsRef,
     onProfileRefresh: refreshProfile,
+    onLevelUp: (level, earnedXP) => triggerLevelUp({ level, earnedXP }),
   });
 
   const {
