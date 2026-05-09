@@ -52,6 +52,12 @@ export default function VerificationCodeInput({
   const styles = useMemo(() => makeStyles(C), [C]);
   const refs = useRef<Array<TextInput | null>>([]);
 
+  // Mirror of the latest value, updated synchronously inside handleChange so
+  // that rapid keystrokes which arrive before the parent re-renders don't read
+  // stale state and overwrite each other.
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
   useEffect(() => {
     if (autoFocus) {
       const t = setTimeout(() => refs.current[0]?.focus(), 80);
@@ -61,28 +67,39 @@ export default function VerificationCodeInput({
 
   const chars = Array.from({ length }, (_, i) => value[i] ?? '');
 
+  const commit = (next: string) => {
+    valueRef.current = next;
+    onChange(next);
+  };
+
   const handleChange = (idx: number, raw: string) => {
     const digits = raw.replace(/\D/g, '');
+    const cur = valueRef.current;
+    const arr = Array.from({ length }, (_, i) => cur[i] ?? '');
+
     if (!digits) {
-      // Backspace clear of an already-empty box → step back.
-      const next = value.slice(0, Math.max(0, idx));
-      onChange(next);
+      // Clear ONLY this box; preserve any chars after it (don't slice tail).
+      // arr.join('') compacts gaps so the parent's string stays gap-free.
+      arr[idx] = '';
+      const next = arr.join('');
+      commit(next);
       if (idx > 0) refs.current[idx - 1]?.focus();
       return;
     }
-    // Support paste of the whole code into any single box.
+
+    // Multi-digit input = paste/autofill. Replace the whole value.
     if (digits.length > 1) {
       const filled = digits.slice(0, length);
-      onChange(filled);
+      commit(filled);
       const focusIdx = Math.min(filled.length, length - 1);
       refs.current[focusIdx]?.focus();
       if (filled.length === length) onComplete?.(filled);
       return;
     }
-    const arr = chars.slice();
+
     arr[idx] = digits;
     const next = arr.join('').slice(0, length);
-    onChange(next);
+    commit(next);
     if (idx < length - 1) refs.current[idx + 1]?.focus();
     if (next.length === length) onComplete?.(next);
   };
@@ -101,6 +118,8 @@ export default function VerificationCodeInput({
           maxLength={length}
           onChangeText={(raw) => handleChange(i, raw)}
           onKeyPress={({ nativeEvent }) => {
+            // iOS-only safety: backspace on an already-empty box doesn't fire
+            // onChangeText, so step focus back manually.
             if (nativeEvent.key === 'Backspace' && !chars[i] && i > 0) {
               refs.current[i - 1]?.focus();
             }
