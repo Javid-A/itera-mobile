@@ -17,3 +17,7 @@ export async function registerPushToken(expoPushToken: string): Promise<void> {
 export async function deletePushToken(): Promise<void> {
   await apiClient.delete('/profile/push-token');
 }
+
+export async function updateEmail(email: string): Promise<void> {
+  await apiClient.post('/profile/email', { email });
+}

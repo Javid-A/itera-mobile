@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { useTheme } from '../src/context/ThemeContext';
@@ -87,28 +87,46 @@ export default function LoginScreen() {
   const { colors: C, isDark } = useTheme();
   const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const params = useLocalSearchParams<{ resetSuccess?: string }>();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+
+  // Surface the success banner if the user just completed a password reset.
+  useEffect(() => {
+    if (params.resetSuccess === '1') {
+      setInfo(t('login.resetSuccess'));
+    }
+  }, [params.resetSuccess, t]);
 
   const handleSubmit = async () => {
     if (!username.trim() || !password.trim()) {
       setError(t('login.validationError'));
       return;
     }
+    if (showRegister && !email.trim().includes('@')) {
+      setError(t('login.emailInvalid'));
+      return;
+    }
     setError('');
+    setInfo('');
     setLoading(true);
     try {
       if (showRegister) {
-        await register(username.trim(), password.trim());
+        await register(username.trim(), email.trim(), password.trim());
+        // Newly registered users land on the verification screen first; the
+        // backend has already auto-sent the code on /auth/register.
+        router.replace('/(tabs)/map');
+        router.push('/verify-email');
       } else {
         await login(username.trim(), password.trim());
+        router.replace('/(tabs)/map');
       }
-      router.replace('/(tabs)/map');
     } catch (e: any) {
       const msg = e?.response?.data?.error ?? t('login.genericError');
       setError(msg);
@@ -170,13 +188,20 @@ export default function LoginScreen() {
         />
 
         {!showRegister && (
-          <Pressable style={styles.forgot} hitSlop={6}>
+          <Pressable
+            style={styles.forgot}
+            hitSlop={6}
+            onPress={() => router.push('/forgot-password')}
+          >
             <Text style={styles.forgotText}>{t('login.forgotPassword')}</Text>
           </Pressable>
         )}
 
         {error ? (
           <Text style={[Typography.caption, { color: C.danger, marginTop: Spacing.sm }]}>{error}</Text>
+        ) : null}
+        {info && !error ? (
+          <Text style={[Typography.caption, { color: C.success, marginTop: Spacing.sm }]}>{info}</Text>
         ) : null}
 
         <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>

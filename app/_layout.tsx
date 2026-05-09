@@ -46,6 +46,8 @@ function ThemedStack() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="forgot-password" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="verify-email" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );

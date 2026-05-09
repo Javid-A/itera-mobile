@@ -195,6 +195,9 @@ export default function TopHud({
   const showStreak = currentStreak > 0;
   const streakSafe = todayCompleted;
   const streakLabel = currentStreak > 99 ? "99+" : `${currentStreak}D`;
+  // Surface a verify-email CTA only once the profile has loaded — the field is
+  // non-optional in the type but undefined while the query is still pending.
+  const showVerifyEmail = profile != null && profile.emailVerified === false;
 
   const blurTint = isDark ? "dark" : "light";
 
@@ -247,7 +250,7 @@ export default function TopHud({
         </View>
       </Pressable>
 
-      {showStreak || bgDenied ? (
+      {showStreak || bgDenied || showVerifyEmail ? (
         <View style={styles.hudPillRow}>
           {showStreak && (
             <BlurView
@@ -289,6 +292,25 @@ export default function TopHud({
                 <Ionicons name="warning-outline" size={13} color={C.orange} />
                 <Text style={[styles.hudPillText, { color: C.orange }]}>
                   {t("topHud.autoTrackingOff")}
+                </Text>
+                <Text style={styles.hudPillEnable}>{t("topHud.fix")}</Text>
+              </BlurView>
+            </Pressable>
+          )}
+          {showVerifyEmail && (
+            <Pressable
+              style={{ borderRadius: 999, overflow: "hidden" }}
+              onPress={() => router.push("/verify-email")}
+            >
+              <BlurView
+                intensity={45}
+                tint={blurTint}
+                style={[styles.hudPill, styles.hudPillWarning]}
+                experimentalBlurMethod="dimezisBlurView"
+              >
+                <Ionicons name="mail-outline" size={13} color={C.orange} />
+                <Text style={[styles.hudPillText, { color: C.orange }]}>
+                  {t("topHud.verifyEmail")}
                 </Text>
                 <Text style={styles.hudPillEnable}>{t("topHud.fix")}</Text>
               </BlurView>

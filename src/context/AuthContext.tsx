@@ -15,7 +15,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -62,9 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     registerForPushNotificationsAsync().catch(() => {});
   };
 
-  const register = async (username: string, password: string) => {
+  const register = async (username: string, email: string, password: string) => {
     const timeZone = resolveDeviceTimeZone();
-    const data = await registerRequest({ username, password, timeZone });
+    const data = await registerRequest({ username, email, password, timeZone });
     await saveAuthData(data.token, data.userId, data.username);
     setState({ isAuthenticated: true, isLoading: false, userId: data.userId, username: data.username });
     registerForPushNotificationsAsync().catch(() => {});
