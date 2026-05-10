@@ -118,7 +118,19 @@ export function useUserLocation({
   }, [userCoords]);
 
   useEffect(() => {
+    const wasWalking = isWalkingRef.current;
     isWalkingRef.current = isWalking;
+    // Idle → walking transition: idle sırasında biriken GPS gürültüsü
+    // displayed ile lastFixRef arasında küçük bir offset bırakmış olabilir.
+    // Lerp burada başlarsa yana/geriye kısa bir "catch-up slide" görünüyor —
+    // displayed'ı güncel fix'e snap'leyip lerp'i temiz noktadan başlat.
+    if (!wasWalking && isWalking) {
+      const fix = lastFixRef.current;
+      if (fix) {
+        displayedCoordsRef.current = fix.coords;
+        setDisplayedCoords(fix.coords);
+      }
+    }
   }, [isWalking]);
 
   // Update the chase target whenever a new fix arrives. Inferred velocity from
@@ -178,6 +190,14 @@ export function useUserLocation({
           setIsWalking(false);
           walkCandidateRef.current = 0;
           confidentSpeedStreakRef.current = 0;
+        }
+        // Idle freeze: GPS gürültüsü MIN_MOVE eşiğini geçip walking'i tetiklemediğinde
+        // bile lastFixRef güncellenebiliyor; lerp ettiğimizde sprite ileri-geri kayıyor.
+        // Yürümediği sürece marker'ı dondur — yeni fix'lere snap yapma; walking tekrar
+        // açıldığında lerp doğal şekilde tazelenmiş fix'e yetişir.
+        if (!isWalkingRef.current) {
+          raf = requestAnimationFrame(tick);
+          return;
         }
         const elapsedMs = Math.min(Date.now() - fix.t, DR_CAP_MS);
         const projSec = elapsedMs / 1000;
@@ -311,8 +331,17 @@ export function useUserLocation({
           const windowMin = Math.max(WALK_WINDOW_MIN_M, accuracyFloor * 0.5);
           const netMin = Math.max(WALK_NET_MIN_M, accuracyFloor * 0.4);
 
+          // Net/total ratio şartı: gerçek yürüyüş çizgiseldir (ratio ~0.9),
+          // sabit telefondaki GPS gürültüsü random-walk'tur (ratio ~0.3-0.5).
+          // Speed=-1 (unknown) raporlandığında stationaryBySpeed kapısı devre
+          // dışı kalıyor — bu ratio ikinci savunma katmanı.
+          const directional =
+            windowDist >= 1.0 && netDisplacement / windowDist >= 0.6;
           const wantWalk =
-            windowDist >= windowMin && netDisplacement >= netMin && speedIndicatesWalk;
+            windowDist >= windowMin &&
+            netDisplacement >= netMin &&
+            speedIndicatesWalk &&
+            directional;
 
           // Asymmetric integrator: +1 per walk-evidence sample, -2 per idle —
           // so stop reacts roughly twice as fast as start without sacrificing
@@ -339,7 +368,10 @@ export function useUserLocation({
           if (confidentSpeedStreakRef.current >= 2 && movementConfirmsSpeed) {
             walkCandidateRef.current = Math.max(walkCandidateRef.current, 2);
             setIsWalking(true);
-          } else if (walkCandidateRef.current >= 1) {
+          } else if (walkCandidateRef.current >= 2) {
+            // Integrator yolunda eşiği 2'ye çıkardık: tek fix'lik gürültü
+            // patlaması artık walking açmıyor; gerçek yürüyüş için ~2 sn gecikme.
+            // Confident-speed shortcut hızlı yolu hâlâ kapsıyor.
             setIsWalking(true);
           } else if (walkCandidateRef.current <= -1) {
             setIsWalking(false);
