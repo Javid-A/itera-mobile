@@ -44,12 +44,7 @@
     "errorInvalid": "Dieser Code ist falsch.",
     "errorExpired": "Code abgelaufen. Tippe auf erneut senden.",
     "errorGeneric": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
-    "titleAddEmail": "E-MAIL HINZUFÜGEN",
-    "subtitleAddEmail": "Füge eine E-Mail hinzu, damit wir dein Konto bestätigen und dein Passwort wiederherstellen können.",
-    "sendCode": "CODE SENDEN →",
-    "emailInvalid": "Bitte gib eine gültige E-Mail-Adresse ein.",
-    "errorEmailTaken": "Diese E-Mail wird bereits verwendet.",
-    "errorEmailNotSet": "Füge zuerst deine E-Mail hinzu."
+    "errorEmailNotSet": "Für dein Konto ist keine E-Mail hinterlegt. Bitte kontaktiere den Support."
   },
   "forgotPassword": {
     "titleEmail": "PASSWORT ZURÜCKSETZEN",

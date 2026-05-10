@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +15,7 @@ import { forgotPassword, resetPassword } from '../src/api/auth';
 import { useAuth } from '../src/context/AuthContext';
 import { useTheme } from '../src/context/ThemeContext';
 import VerificationCodeInput from '../src/components/VerificationCodeInput';
+import { useKeyboardBottomInset } from '../src/hooks/useKeyboardBottomInset';
 import { Spacing, Typography } from '../src/constants';
 import type { ColorScheme } from '../src/constants/colors';
 
@@ -32,7 +41,7 @@ function makeStyles(C: ColorScheme) {
       padding: Spacing.sm,
     },
     body: {
-      flex: 1,
+      flexGrow: 1,
       justifyContent: 'center',
     },
     title: {
@@ -106,6 +115,7 @@ export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
   const { login } = useAuth();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const keyboardInset = useKeyboardBottomInset();
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -221,7 +231,12 @@ export default function ForgotPasswordScreen() {
         <View style={{ width: 28 }} />
       </View>
 
-      <View style={styles.body}>
+      <ScrollView
+        contentContainerStyle={[styles.body, { paddingBottom: keyboardInset }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
         {step === 'email' && (
           <>
             <Text style={[Typography.displayMD, styles.title]}>{t('forgotPassword.titleEmail')}</Text>
@@ -331,7 +346,7 @@ export default function ForgotPasswordScreen() {
             </Pressable>
           </>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }

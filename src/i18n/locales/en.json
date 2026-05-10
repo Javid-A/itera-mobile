@@ -44,12 +44,7 @@
     "errorInvalid": "That code is incorrect.",
     "errorExpired": "Code expired. Tap resend.",
     "errorGeneric": "Something went wrong. Try again.",
-    "titleAddEmail": "ADD YOUR EMAIL",
-    "subtitleAddEmail": "Add an email so we can verify your account and help you recover your password.",
-    "sendCode": "SEND CODE →",
-    "emailInvalid": "Please enter a valid email address.",
-    "errorEmailTaken": "That email is already in use.",
-    "errorEmailNotSet": "Add your email first."
+    "errorEmailNotSet": "No email on file for your account. Please contact support."
   },
   "forgotPassword": {
     "titleEmail": "RESET PASSWORD",

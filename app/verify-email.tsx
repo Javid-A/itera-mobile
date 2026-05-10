@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { sendVerificationCode, verifyEmail } from '../src/api/auth';
-import { updateEmail } from '../src/api/profile';
 import VerificationCodeInput from '../src/components/VerificationCodeInput';
+import { useKeyboardBottomInset } from '../src/hooks/useKeyboardBottomInset';
 import { useTheme } from '../src/context/ThemeContext';
 import { useProfile } from '../src/state/queries/useProfile';
 import { qk } from '../src/state/queryKeys';
@@ -33,7 +40,7 @@ function makeStyles(C: ColorScheme) {
       marginTop: Spacing.lg,
     },
     body: {
-      flex: 1,
+      flexGrow: 1,
       justifyContent: 'center',
     },
     title: {
@@ -50,22 +57,6 @@ function makeStyles(C: ColorScheme) {
     email: {
       color: C.accent,
       fontFamily: 'Inter_600SemiBold',
-    },
-    fieldLabel: {
-      color: C.textSecondary,
-      marginBottom: Spacing.xs,
-    },
-    input: {
-      backgroundColor: C.surface2,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: C.borderBright,
-      color: C.textPrimary,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 15,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: 0,
-      height: 50,
     },
     error: {
       color: C.danger,
@@ -115,12 +106,8 @@ export default function VerifyEmailScreen() {
   const styles = useMemo(() => makeStyles(C), [C]);
   const queryClient = useQueryClient();
   const { data: profile, isLoading: profileLoading } = useProfile();
+  const keyboardInset = useKeyboardBottomInset();
 
-  // Two phases: legacy users (no email on record) must enter one first;
-  // everyone else jumps straight to code entry.
-  const needsEmail = !profileLoading && !profile?.email;
-
-  const [emailDraft, setEmailDraft] = useState('');
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -130,23 +117,18 @@ export default function VerifyEmailScreen() {
   // mount? Until it has, "Resend" is meaningless.
   const [codeSent, setCodeSent] = useState(false);
 
-  // Auto-send a fresh code when we already know the user's email.
+  // Auto-send a fresh code as soon as the profile is loaded.
   useEffect(() => {
-    if (profileLoading || codeSent || !profile?.email) return;
+    if (profileLoading || codeSent) return;
     sendVerificationCode()
       .then(() => {
         setCodeSent(true);
         setCooldown(RESEND_COOLDOWN_S);
       })
-      .catch((e) => {
-        const errCode = extractErrorCode(e);
-        if (errCode === 'EMAIL_NOT_SET') {
-          // Profile cache was stale; the input flow handles this state.
-          return;
-        }
+      .catch(() => {
         // Silent — user can hit Resend manually.
       });
-  }, [profileLoading, profile?.email, codeSent]);
+  }, [profileLoading, codeSent]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -155,37 +137,10 @@ export default function VerifyEmailScreen() {
   }, [cooldown]);
 
   useEffect(() => {
-    if (profile?.emailVerified) router.back();
+    if (!profile?.emailVerified) return;
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/map');
   }, [profile?.emailVerified]);
-
-  const submitEmail = async () => {
-    const trimmed = emailDraft.trim();
-    if (!trimmed.includes('@')) {
-      setError(t('verifyEmail.emailInvalid'));
-      return;
-    }
-    setSubmitting(true);
-    setError('');
-    setInfo('');
-    try {
-      await updateEmail(trimmed);
-      // Profile now has the new email; refetch so needsEmail flips to false.
-      await queryClient.invalidateQueries({ queryKey: qk.profile });
-      setCodeSent(true);
-      setCooldown(RESEND_COOLDOWN_S);
-      setInfo(t('verifyEmail.codeResent'));
-    } catch (e: any) {
-      const errCode = extractErrorCode(e);
-      if (errCode === 'EMAIL_TAKEN') setError(t('verifyEmail.errorEmailTaken'));
-      else if (errCode === 'ALREADY_VERIFIED') {
-        // Server says we're already done; bounce.
-        await queryClient.invalidateQueries({ queryKey: qk.profile });
-        router.back();
-      } else setError(t('verifyEmail.errorGeneric'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const submitCode = async (codeToSubmit?: string) => {
     const final = codeToSubmit ?? code;
@@ -197,8 +152,8 @@ export default function VerifyEmailScreen() {
     setError('');
     try {
       await verifyEmail(final);
+      // Dismiss is handled by the emailVerified useEffect — calling router.back() here too triggers a double-pop.
       await queryClient.invalidateQueries({ queryKey: qk.profile });
-      router.back();
     } catch (e: any) {
       const errCode = extractErrorCode(e);
       if (errCode === 'EXPIRED') setError(t('verifyEmail.errorExpired'));
@@ -232,96 +187,64 @@ export default function VerifyEmailScreen() {
         <Ionicons name="close" size={28} color={C.textPrimary} />
       </Pressable>
 
-      <View style={styles.body}>
-        {needsEmail ? (
-          <>
-            <Text style={[Typography.displayMD, styles.title]}>{t('verifyEmail.titleAddEmail')}</Text>
-            <Text style={[Typography.body, styles.subtitle]}>{t('verifyEmail.subtitleAddEmail')}</Text>
+      <ScrollView
+        contentContainerStyle={[styles.body, { paddingBottom: keyboardInset }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[Typography.displayMD, styles.title]}>{t('verifyEmail.title')}</Text>
+        <Text style={[Typography.body, styles.subtitle]}>
+          {t('verifyEmail.subtitle')}
+          {profile?.email ? (
+            <>
+              {' '}
+              <Text style={styles.email}>{profile.email}</Text>
+            </>
+          ) : null}
+        </Text>
 
-            <Text style={[Typography.label, styles.fieldLabel]}>{t('login.email')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('login.emailPlaceholder')}
-              placeholderTextColor={C.textSecondary}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={emailDraft}
-              onChangeText={setEmailDraft}
-              autoFocus
-            />
+        <VerificationCodeInput
+          value={code}
+          onChange={setCode}
+          onComplete={(c) => submitCode(c)}
+          disabled={submitting}
+        />
 
-            {error ? <Text style={[Typography.caption, styles.error]}>{error}</Text> : null}
+        {error ? <Text style={[Typography.caption, styles.error]}>{error}</Text> : null}
+        {info && !error ? <Text style={[Typography.caption, styles.success]}>{info}</Text> : null}
 
-            <Pressable
-              style={[styles.button, submitting && styles.buttonDisabled]}
-              onPress={submitEmail}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color={C.background} />
-              ) : (
-                <Text style={[Typography.cta, { color: C.background }]}>
-                  {t('verifyEmail.sendCode')}
-                </Text>
-              )}
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <Text style={[Typography.displayMD, styles.title]}>{t('verifyEmail.title')}</Text>
-            <Text style={[Typography.body, styles.subtitle]}>
-              {t('verifyEmail.subtitle')}
-              {profile?.email ? (
-                <>
-                  {' '}
-                  <Text style={styles.email}>{profile.email}</Text>
-                </>
-              ) : null}
+        <Pressable
+          style={[styles.button, (submitting || code.length !== 6) && styles.buttonDisabled]}
+          onPress={() => submitCode()}
+          disabled={submitting || code.length !== 6}
+        >
+          {submitting ? (
+            <ActivityIndicator color={C.background} />
+          ) : (
+            <Text style={[Typography.cta, { color: C.background }]}>
+              {t('verifyEmail.verifyButton')}
             </Text>
+          )}
+        </Pressable>
 
-            <VerificationCodeInput
-              value={code}
-              onChange={setCode}
-              onComplete={(c) => submitCode(c)}
-              disabled={submitting}
-            />
+        <View style={styles.resendRow}>
+          <Pressable onPress={resend} disabled={cooldown > 0} hitSlop={8}>
+            <Text style={[Typography.body, styles.resendText]}>
+              {t('verifyEmail.didntGetIt')}{' '}
+              <Text style={[styles.resendLink, cooldown > 0 && { opacity: 0.5 }]}>
+                {cooldown > 0
+                  ? t('verifyEmail.resendIn', { seconds: cooldown })
+                  : t('verifyEmail.resend')}
+              </Text>
+            </Text>
+          </Pressable>
+        </View>
 
-            {error ? <Text style={[Typography.caption, styles.error]}>{error}</Text> : null}
-            {info && !error ? <Text style={[Typography.caption, styles.success]}>{info}</Text> : null}
-
-            <Pressable
-              style={[styles.button, (submitting || code.length !== 6) && styles.buttonDisabled]}
-              onPress={() => submitCode()}
-              disabled={submitting || code.length !== 6}
-            >
-              {submitting ? (
-                <ActivityIndicator color={C.background} />
-              ) : (
-                <Text style={[Typography.cta, { color: C.background }]}>
-                  {t('verifyEmail.verifyButton')}
-                </Text>
-              )}
-            </Pressable>
-
-            <View style={styles.resendRow}>
-              <Pressable onPress={resend} disabled={cooldown > 0} hitSlop={8}>
-                <Text style={[Typography.body, styles.resendText]}>
-                  {t('verifyEmail.didntGetIt')}{' '}
-                  <Text style={[styles.resendLink, cooldown > 0 && { opacity: 0.5 }]}>
-                    {cooldown > 0
-                      ? t('verifyEmail.resendIn', { seconds: cooldown })
-                      : t('verifyEmail.resend')}
-                  </Text>
-                </Text>
-              </Pressable>
-            </View>
-
-            <Pressable style={styles.skipBtn} onPress={() => router.back()} hitSlop={8}>
-              <Text style={[Typography.caption, styles.skipText]}>{t('verifyEmail.doLater')}</Text>
-            </Pressable>
-          </>
-        )}
-      </View>
+        <Pressable style={styles.skipBtn} onPress={() => router.back()} hitSlop={8}>
+          <Text style={[Typography.caption, styles.skipText]}>{t('verifyEmail.doLater')}</Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 }

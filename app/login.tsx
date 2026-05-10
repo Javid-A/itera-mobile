@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { useTheme } from '../src/context/ThemeContext';
+import { useKeyboardBottomInset } from '../src/hooks/useKeyboardBottomInset';
 import { Spacing, Typography } from '../src/constants';
 import type { ColorScheme } from '../src/constants/colors';
 
@@ -12,6 +22,9 @@ function makeStyles(C: ColorScheme) {
     container: {
       flex: 1,
       backgroundColor: C.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
       alignItems: 'center',
       justifyContent: 'center',
       padding: Spacing.xl,
@@ -88,6 +101,7 @@ export default function LoginScreen() {
   const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(C), [C]);
   const params = useLocalSearchParams<{ resetSuccess?: string }>();
+  const keyboardInset = useKeyboardBottomInset();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -137,6 +151,12 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Spacing.xl + keyboardInset }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.titleWrap}>
         <Image
           source={isDark
@@ -183,6 +203,8 @@ export default function LoginScreen() {
           placeholder={t('login.passwordPlaceholder')}
           placeholderTextColor={C.textSecondary}
           secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
           value={password}
           onChangeText={setPassword}
         />
@@ -223,6 +245,7 @@ export default function LoginScreen() {
           </Text>
         </Pressable>
       </View>
+      </ScrollView>
     </View>
   );
 }

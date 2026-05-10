@@ -44,12 +44,7 @@
     "errorInvalid": "Неверный код.",
     "errorExpired": "Срок кода истёк. Запросите новый.",
     "errorGeneric": "Что-то пошло не так. Попробуйте снова.",
-    "titleAddEmail": "ДОБАВЬТЕ EMAIL",
-    "subtitleAddEmail": "Добавьте email, чтобы мы могли подтвердить аккаунт и восстановить пароль.",
-    "sendCode": "ОТПРАВИТЬ КОД →",
-    "emailInvalid": "Введите корректный email.",
-    "errorEmailTaken": "Этот email уже используется.",
-    "errorEmailNotSet": "Сначала добавьте email."
+    "errorEmailNotSet": "К вашему аккаунту не привязан email. Свяжитесь с поддержкой."
   },
   "forgotPassword": {
     "titleEmail": "СБРОС ПАРОЛЯ",

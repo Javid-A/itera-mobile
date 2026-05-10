@@ -44,12 +44,7 @@
     "errorInvalid": "Bu kod yanlış.",
     "errorExpired": "Kodun süresi doldu. Tekrar gönder.",
     "errorGeneric": "Bir şeyler ters gitti. Tekrar dene.",
-    "titleAddEmail": "E-POSTANI EKLE",
-    "subtitleAddEmail": "Hesabını doğrulamak ve şifre kurtarma için bir e-posta ekle.",
-    "sendCode": "KODU GÖNDER →",
-    "emailInvalid": "Geçerli bir e-posta adresi gir.",
-    "errorEmailTaken": "Bu e-posta zaten kullanımda.",
-    "errorEmailNotSet": "Önce e-postanı ekle."
+    "errorEmailNotSet": "Hesabında kayıtlı bir e-posta yok. Lütfen destek ile iletişime geç."
   },
   "forgotPassword": {
     "titleEmail": "ŞİFREYİ SIFIRLA",

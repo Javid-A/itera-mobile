@@ -87,7 +87,27 @@ export default function VerificationCodeInput({
       return;
     }
 
-    // Multi-digit input = paste/autofill. Replace the whole value.
+    const curChar = arr[idx] ?? '';
+
+    // Fast-type: a second keystroke landed in this same box before focus
+    // could shift forward (focus() is async on RN). The first char equals
+    // what's already here — spill the rest into the next free boxes
+    // instead of treating it as paste and clobbering the whole code.
+    if (digits.length > 1 && curChar && digits.startsWith(curChar)) {
+      let writeIdx = idx + 1;
+      for (const d of digits.slice(1)) {
+        while (writeIdx < length && arr[writeIdx]) writeIdx++;
+        if (writeIdx >= length) break;
+        arr[writeIdx++] = d;
+      }
+      const next = arr.join('').slice(0, length);
+      commit(next);
+      refs.current[Math.min(writeIdx, length - 1)]?.focus();
+      if (next.length === length) onComplete?.(next);
+      return;
+    }
+
+    // Genuine paste / SMS autofill — replace the whole value.
     if (digits.length > 1) {
       const filled = digits.slice(0, length);
       commit(filled);
